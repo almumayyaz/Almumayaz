@@ -998,11 +998,12 @@ app.put('/api/admin/courses/:id/quiz', requireAdmin, async (req, res) => {
     const courses = await readData('courses');
     const course = courses.find(c => c.id === req.params.id);
     if (!course) return res.status(404).json({ error: 'المادة غير موجودة' });
-    const { title, questions } = req.body;
+    const { title, questions, timerMinutes } = req.body;
     course.quiz = {
       id: course.quiz ? course.quiz.id : 'q' + Date.now(),
       title: title || (course.quiz ? course.quiz.title : 'اختبار شامل'),
-      questions: questions || []
+      questions: questions || [],
+      timerMinutes: timerMinutes || null
     };
     await writeData('courses', courses);
     res.json({ success: true, quiz: course.quiz });
