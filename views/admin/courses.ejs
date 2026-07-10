@@ -231,20 +231,6 @@
               </td>
             </tr>
             <% }); %>
-            <% (course.lessons||[]).forEach(function(l) { ni++; %>
-            <tr>
-              <td><%= ni %></td>
-              <td><%= l.title %></td>
-              <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">مذكرة المحاضرة</td>
-              <td><% if (l.pdfUrl) { %><a href="<%= l.pdfUrl %>" target="_blank" style="color:var(--accent);font-size:12px;"><i class="fas fa-file-pdf"></i> عرض</a><% } else { %><span style="color:var(--text-muted);">---</span><% } %></td>
-              <td style="font-size:12px;"><%- l.isFree ? '<span style="color:var(--success);font-weight:600;">مجاني</span>' : '---' %></td>
-              <td>
-                <div class="admin-actions">
-                  <span style="font-size:11px;color:var(--text-muted);"><i class="fas fa-lock"></i> تابع للدرس</span>
-                </div>
-              </td>
-            </tr>
-            <% }); %>
             <% if (ni === 0) { %>
             <tr><td colspan="7" style="text-align:center;color:var(--text-light);">لا توجد مذكرات بعد</td></tr>
             <% } %>
