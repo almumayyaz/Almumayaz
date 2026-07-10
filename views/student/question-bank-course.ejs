@@ -7,20 +7,22 @@
         <i class="fas fa-chevron-right"></i> العودة إلى بنك الأسئلة
       </a>
       <h1>بنك أسئلة <%= course.title %></h1>
-      <p><%= (course.quiz.questions||[]).length %> سؤال تدريبي مع التصحيح الفوري</p>
+      <p>بنوك أسئلة تدريبية مع التصحيح الفوري</p>
     </div>
   </div>
 
-  <div class="quiz-section">
+  <% courseBanks.forEach(function(bank, bi) { %>
+  <div class="quiz-section" data-bank="<%= bi %>" style="margin-bottom:28px;">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;margin-bottom:24px;">
-      <h2 style="margin-bottom:0;"><i class="fas <%= course.icon %>" style="color:<%= course.color %>;"></i> <%= course.quiz.title %></h2>
-      <% if (course.quiz.timerMinutes) { %><span style="background:var(--primary);color:#fff;padding:6px 16px;border-radius:6px;font-size:14px;font-weight:600;">
-        <i class="fas fa-clock"></i> <span id="timerDisplay"><%= String(course.quiz.timerMinutes).padStart(2,'0') %>:00</span>
+      <h2 style="margin-bottom:0;"><i class="fas fa-question-circle" style="color:<%= course.color %>;"></i> <%= bank.title %></h2>
+      <% if (bank.timerMinutes) { %><span style="background:var(--primary);color:#fff;padding:6px 16px;border-radius:6px;font-size:14px;font-weight:600;">
+        <i class="fas fa-clock"></i> <span class="timerDisplay" data-bank="<%= bi %>"><%= String(bank.timerMinutes).padStart(2,'0') %>:00</span>
       </span><% } %>
     </div>
+    <% if (bank.description) { %><p style="font-size:14px;color:var(--text-light);margin-bottom:16px;"><%= bank.description %></p><% } %>
 
-    <% (course.quiz.questions||[]).forEach(function(q, qi) { %>
-    <div class="quiz-question" data-correct="<%= q.correct %>">
+    <% (bank.questions||[]).forEach(function(q, qi) { %>
+    <div class="quiz-question" data-correct="<%= q.correct %>" data-bank="<%= bi %>">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
         <span style="background:var(--gold-gradient);color:var(--primary);width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;"><%= qi + 1 %></span>
         <h3 style="margin-bottom:0;font-size:16px;"><%= q.question %></h3>
@@ -28,7 +30,7 @@
       <div class="quiz-options">
         <% q.options.forEach(function(o, oi) { %>
         <label class="quiz-option">
-          <input type="radio" name="qb_q_<%= qi %>" value="<%= oi %>">
+          <input type="radio" name="qb_q_<%= bi %>_<%= qi %>" value="<%= oi %>">
           <span><%= o %></span>
         </label>
         <% }) %>
@@ -37,97 +39,91 @@
     <% }) %>
 
     <div style="margin-top:28px;">
-      <button class="btn btn-primary btn-sm btn-submit-quiz" style="width:100%;">
+      <button class="btn btn-primary btn-sm btn-submit-bank" data-bank="<%= bi %>" style="width:100%;">
         <i class="fas fa-check-circle"></i> تقييم الإجابات
       </button>
     </div>
   </div>
+  <% }) %>
+
 </main>
 
 <script>
-let timerInterval;
-let seconds = <%= (course.quiz.timerMinutes || 15) * 60 %>;
-var hasTimer = <%= !!course.quiz.timerMinutes %>;
+var timerIntervals = {};
+var bankTimers = {};
+<% courseBanks.forEach(function(bank, bi) { %>
+  <% if (bank.timerMinutes) { %>
+    bankTimers[<%= bi %>] = { seconds: <%= bank.timerMinutes * 60 %>, running: true };
+  <% } %>
+<% }); %>
 
-function startTimer() {
-  if (!hasTimer) return;
-  const display = document.getElementById('timerDisplay');
+function startBankTimer(bi) {
+  var t = bankTimers[bi];
+  if (!t) return;
+  var display = document.querySelector('.timerDisplay[data-bank="' + bi + '"]');
   if (!display) return;
-  timerInterval = setInterval(() => {
-    seconds--;
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
+  timerIntervals[bi] = setInterval(function() {
+    t.seconds--;
+    var m = Math.floor(t.seconds / 60);
+    var s = t.seconds % 60;
     display.textContent = m.toString().padStart(2, '0') + ':' + s.toString().padStart(2, '0');
-    if (seconds <= 0) {
-      clearInterval(timerInterval);
+    if (t.seconds <= 0) {
+      clearInterval(timerIntervals[bi]);
+      t.running = false;
       alert('انتهى الوقت!');
-      document.querySelector('.btn-submit-quiz')?.click();
+      document.querySelector('.btn-submit-bank[data-bank="' + bi + '"]')?.click();
     }
   }, 1000);
 }
 
-document.querySelector('.btn-submit-quiz')?.addEventListener('click', function() {
-  if (hasTimer) clearInterval(timerInterval);
-  const quiz = this.closest('.quiz-section');
-  if (!quiz) return;
-  const questions = quiz.querySelectorAll('.quiz-question');
-  let score = 0, total = questions.length, allAnswered = true;
+document.querySelectorAll('.btn-submit-bank').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var bi = this.dataset.bank;
+    if (bankTimers[bi] && timerIntervals[bi]) {
+      clearInterval(timerIntervals[bi]);
+      bankTimers[bi].running = false;
+    }
+    var quiz = this.closest('.quiz-section');
+    if (!quiz) return;
+    var questions = quiz.querySelectorAll('.quiz-question');
+    var score = 0, total = questions.length, allAnswered = true;
 
-  questions.forEach((q) => {
-    const selected = q.querySelector('input[type="radio"]:checked');
-    const options = q.querySelectorAll('.quiz-option');
-    const correct = parseInt(q.dataset.correct);
-
-    if (!selected) { allAnswered = false; return; }
-
-    const selIdx = parseInt(selected.value);
-    options.forEach((o, oi) => {
-      o.style.borderColor = oi === correct ? '#059669' : '';
-      o.style.background = oi === correct ? 'rgba(5,150,105,0.08)' : '';
+    questions.forEach(function(q) {
+      var selected = q.querySelector('input[type="radio"]:checked');
+      var options = q.querySelectorAll('.quiz-option');
+      var correct = parseInt(q.dataset.correct);
+      if (!selected) { allAnswered = false; return; }
+      var selIdx = parseInt(selected.value);
+      options.forEach(function(o, oi) {
+        o.style.borderColor = oi === correct ? '#059669' : '';
+        o.style.background = oi === correct ? 'rgba(5,150,105,0.08)' : '';
+      });
+      if (selIdx === correct) { score++; }
+      else { selected.closest('.quiz-option').style.borderColor = '#DC2626'; }
     });
-    if (selIdx === correct) { score++; }
-    else { selected.closest('.quiz-option').style.borderColor = '#DC2626'; }
+
+    if (!allAnswered) { alert('يرجى الإجابة على جميع الأسئلة أولاً'); return; }
+
+    var pct = Math.round((score / total) * 100);
+    var grade = 'ضعيف';
+    if (pct >= 90) { grade = 'ممتاز'; }
+    else if (pct >= 75) { grade = 'جيد جداً'; }
+    else if (pct >= 60) { grade = 'جيد'; }
+    else if (pct >= 45) { grade = 'مقبول'; }
+
+    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    var resTextColor = isDark ? '#111' : '#fff';
+    var results = '<div class="quiz-results" style="margin-top:20px;padding:24px;background:var(--card);border-radius:12px;border:1px solid var(--border);"><div style="text-align:center;padding:24px;background:var(--gold-gradient);border-radius:12px;color:' + resTextColor + ';margin-bottom:16px;"><div style="font-size:48px;font-weight:900;line-height:1;">' + score + '/' + total + '</div><div style="font-size:20px;opacity:0.85;">' + pct + '%</div><div style="font-size:26px;font-weight:700;margin-top:8px;">' + grade + '</div></div></div>';
+
+    this.style.display = 'none';
+    quiz.querySelector('.quiz-results')?.remove();
+    quiz.insertAdjacentHTML('beforeend', results);
   });
-
-  if (!allAnswered) { alert('يرجى الإجابة على جميع الأسئلة أولاً'); return; }
-
-  const pct = Math.round((score / total) * 100);
-  let grade = 'ضعيف';
-  if (pct >= 90) { grade = 'ممتاز'; }
-  else if (pct >= 75) { grade = 'جيد جداً'; }
-  else if (pct >= 60) { grade = 'جيد'; }
-  else if (pct >= 45) { grade = 'مقبول'; }
-
-  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-  const resTextColor = isDark ? '#111' : '#fff';
-  const results = `
-    <div class="quiz-results" style="margin-top:20px;padding:24px;background:var(--card);border-radius:12px;border:1px solid var(--border);">
-      <div style="text-align:center;padding:24px;background:var(--gold-gradient);border-radius:12px;color:${resTextColor};margin-bottom:16px;">
-        <div style="font-size:48px;font-weight:900;line-height:1;">${score}/${total}</div>
-        <div style="font-size:20px;opacity:0.85;">${pct}%</div>
-        <div style="font-size:26px;font-weight:700;margin-top:8px;">${grade}</div>
-      </div>
-    </div>`;
-
-  this.style.display = 'none';
-  quiz.querySelector('.quiz-results')?.remove();
-  quiz.insertAdjacentHTML('beforeend', results);
 });
 
-function resetBank() {
-  if (!confirm('هل تريد إعادة المحاولة؟ سيتم مسح جميع الإجابات.')) return;
-  if (hasTimer) { clearInterval(timerInterval); seconds = <%= (course.quiz.timerMinutes || 15) * 60 %>; }
-  const display = document.getElementById('timerDisplay');
-  if (display) display.textContent = '<%= String(course.quiz.timerMinutes || 15).padStart(2,'0') %>:00';
-  document.querySelectorAll('.quiz-option').forEach(o => {
-    o.style.borderColor = 'var(--border)';
-    o.style.background = '';
-  });
-  document.querySelectorAll('.quiz-question input[type="radio"]').forEach(r => r.checked = false);
-  document.querySelectorAll('.quiz-results').forEach(r => r.remove());
-  document.querySelectorAll('.btn-submit-quiz').forEach(b => b.style.display = '');
-});
-startTimer();
+<% courseBanks.forEach(function(bank, bi) { %>
+  <% if (bank.timerMinutes) { %>startBankTimer(<%= bi %>);<% } %>
+<% }); %>
 </script>
 </body>
 </html>

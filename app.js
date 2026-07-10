@@ -427,19 +427,23 @@ app.get('/student/exam/:courseId', requireStudentOrGuest, async (req, res) => {
 
 app.get('/student/question-bank', requireStudentOrGuest, async (req, res) => {
   var courses = await readData('courses');
+  var allBanks = await readData('questionBanks') || [];
   var u = req.session.user;
   var us = (u && u.stage) || '';
   var ug = (u && u.grade) || '';
   if (us) courses = courses.filter(function(c) { return c.stage === us || c.stage === 'all' || !c.stage; });
   if (ug) courses = courses.filter(function(c) { return c.grade === ug || !c.grade; });
-  res.render('student/question-bank', { courses, title: 'بنك الأسئلة - المُميز' });
+  res.render('student/question-bank', { courses, allBanks, title: 'بنك الأسئلة - المُميز' });
 });
 
 app.get('/student/question-bank/:courseId', requireStudentOrGuest, async (req, res) => {
   const courses = await readData('courses');
+  const allBanks = await readData('questionBanks') || [];
   const course = courses.find(c => c.id === req.params.courseId);
-  if (!course || !course.quiz) return res.redirect('/student/question-bank');
-  res.render('student/question-bank-course', { course, title: `بنك أسئلة ${course.title} - المُميز` });
+  if (!course) return res.redirect('/student/question-bank');
+  const courseBanks = allBanks.filter(b => b.courseId === req.params.courseId);
+  if (!courseBanks.length) return res.redirect('/student/question-bank');
+  res.render('student/question-bank-course', { course, courseBanks, title: `بنك أسئلة ${course.title} - المُميز` });
 });
 
 app.get('/student/notes', requireStudentOrGuest, async (req, res) => {
@@ -1080,9 +1084,13 @@ app.post('/api/admin/question-banks', requireAdmin, async (req, res) => {
   try {
     const banks = await readData('questionBanks');
     const { courseId, title, description, timerMinutes, order, questions } = req.body;
+    var courses = await readData('courses');
+    var course = courses.find(function(c) { return c.id === courseId; });
     const newBank = {
       id: 'qb-' + Date.now(),
       courseId: courseId || '',
+      stage: course ? course.stage : '',
+      grade: course ? course.grade : '',
       title: title || 'بنك أسئلة جديد',
       description: description || '',
       timerMinutes: timerMinutes || null,
