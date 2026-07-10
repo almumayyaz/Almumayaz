@@ -38,6 +38,8 @@
   <% } else if (lesson.videoUrl) { %>
     <div class="video-container" oncontextmenu="return false;" data-video="<%= lesson.videoUrl %>">
       <div class="yt-player-wrap"><div class="yt-player" id="yt0"></div><div class="yt-overlay"></div><button class="yt-play-btn"><i class="fas fa-play"></i></button></div>
+    </div>
+  <% } else { %>
     <div style="text-align:center;padding:40px;background:var(--glass-bg);border-radius:var(--radius-xl);margin-bottom:28px;border:1px solid var(--border);">
       <i class="fas fa-video-slash" style="font-size:36px;color:var(--border);display:block;margin-bottom:12px;"></i>
       <p style="color:var(--text-muted);">لا يوجد فيديو لهذا الدرس بعد</p>
@@ -215,7 +217,7 @@ function onYouTubeIframeAPIReady() {
     var idx = playerIndex++;
 
     ytPlayers[idx] = new YT.Player(playerDiv, {
-      height: '100%', width: '100%',
+      height: wrap.offsetHeight || 360, width: wrap.offsetWidth || 640,
       videoId: videoId,
       playerVars: {
         controls: 0, modestbranding: 1, rel: 0, iv_load_policy: 3,
@@ -239,8 +241,7 @@ function onYouTubeIframeAPIReady() {
           }
           playBtn.addEventListener('click', function(e) { e.stopPropagation(); togglePlay(); });
           overlay.addEventListener('click', function(e) { e.stopPropagation(); togglePlay(); });
-            }
-          });
+        },
         onStateChange: function(e) {
           if (e.data === YT.PlayerState.PLAYING) {
             wrap.classList.add('playing');
