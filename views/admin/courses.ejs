@@ -832,9 +832,11 @@ function uploadWordFile() {
   document.getElementById('wordFilePopup').value = '';
   document.getElementById('wordUploadModal').classList.add('show');
 }
-function extractQuestions() {
+function extractQuestionsFromPopup() {
+  var btn = document.querySelector('#wordUploadModal .modal-body button');
   var fileInput = document.getElementById('wordFilePopup');
   if (!fileInput.files || !fileInput.files[0]) { alert('يرجى اختيار ملف Word أولاً'); return; }
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الاستخراج...';
   var formData = new FormData();
   formData.append('file', fileInput.files[0]);
   fetch('/api/admin/upload-word-file', {
@@ -846,8 +848,14 @@ function extractQuestions() {
       closeModal('wordUploadModal');
       fileInput.value = '';
       alert('تم استخراج ' + d.questions.length + ' سؤال');
-    } else alert(d.error || 'فشل استخراج الأسئلة');
-  }).catch(function(){ alert('فشل الاتصال بالخادم'); });
+    } else {
+      alert(d.error || 'فشل استخراج الأسئلة');
+      btn.disabled = false; btn.innerHTML = '<i class="fas fa-magic"></i> استخراج';
+    }
+  }).catch(function(){
+    alert('فشل الاتصال بالخادم');
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-magic"></i> استخراج';
+  });
 }
 function saveQuiz() {
   var courseId = document.getElementById('quizCourseId').value;
@@ -1096,9 +1104,11 @@ function toggleQbWordUpload() {
   document.getElementById('qbuWordFilePopup').value = '';
   document.getElementById('qbuWordUploadModal').classList.add('show');
 }
-function extractQbQuestions() {
+function extractQbQuestionsFromPopup() {
+  var btn = document.querySelector('#qbuWordUploadModal .modal-body button');
   var fileInput = document.getElementById('qbuWordFilePopup');
   if (!fileInput.files || !fileInput.files[0]) { alert('يرجى اختيار ملف Word أولاً'); return; }
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الاستخراج...';
   var formData = new FormData();
   formData.append('file', fileInput.files[0]);
   fetch('/api/admin/upload-word-file', {
@@ -1110,8 +1120,14 @@ function extractQbQuestions() {
       closeModal('qbuWordUploadModal');
       fileInput.value = '';
       alert('تم استخراج ' + d.questions.length + ' سؤال');
-    } else alert(d.error || 'فشل استخراج الأسئلة');
-  }).catch(function(){ alert('فشل الاتصال بالخادم'); });
+    } else {
+      alert(d.error || 'فشل استخراج الأسئلة');
+      btn.disabled = false; btn.innerHTML = '<i class="fas fa-magic"></i> استخراج';
+    }
+  }).catch(function(){
+    alert('فشل الاتصال بالخادم');
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-magic"></i> استخراج';
+  });
 }
 
 document.querySelectorAll('.modal-overlay').forEach(function(m) {
