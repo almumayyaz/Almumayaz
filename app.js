@@ -1468,11 +1468,12 @@ app.put('/api/admin/reviews/:id/quiz', requireAdmin, async (req, res) => {
     const reviews = await readData('reviews');
     const review = reviews.find(r => r.id === req.params.id);
     if (!review) return res.status(404).json({ error: 'المراجعة غير موجودة' });
-    const { title, questions } = req.body;
+    const { title, questions, timerMinutes } = req.body;
     review.quiz = {
       id: review.quiz ? review.quiz.id : 'rq' + Date.now(),
       title: title || 'اختبار المراجعة',
-      questions: questions || []
+      questions: questions || [],
+      timerMinutes: timerMinutes || null
     };
     await writeData('reviews', reviews);
     res.json({ success: true, quiz: review.quiz });

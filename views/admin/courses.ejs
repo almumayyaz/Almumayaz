@@ -559,6 +559,12 @@
     <div class="modal-body">
       <input type="hidden" id="crqReviewId">
       <div class="form-group"><label>عنوان الاختبار</label><input id="crqTitle" placeholder="مثال: اختبار مراجعة النحو"></div>
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:8px;">
+          <input id="crqTimerEnabled" type="checkbox" onchange="document.getElementById('crqTimer').style.display=this.checked?'':'none'"> تفعيل المؤقت
+        </label>
+        <input id="crqTimer" type="number" min="0" placeholder="15" style="display:none;">
+      </div>
       <div id="crqQuestionsContainer">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
           <label>الأسئلة</label>
@@ -966,6 +972,10 @@ function openCourseReviewQuizModal(r) {
   document.getElementById('courseReviewQuizModalTitle').textContent = 'اختبار - ' + r.title;
   document.getElementById('crqReviewId').value = r.id;
   document.getElementById('crqTitle').value = r.quiz ? r.quiz.title : 'اختبار المراجعة';
+  document.getElementById('crqTimer').value = r.quiz ? (r.quiz.timerMinutes || '') : '';
+  var hasTimer = r.quiz && r.quiz.timerMinutes;
+  document.getElementById('crqTimerEnabled').checked = !!hasTimer;
+  document.getElementById('crqTimer').style.display = hasTimer ? '' : 'none';
   var container = document.getElementById('crqQuestionsContainer');
   var existing = container.querySelectorAll('.question-block');
   existing.forEach(function(el){ el.remove(); });
@@ -994,10 +1004,11 @@ function saveCourseReviewQuiz() {
     var c = parseInt(b.querySelector('.crq-correct').value) || 0;
     if (q && opts.some(function(o){ return o; })) questions.push({ question: q, options: opts, correct: c });
   });
+  var timerMinutes = document.getElementById('crqTimerEnabled').checked ? (parseInt(document.getElementById('crqTimer').value) || null) : null;
   fetch('/api/admin/reviews/' + reviewId + '/quiz', {
     method: 'PUT',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ title: title, questions: questions })
+    body: JSON.stringify({ title: title, questions: questions, timerMinutes: timerMinutes })
   }).then(function(r){ return r.json(); }).then(function(d){ if (d.success) location.reload(); else alert(d.error); });
 }
 

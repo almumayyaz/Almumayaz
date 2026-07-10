@@ -14,9 +14,9 @@
   <div class="quiz-section">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;margin-bottom:24px;">
       <h2 style="margin-bottom:0;"><i class="fas fa-question-circle" style="color:var(--accent);"></i> <%= course.quiz.title %></h2>
-      <span id="examTimer" style="background:var(--primary);color:#fff;padding:6px 16px;border-radius:6px;font-size:14px;font-weight:600;">
-        <i class="fas fa-clock"></i> <span id="timerDisplay">15:00</span>
-      </span>
+      <% if (course.quiz.timerMinutes) { %><span id="examTimer" style="background:var(--primary);color:#fff;padding:6px 16px;border-radius:6px;font-size:14px;font-weight:600;">
+        <i class="fas fa-clock"></i> <span id="timerDisplay"><%= String(course.quiz.timerMinutes).padStart(2,'0') %>:00</span>
+      </span><% } %>
     </div>
     <p style="color:var(--text-light);font-size:14px;margin-bottom:24px;">أجب عن جميع الأسئلة التالية ثم اضغط على "تقييم الإجابات" لمعرفة نتيجتك</p>
 
@@ -50,9 +50,11 @@
 
 <script>
 let timerInterval;
-let seconds = 900;
+let seconds = <%= (course.quiz.timerMinutes || 15) * 60 %>;
+var hasTimer = <%= !!course.quiz.timerMinutes %>;
 
 function startTimer() {
+  if (!hasTimer) return;
   const display = document.getElementById('timerDisplay');
   timerInterval = setInterval(() => {
     seconds--;
@@ -71,8 +73,8 @@ function startTimer() {
 function resetExam() {
   if (!confirm('هل تريد إعادة الاختبار؟ سيتم مسح جميع الإجابات.')) return;
   clearInterval(timerInterval);
-  seconds = 900;
-  document.getElementById('timerDisplay').textContent = '15:00';
+  seconds = <%= (course.quiz.timerMinutes || 15) * 60 %>;
+  document.getElementById('timerDisplay').textContent = '<%= String(course.quiz.timerMinutes || 15).padStart(2,'0') %>:00';
   document.getElementById('examTimer').style.background = '';
   document.querySelectorAll('.quiz-option').forEach(o => {
     o.style.borderColor = 'var(--border)';
