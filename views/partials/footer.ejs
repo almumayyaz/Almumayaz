@@ -69,24 +69,32 @@
       } else {
         Notification.requestPermission().then(function(p) {
           if (p === 'granted') initFCM();
-        });
+        }).catch(function(e) { console.error('FCM permission error:', e); });
       }
       function initFCM() {
-        var messaging = firebase.messaging();
-        messaging.getToken({vapidKey: 'BMapVTAGPz2vEreBXxCVBxUYRZq0rBkC4rFd7KRFVF5EOJ3JMM6S4EBsRXX0ED6MTuCEqBpm2kRp_-qMq0Yf7eo'})
-          .then(function(token) {
-            if (token) {
-              fetch('/api/fcm/register', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({fcmToken: token}) });
+        try {
+          var messaging = firebase.messaging();
+          messaging.getToken()
+            .then(function(token) {
+              if (token) {
+                fetch('/api/fcm/register', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({fcmToken: token}) })
+                  .then(function(r) { return r.json(); })
+                  .then(function(d) { if (!d.success) console.warn('FCM register failed:', d); })
+                  .catch(function(e) { console.error('FCM register error:', e); });
+              } else {
+                console.warn('FCM: No token received');
+              }
+            })
+            .catch(function(e) { console.error('FCM getToken error:', e); });
+          messaging.onMessage(function(payload) {
+            var title = payload.notification?.title || payload.data?.title || 'المُميز';
+            var body = payload.notification?.body || payload.data?.body || '';
+            var icon = payload.notification?.icon || '/icon-192.png';
+            if (Notification.permission === 'granted') {
+              new Notification(title, { body: body, icon: icon, badge: '/icon-192.png' });
             }
-          }).catch(function() {});
-        messaging.onMessage(function(payload) {
-          var title = payload.notification?.title || payload.data?.title || 'المُميز';
-          var body = payload.notification?.body || payload.data?.body || '';
-          var icon = payload.notification?.icon || '/icon-192.png';
-          if (Notification.permission === 'granted') {
-            new Notification(title, { body: body, icon: icon, badge: '/icon-192.png' });
-          }
-        });
+          });
+        } catch(e) { console.error('FCM init error:', e); }
       }
     })();
   </script>

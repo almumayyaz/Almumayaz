@@ -188,15 +188,18 @@ async function sendFCM(userId, title, body, url) {
   try {
     const users = await readData('users');
     const user = users.find(u => u.id === userId);
-    if (!user || !user.fcmToken) return false;
+    if (!user || !user.fcmToken) { console.log('sendFCM: no user or no fcmToken for', userId); return false; }
+    if (!admin.messaging) { console.error('sendFCM: admin.messaging not available'); return false; }
     const message = {
       token: user.fcmToken,
       notification: { title, body },
       data: { url: url || '/' }
     };
     await admin.messaging().send(message);
+    console.log('sendFCM: sent to', userId, title);
     return true;
   } catch (e) {
+    console.error('sendFCM error:', e.code || e.message, 'for user', userId);
     if (e.code === 'messaging/invalid-registration-token' || e.code === 'messaging/registration-token-not-registered') {
       const users = await readData('users');
       const idx = users.findIndex(u => u.id === userId);
@@ -210,6 +213,8 @@ async function sendFCMToRole(role, title, body, url) {
   try {
     const users = await readData('users');
     const recipients = users.filter(u => u.role === role && u.fcmToken);
+    console.log('sendFCMToRole: found', recipients.length, 'recipients for role', role);
+    if (!admin.messaging) { console.error('sendFCMToRole: admin.messaging not available'); return 0; }
     let sent = 0;
     for (const u of recipients) {
       try {
@@ -221,6 +226,7 @@ async function sendFCMToRole(role, title, body, url) {
         await admin.messaging().send(message);
         sent++;
       } catch (e) {
+        console.error('sendFCMToRole: error for', u.id, e.code || e.message);
         if (e.code === 'messaging/invalid-registration-token' || e.code === 'messaging/registration-token-not-registered') {
           const idx = users.findIndex(x => x.id === u.id);
           if (idx !== -1) { users[idx].fcmToken = ''; }
@@ -228,8 +234,10 @@ async function sendFCMToRole(role, title, body, url) {
       }
     }
     if (recipients.some(u => !u.fcmToken)) await writeData('users', users);
+    console.log('sendFCMToRole: sent', sent, 'out of', recipients.length);
     return sent;
   } catch (e) {
+    console.error('sendFCMToRole outer error:', e.message);
     return 0;
   }
 }
