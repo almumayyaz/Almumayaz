@@ -407,7 +407,7 @@ app.get('/student/view-pdf/:courseId/:lessonId/:pdfIdx', requireStudentOrGuest, 
   const courses = await readData('courses');
   const course = courses.find(c => c.id === req.params.courseId);
   if (!course) return res.redirect('/student/courses');
-  const lesson = course.lessons.find(l => l.id === req.params.lessonId);
+  const lesson = (course.lessons||[]).find(l => l.id === req.params.lessonId);
   if (!lesson) return res.redirect(`/student/course/${course.id}`);
   const idx = parseInt(req.params.pdfIdx);
   if (!lesson.pdfFiles || !lesson.pdfFiles[idx]) return res.redirect(`/student/lesson/${course.id}/${lesson.id}`);
@@ -966,7 +966,7 @@ app.put('/api/admin/courses/:id/lessons/:lessonId', requireAdmin, async (req, re
     const courses = await readData('courses');
     const course = courses.find(c => c.id === req.params.id);
     if (!course) return res.status(404).json({ error: 'المادة غير موجودة' });
-    const lesson = course.lessons.find(l => l.id === req.params.lessonId);
+  const lesson = (course.lessons||[]).find(l => l.id === req.params.lessonId);
     if (!lesson) return res.status(404).json({ error: 'المحاضرة غير موجودة' });
     Object.assign(lesson, req.body);
     await writeData('courses', courses);
@@ -981,7 +981,7 @@ app.delete('/api/admin/courses/:id/lessons/:lessonId', requireAdmin, async (req,
     const courses = await readData('courses');
     const course = courses.find(c => c.id === req.params.id);
     if (!course) return res.status(404).json({ error: 'المادة غير موجودة' });
-    const idx = course.lessons.findIndex(l => l.id === req.params.lessonId);
+    const idx = (course.lessons||[]).findIndex(l => l.id === req.params.lessonId);
     if (idx === -1) return res.status(404).json({ error: 'المحاضرة غير موجودة' });
     course.lessons.splice(idx, 1);
     await writeData('courses', courses);
