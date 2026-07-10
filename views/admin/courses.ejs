@@ -54,7 +54,7 @@
   </div>
 
 <% } else { %>
-  <!-- ===== STEP 3: Course Management ===== -->
+  <!-- ===== STEP 3: Course Management with Tabs ===== -->
   <div style="margin-bottom:20px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
     <a href="/admin/courses" style="color:var(--text-light);text-decoration:none;font-size:13px;">
       <i class="fas fa-arrow-right"></i> المراحل
@@ -107,97 +107,224 @@
           </div>
         </div>
         <div class="admin-actions" style="flex-wrap:wrap;">
-          <button class="edit" onclick='openLessonModal(<%= JSON.stringify(course) %>)'><i class="fas fa-plus"></i> درس</button>
-          <% if (course.stage === 'ثانوية') { %>
-          <button class="view" onclick='openSectionModal(<%= JSON.stringify(course) %>)'><i class="fas fa-sitemap"></i> أبواب</button>
-          <% } %>
-          <button class="view" onclick='openCourseModal(<%= JSON.stringify(course) %>)'><i class="fas fa-edit"></i></button>
+          <button class="edit" onclick="openCourseModal(<%= JSON.stringify(course) %>)"><i class="fas fa-edit"></i></button>
           <button class="delete" onclick="deleteCourse('<%= course.id %>')"><i class="fas fa-trash"></i></button>
-          <% if (course.quiz) { %>
-          <button class="view" onclick='openQuizModal(<%= JSON.stringify(course) %>)'><i class="fas fa-tasks"></i> الأسئلة</button>
-          <% } else { %>
-          <button class="edit" onclick='openQuizModal(<%= JSON.stringify(course) %>)'><i class="fas fa-plus"></i> اختبار</button>
-          <% } %>
         </div>
       </div>
 
-      <% if (course.sections && course.sections.length > 0) { %>
-      <div style="padding:12px 20px;background:var(--accent-glow);border-bottom:1px solid var(--border);font-size:13px;font-weight:600;color:var(--accent);display:flex;align-items:center;gap:8px;">
-        <i class="fas fa-sitemap"></i> الأبواب
+      <!-- Tab Bar -->
+      <div style="display:flex;border-bottom:2px solid var(--border);background:var(--card);overflow-x:auto;">
+        <button class="tab-btn active" data-course="<%= course.id %>" data-tab="lessons" onclick="switchCourseTab('<%= course.id %>','lessons')" style="padding:10px 16px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;color:var(--text);border-bottom:3px solid var(--accent);transition:var(--transition);white-space:nowrap;"><i class="fas fa-video"></i> الدروس</button>
+        <button class="tab-btn" data-course="<%= course.id %>" data-tab="notes" onclick="switchCourseTab('<%= course.id %>','notes')" style="padding:10px 16px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;color:var(--text-light);border-bottom:3px solid transparent;transition:var(--transition);white-space:nowrap;"><i class="fas fa-sticky-note"></i> المذكرات</button>
+        <button class="tab-btn" data-course="<%= course.id %>" data-tab="reviews" onclick="switchCourseTab('<%= course.id %>','reviews')" style="padding:10px 16px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;color:var(--text-light);border-bottom:3px solid transparent;transition:var(--transition);white-space:nowrap;"><i class="fas fa-star"></i> المراجعات</button>
+        <button class="tab-btn" data-course="<%= course.id %>" data-tab="questionbanks" onclick="switchCourseTab('<%= course.id %>','questionbanks')" style="padding:10px 16px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;color:var(--text-light);border-bottom:3px solid transparent;transition:var(--transition);white-space:nowrap;"><i class="fas fa-question-circle"></i> بنوك الأسئلة</button>
+        <button class="tab-btn" data-course="<%= course.id %>" data-tab="quiz" onclick="switchCourseTab('<%= course.id %>','quiz')" style="padding:10px 16px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;color:var(--text-light);border-bottom:3px solid transparent;transition:var(--transition);white-space:nowrap;"><i class="fas fa-tasks"></i> الاختبار الشامل</button>
       </div>
-      <div style="padding:8px 20px;display:flex;flex-wrap:wrap;gap:8px;">
-        <% course.sections.forEach(function(section) { %>
-        <span style="background:var(--bg);padding:4px 12px;border-radius:6px;font-size:12px;display:flex;align-items:center;gap:6px;">
-          <%= section.name %>
-          <span style="color:var(--text-light);font-size:10px;">(<%= section.lessons.length %>)</span>
-        </span>
-        <% }) %>
-      </div>
-      <% } %>
 
-      <table>
-        <thead>
-          <tr><th>#</th><th>عنوان الدرس</th><th>المدة</th><th>الفيديو</th><th>PDF</th><th>مجاني</th><th>الباب</th><th>الإجراءات</th></tr>
-        </thead>
-        <tbody>
-          <% course.lessons.forEach(function(l, li) { %>
-          <tr>
-            <td><%= li + 1 %></td>
-            <td><%= l.title %></td>
-            <td><%= l.duration %></td>
-            <td>
-              <% if (l.videos && l.videos.length > 0) { %>
-                <% l.videos.forEach(function(v, vi) { %>
-                <div style="display:flex;align-items:center;gap:4px;margin-bottom:2px;font-size:11px;">
-                  <i class="fas fa-video" style="color:var(--accent);font-size:10px;flex-shrink:0;"></i>
-                  <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px;"><%= v.title %></span>
-                  <a href="<%= v.url %>" target="_blank" style="color:var(--accent);font-size:10px;flex-shrink:0;"><i class="fas fa-external-link-alt"></i></a>
-                </div>
-                <% }) %>
-              <% } else if (l.videoUrl) { %>
-                <div style="display:flex;align-items:center;gap:4px;font-size:11px;">
-                  <i class="fas fa-video" style="color:var(--accent);font-size:10px;flex-shrink:0;"></i>
-                  <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px;">فيديو</span>
-                  <a href="<%= l.videoUrl %>" target="_blank" style="color:var(--accent);font-size:10px;flex-shrink:0;"><i class="fas fa-external-link-alt"></i></a>
-                </div>
-              <% } else { %>
-                <span style="color:var(--text-muted);font-size:11px;">---</span>
-              <% } %>
-            </td>
-            <td>
-              <% if (l.pdfFiles && l.pdfFiles.length > 0) { %>
-                <% l.pdfFiles.forEach(function(p, pi) { %>
-                <div style="display:flex;align-items:center;gap:4px;margin-bottom:2px;font-size:11px;">
-                  <i class="fas fa-file-pdf" style="color:var(--danger);font-size:10px;flex-shrink:0;"></i>
-                  <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px;"><%= p.title %></span>
-                  <a href="<%= p.url %>" target="_blank" style="color:var(--danger);font-size:10px;flex-shrink:0;"><i class="fas fa-external-link-alt"></i></a>
-                </div>
-                <% }) %>
-              <% } else if (l.pdfUrl) { %>
-                <div style="display:flex;align-items:center;gap:4px;font-size:11px;">
-                  <i class="fas fa-file-pdf" style="color:var(--danger);font-size:10px;flex-shrink:0;"></i>
-                  <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px;">مذكرة</span>
-                  <a href="<%= l.pdfUrl %>" target="_blank" style="color:var(--danger);font-size:10px;flex-shrink:0;"><i class="fas fa-external-link-alt"></i></a>
-                </div>
-              <% } else { %>
-                <span style="color:var(--text-muted);font-size:11px;">---</span>
-              <% } %>
-            </td>
-            <td style="font-size:12px;"><%= l.isFree ? '<span style="color:var(--success);font-weight:600;">مجاني</span>' : '---' %> <% if (l.guestVisible) { %><span style="color:var(--accent);font-weight:600;font-size:11px;"><br>زائر</span><% } %></td>
-            <td style="font-size:12px;"><%= l.sectionId ? (function(){ var s = (course.sections || []).find(function(s){ return s.id === l.sectionId; }); return s ? s.name : '---'; })() : '---' %></td>
-            <td>
-              <div class="admin-actions">
-                <button class="edit" onclick='openLessonModal(<%= JSON.stringify(course) %>, <%= JSON.stringify(l) %>)'><i class="fas fa-edit"></i></button>
-                <button class="delete" onclick="deleteLesson('<%= course.id %>','<%= l.id %>')"><i class="fas fa-trash"></i></button>
-              </div>
-            </td>
-          </tr>
+      <!-- Tab: Lessons -->
+      <div class="tab-panel" id="tab-lessons-<%= course.id %>">
+        <% if (course.sections && course.sections.length > 0) { %>
+        <div style="padding:12px 20px;background:var(--accent-glow);border-bottom:1px solid var(--border);font-size:13px;font-weight:600;color:var(--accent);display:flex;align-items:center;gap:8px;">
+          <i class="fas fa-sitemap"></i> <%= stage === 'إعدادية' ? 'الوحدات' : 'الأبواب' %>
+          <button class="btn btn-sm" style="margin-right:auto;background:transparent;color:var(--accent);border:1px solid var(--accent);padding:2px 8px;font-size:11px;" onclick='openSectionModal(<%= JSON.stringify(course) %>)'><i class="fas fa-cog"></i> إدارة</button>
+        </div>
+        <div style="padding:8px 20px;display:flex;flex-wrap:wrap;gap:8px;">
+          <% course.sections.forEach(function(section) { %>
+          <span style="background:var(--bg);padding:4px 12px;border-radius:6px;font-size:12px;display:flex;align-items:center;gap:6px;">
+            <%= section.name %>
+            <span style="color:var(--text-light);font-size:10px;">(<%= section.lessons.length %>)</span>
+          </span>
           <% }) %>
-          <% if (course.lessons.length === 0) { %>
-          <tr><td colspan="8" style="text-align:center;color:var(--text-light);">لا توجد دروس بعد</td></tr>
+        </div>
+        <% } else { %>
+        <div style="padding:8px 20px;display:flex;gap:8px;">
+          <button class="btn btn-sm" style="background:var(--accent);color:#fff;" onclick='openSectionModal(<%= JSON.stringify(course) %>)'><i class="fas fa-plus"></i> إضافة <%= stage === 'إعدادية' ? 'وحدات' : 'أبواب' %></button>
+        </div>
+        <% } %>
+        <div style="padding:8px 20px;display:flex;gap:8px;">
+          <button class="btn btn-sm" style="background:var(--primary);color:#fff;" onclick='openLessonModal(<%= JSON.stringify(course) %>)'><i class="fas fa-plus"></i> إضافة درس</button>
+          <% if (course.quiz) { %>
+          <button class="btn btn-sm" style="background:var(--accent-glow);color:var(--accent);border:1px solid var(--accent);" onclick='openQuizModal(<%= JSON.stringify(course) %>)'><i class="fas fa-tasks"></i> اختبار شامل</button>
+          <% } else { %>
+          <button class="btn btn-sm" style="background:var(--accent-glow);color:var(--accent);border:1px solid var(--accent);" onclick='openQuizModal(<%= JSON.stringify(course) %>)'><i class="fas fa-plus"></i> إضافة اختبار</button>
           <% } %>
-        </tbody>
-      </table>
+        </div>
+        <table>
+          <thead>
+            <tr><th>#</th><th>عنوان الدرس</th><th>المدة</th><th>الفيديو</th><th>PDF</th><th>مجاني</th><th><%= stage === 'إعدادية' ? 'الوحدة' : 'الباب' %></th><th>الإجراءات</th></tr>
+          </thead>
+          <tbody>
+            <% course.lessons.forEach(function(l, li) { %>
+            <tr>
+              <td><%= li + 1 %></td>
+              <td><%= l.title %></td>
+              <td><%= l.duration %></td>
+              <td>
+                  <% if (l.videos && l.videos.length > 0) { %>
+                    <% l.videos.forEach(function(v, vi) { %>
+                    <div style="display:flex;align-items:center;gap:4px;margin-bottom:2px;font-size:11px;">
+                      <i class="fas fa-video" style="color:var(--accent);font-size:10px;flex-shrink:0;"></i>
+                      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px;"><%= v.title %></span>
+                      <a href="<%= v.url %>" target="_blank" style="color:var(--accent);font-size:10px;flex-shrink:0;"><i class="fas fa-external-link-alt"></i></a>
+                    </div>
+                    <% }) %>
+                  <% } else { %>
+                    <span style="color:var(--text-muted);font-size:11px;">---</span>
+                  <% } %>
+              </td>
+              <td>
+                  <% if (l.pdfFiles && l.pdfFiles.length > 0) { %>
+                    <% l.pdfFiles.forEach(function(p, pi) { %>
+                    <div style="display:flex;align-items:center;gap:4px;margin-bottom:2px;font-size:11px;">
+                      <i class="fas fa-file-pdf" style="color:var(--danger);font-size:10px;flex-shrink:0;"></i>
+                      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px;"><%= p.title %></span>
+                      <a href="<%= p.url %>" target="_blank" style="color:var(--danger);font-size:10px;flex-shrink:0;"><i class="fas fa-external-link-alt"></i></a>
+                    </div>
+                    <% }) %>
+                  <% } else { %>
+                    <span style="color:var(--text-muted);font-size:11px;">---</span>
+                  <% } %>
+              </td>
+              <td style="font-size:12px;"><%= l.isFree ? '<span style="color:var(--success);font-weight:600;">مجاني</span>' : '---' %> <% if (l.guestVisible) { %><span style="color:var(--accent);font-weight:600;font-size:11px;"><br>زائر</span><% } %></td>
+              <td style="font-size:12px;"><%= l.sectionId ? (function(){ var s = (course.sections || []).find(function(s){ return s.id === l.sectionId; }); return s ? s.name : '---'; })() : '---' %></td>
+              <td>
+                <div class="admin-actions">
+                  <button class="edit" onclick='openLessonModal(<%= JSON.stringify(course) %>, <%= JSON.stringify(l) %>)'><i class="fas fa-edit"></i></button>
+                  <button class="delete" onclick="deleteLesson('<%= course.id %>','<%= l.id %>')"><i class="fas fa-trash"></i></button>
+                </div>
+              </td>
+            </tr>
+            <% }) %>
+            <% if (course.lessons.length === 0) { %>
+            <tr><td colspan="8" style="text-align:center;color:var(--text-light);">لا توجد دروس بعد</td></tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Tab: Notes -->
+      <div class="tab-panel" id="tab-notes-<%= course.id %>" style="display:none;">
+        <div style="padding:12px 20px;display:flex;gap:8px;">
+          <button class="btn btn-sm" style="background:var(--primary);color:#fff;" onclick='openNoteModal("<%= course.id %>")'><i class="fas fa-plus"></i> إضافة مذكرة</button>
+        </div>
+        <table>
+          <thead>
+            <tr><th>#</th><th>العنوان</th><th>الوصف</th><th>الملف</th><th>مجاني</th><th>الترتيب</th><th>الإجراءات</th></tr>
+          </thead>
+          <tbody id="notes-tbody-<%= course.id %>">
+            <% var courseNotes = (allNotes||[]).filter(function(n){return n.courseId===course.id;}); %>
+            <% if (courseNotes.length > 0) { %>
+              <% courseNotes.sort(function(a,b){return (a.order||0)-(b.order||0);}); %>
+              <% courseNotes.forEach(function(n, ni) { %>
+              <tr>
+                <td><%= ni+1 %></td>
+                <td><%= n.title %></td>
+                <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><%= n.description||'---' %></td>
+                <td><% if (n.fileUrl) { %><a href="<%= n.fileUrl %>" target="_blank" style="color:var(--accent);font-size:12px;"><i class="fas fa-file-pdf"></i> عرض</a><% } else { %><span style="color:var(--text-muted);">---</span><% } %></td>
+                <td style="font-size:12px;"><%= n.isFree ? '<span style="color:var(--success);font-weight:600;">مجاني</span>' : '---' %></td>
+                <td style="font-size:12px;"><%= n.order %></td>
+                <td>
+                  <div class="admin-actions">
+                    <button class="edit" onclick='openNoteModal("<%= course.id %>",<%= JSON.stringify(n) %>)'><i class="fas fa-edit"></i></button>
+                    <button class="delete" onclick="deleteNote('<%= n.id %>')"><i class="fas fa-trash"></i></button>
+                  </div>
+                </td>
+              </tr>
+              <% }) %>
+            <% } else { %>
+              <tr><td colspan="7" style="text-align:center;color:var(--text-light);">لا توجد مذكرات بعد</td></tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Tab: Reviews -->
+      <div class="tab-panel" id="tab-reviews-<%= course.id %>" style="display:none;">
+        <div style="padding:12px 20px;display:flex;gap:8px;">
+          <button class="btn btn-sm" style="background:var(--primary);color:#fff;" onclick='openCourseReviewModal("<%= course.id %>")'><i class="fas fa-plus"></i> إضافة مراجعة</button>
+        </div>
+        <table>
+          <thead>
+            <tr><th>#</th><th>العنوان</th><th>الوصف</th><th>فيديو</th><th>PDF</th><th>اختبار</th><th>مجاني</th><th>الترتيب</th><th>الإجراءات</th></tr>
+          </thead>
+          <tbody id="reviews-tbody-<%= course.id %>">
+            <% var courseReviews = (allReviews||[]).filter(function(r){return r.courseId===course.id;}); %>
+            <% if (courseReviews.length > 0) { %>
+              <% courseReviews.sort(function(a,b){return (a.order||0)-(b.order||0);}); %>
+              <% courseReviews.forEach(function(r, ri) { %>
+              <tr>
+                <td><%= ri+1 %></td>
+                <td><%= r.title %></td>
+                <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><%= r.desc||'---' %></td>
+                <td style="font-size:12px;"><%= (r.videos&&r.videos.length>0) ? r.videos.length+' فيديو' : '---' %></td>
+                <td style="font-size:12px;"><%= (r.pdfFiles&&r.pdfFiles.length>0) ? r.pdfFiles.length+' ملف' : '---' %></td>
+                <td style="font-size:12px;"><%= r.quiz ? '<span style="color:var(--success);">'+r.quiz.questions.length+' سؤال</span>' : '---' %></td>
+                <td style="font-size:12px;"><%= r.isFree ? '<span style="color:var(--success);font-weight:600;">مجاني</span>' : '---' %></td>
+                <td style="font-size:12px;"><%= r.order||0 %></td>
+                <td>
+                  <div class="admin-actions">
+                    <button class="edit" onclick='openCourseReviewModal("<%= course.id %>",<%= JSON.stringify(r) %>)'><i class="fas fa-edit"></i></button>
+                    <button class="view" onclick='openCourseReviewQuizModal(<%= JSON.stringify(r) %>)'><i class="fas fa-tasks"></i></button>
+                    <button class="delete" onclick="deleteReview('<%= r.id %>')"><i class="fas fa-trash"></i></button>
+                  </div>
+                </td>
+              </tr>
+              <% }) %>
+            <% } else { %>
+              <tr><td colspan="9" style="text-align:center;color:var(--text-light);">لا توجد مراجعات بعد</td></tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Tab: Question Banks -->
+      <div class="tab-panel" id="tab-questionbanks-<%= course.id %>" style="display:none;">
+        <div style="padding:12px 20px;display:flex;gap:8px;">
+          <button class="btn btn-sm" style="background:var(--primary);color:#fff;" onclick='openQuestionBankModal("<%= course.id %>")'><i class="fas fa-plus"></i> إضافة بنك أسئلة</button>
+        </div>
+        <table>
+          <thead>
+            <tr><th>#</th><th>الاسم</th><th>الوصف</th><th>الأسئلة</th><th>المؤقت</th><th>الترتيب</th><th>الإجراءات</th></tr>
+          </thead>
+          <tbody id="qbanks-tbody-<%= course.id %>">
+            <% var courseBanks = (allQuestionBanks||[]).filter(function(b){return b.courseId===course.id;}); %>
+            <% if (courseBanks.length > 0) { %>
+              <% courseBanks.sort(function(a,b){return (a.order||0)-(b.order||0);}); %>
+              <% courseBanks.forEach(function(b, bi) { %>
+              <tr>
+                <td><%= bi+1 %></td>
+                <td><%= b.title %></td>
+                <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><%= b.description||'---' %></td>
+                <td style="font-size:12px;"><%= (b.questions&&b.questions.length) ? b.questions.length+' سؤال' : '---' %></td>
+                <td style="font-size:12px;"><%= b.timerMinutes ? b.timerMinutes+' د' : '---' %></td>
+                <td style="font-size:12px;"><%= b.order||0 %></td>
+                <td>
+                  <div class="admin-actions">
+                    <button class="edit" onclick='openQuestionBankModal("<%= course.id %>",<%= JSON.stringify(b) %>)'><i class="fas fa-edit"></i></button>
+                    <button class="delete" onclick="deleteQuestionBank('<%= b.id %>')"><i class="fas fa-trash"></i></button>
+                  </div>
+                </td>
+              </tr>
+              <% }) %>
+            <% } else { %>
+              <tr><td colspan="7" style="text-align:center;color:var(--text-light);">لا توجد بنوك أسئلة بعد</td></tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Tab: Main Quiz -->
+      <div class="tab-panel" id="tab-quiz-<%= course.id %>" style="display:none;">
+        <div style="padding:16px 20px;text-align:center;">
+          <% if (course.quiz) { %>
+          <p style="color:var(--text-light);margin-bottom:12px;">الاختبار الشامل للمادة - <%= course.quiz.questions.length %> سؤال</p>
+          <button class="btn btn-primary" onclick='openQuizModal(<%= JSON.stringify(course) %>)'><i class="fas fa-edit"></i> إدارة الاختبار الشامل</button>
+          <% } else { %>
+          <p style="color:var(--text-muted);margin-bottom:12px;">لا يوجد اختبار شامل لهذه المادة</p>
+          <button class="btn btn-primary" onclick='openQuizModal(<%= JSON.stringify(course) %>)'><i class="fas fa-plus"></i> إضافة اختبار شامل</button>
+          <% } %>
+        </div>
+      </div>
     </div>
     <% }) %>
   </div>
@@ -220,6 +347,7 @@
       <div class="form-group"><label>الوصف</label><textarea id="courseDescription" rows="3" placeholder="وصف الفرع"></textarea></div>
       <div class="form-group"><label>أيقونة (FontAwesome)</label><input id="courseIcon" value="fa-book" placeholder="fa-book"></div>
       <div class="form-group"><label>اللون</label><input type="color" id="courseColor" value="#A07200"></div>
+      <div class="form-group"><label>الفصل الدراسي</label><select id="courseSemester"><option value="all">الكل</option><option value="first">الفصل الدراسي الأول</option><option value="second">الفصل الدراسي الثاني</option></select></div>
       <button class="btn btn-primary" onclick="saveCourse()" style="width:100%;"><i class="fas fa-save"></i> حفظ</button>
     </div>
   </div>
@@ -293,8 +421,6 @@
         <label>مؤقت الاختبار (بالدقائق)</label>
         <input id="lessonQuizTimer" type="number" min="0" placeholder="مثال: 15">
       </div>
-      <input type="hidden" id="lessonVideoUrl">
-      <input type="hidden" id="lessonPdfUrl">
       <button class="btn btn-primary" onclick="saveLesson()" style="width:100%;margin-top:8px;"><i class="fas fa-save"></i> حفظ</button>
     </div>
   </div>
@@ -332,6 +458,123 @@
   </div>
 </div>
 
+<!-- Note Modal (مذكرة) -->
+<div class="modal-overlay" id="noteModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="noteModalTitle">إضافة مذكرة</h3>
+      <button class="modal-close" onclick="closeModal('noteModal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="noteId">
+      <input type="hidden" id="noteCourseId">
+      <div class="form-group"><label>عنوان المذكرة</label><input id="noteTitle" placeholder="مثال: ملخص قواعد النحو"></div>
+      <div class="form-group"><label>الوصف</label><textarea id="noteDescription" rows="2" placeholder="وصف المذكرة"></textarea></div>
+      <div class="form-group"><label>رابط الملف</label><input id="noteFileUrl" placeholder="/files/note.pdf"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="form-group">
+          <label style="display:flex;align-items:center;gap:8px;">
+            <input type="checkbox" id="noteIsFree"> مجاني
+          </label>
+        </div>
+        <div class="form-group"><label>الترتيب</label><input id="noteOrder" type="number" min="0" value="0"></div>
+      </div>
+      <button class="btn btn-primary" onclick="saveNote()" style="width:100%;"><i class="fas fa-save"></i> حفظ</button>
+    </div>
+  </div>
+</div>
+
+<!-- Course Review Modal (مراجعة داخل المادة) -->
+<div class="modal-overlay" id="courseReviewModal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3 id="courseReviewModalTitle">إضافة مراجعة</h3>
+      <button class="modal-close" onclick="closeModal('courseReviewModal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="crId">
+      <input type="hidden" id="crCourseId">
+      <div class="form-group"><label>عنوان المراجعة</label><input id="crTitle" placeholder="مثال: مراجعة النحو الشاملة"></div>
+      <div class="form-group"><label>الوصف</label><textarea id="crDescription" rows="2" placeholder="وصف المراجعة"></textarea></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="form-group"><label>أيقونة</label><input id="crIcon" value="fa-book-open"></div>
+        <div class="form-group"><label>اللون</label><input type="color" id="crColor" value="#A07200"></div>
+      </div>
+      <div id="crVideosSection">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <label style="font-size:13px;font-weight:600;color:var(--text-light);">الفيديوهات</label>
+          <button class="btn btn-sm" style="background:var(--accent);color:#fff;" onclick="addCrVideoField()"><i class="fas fa-plus"></i> إضافة فيديو</button>
+        </div>
+        <div id="crVideosContainer"></div>
+      </div>
+      <div id="crPdfsSection" style="margin-top:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <label style="font-size:13px;font-weight:600;color:var(--text-light);">ملفات PDF</label>
+          <button class="btn btn-sm" style="background:var(--accent);color:#fff;" onclick="addCrPdfField()"><i class="fas fa-plus"></i> إضافة PDF</button>
+        </div>
+        <div id="crPdfsContainer"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
+        <div class="form-group">
+          <label style="display:flex;align-items:center;gap:8px;">
+            <input type="checkbox" id="crIsFree"> مجاني
+          </label>
+        </div>
+        <div class="form-group"><label>الترتيب</label><input id="crOrder" type="number" min="0" value="0"></div>
+      </div>
+      <button class="btn btn-primary" onclick="saveCourseReview()" style="width:100%;margin-top:12px;"><i class="fas fa-save"></i> حفظ</button>
+    </div>
+  </div>
+</div>
+
+<!-- Course Review Quiz Modal -->
+<div class="modal-overlay" id="courseReviewQuizModal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3 id="courseReviewQuizModalTitle">اختبار المراجعة</h3>
+      <button class="modal-close" onclick="closeModal('courseReviewQuizModal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="crqReviewId">
+      <div class="form-group"><label>عنوان الاختبار</label><input id="crqTitle" placeholder="مثال: اختبار مراجعة النحو"></div>
+      <div id="crqQuestionsContainer">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <label>الأسئلة</label>
+          <button class="btn btn-sm" style="background:var(--accent);color:#fff;" onclick="addCrqQuestion()"><i class="fas fa-plus"></i> إضافة سؤال</button>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="saveCourseReviewQuiz()" style="width:100%;margin-top:16px;"><i class="fas fa-save"></i> حفظ الاختبار</button>
+    </div>
+  </div>
+</div>
+
+<!-- Question Bank Modal -->
+<div class="modal-overlay" id="questionBankModal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3 id="questionBankModalTitle">إضافة بنك أسئلة</h3>
+      <button class="modal-close" onclick="closeModal('questionBankModal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="qbId">
+      <input type="hidden" id="qbCourseId">
+      <div class="form-group"><label>اسم بنك الأسئلة</label><input id="qbTitle" placeholder="مثال: بنك أسئلة الوحدة الأولى"></div>
+      <div class="form-group"><label>الوصف</label><textarea id="qbDescription" rows="2" placeholder="وصف بنك الأسئلة"></textarea></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="form-group"><label>المؤقت (بالدقائق)</label><input id="qbTimer" type="number" min="0" placeholder="15"></div>
+        <div class="form-group"><label>الترتيب</label><input id="qbOrder" type="number" min="0" value="0"></div>
+      </div>
+      <div id="qbQuestionsContainer">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;margin-top:12px;">
+          <label>الأسئلة</label>
+          <button class="btn btn-sm" style="background:var(--accent);color:#fff;" onclick="addQbQuestion()"><i class="fas fa-plus"></i> إضافة سؤال</button>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="saveQuestionBank()" style="width:100%;margin-top:16px;"><i class="fas fa-save"></i> حفظ</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ===== COURSE CRUD =====
 function openCourseModal(course) {
@@ -342,6 +585,7 @@ function openCourseModal(course) {
   document.getElementById('courseDescription').value = course ? (course.description || '') : '';
   document.getElementById('courseIcon').value = course ? (course.icon || 'fa-book') : 'fa-book';
   document.getElementById('courseColor').value = course ? (course.color || '#A07200') : '#A07200';
+  document.getElementById('courseSemester').value = course ? (course.semester || 'all') : 'all';
   if (!course) {
     document.getElementById('courseStage').value = '<%= stage %>';
     document.getElementById('courseGrade').value = '<%= grade %>';
@@ -357,6 +601,7 @@ function saveCourse() {
     description: document.getElementById('courseDescription').value,
     stage: document.getElementById('courseStage').value,
     grade: document.getElementById('courseGrade').value,
+    semester: document.getElementById('courseSemester').value,
     icon: document.getElementById('courseIcon').value,
     color: document.getElementById('courseColor').value
   };
@@ -438,15 +683,11 @@ function openLessonModal(course, lesson) {
   var vc = document.getElementById('videosContainer');
   vc.innerHTML = '';
   var videos = (lesson && lesson.videos) || [];
-  if (videos.length === 0) videos = [{ title: '', url: lesson ? (lesson.videoUrl || '') : '' }];
   videos.forEach(function(v){ addVideoField(v.title, v.url); });
   var pc = document.getElementById('pdfsContainer');
   pc.innerHTML = '';
   var pdfs = (lesson && lesson.pdfFiles) || [];
-  if (pdfs.length === 0 && lesson && lesson.pdfUrl) pdfs = [{ title: 'مذكرة ' + (lesson.title || ''), url: lesson.pdfUrl }];
   pdfs.forEach(function(p){ addPdfField(p.title, p.url); });
-  document.getElementById('lessonVideoUrl').value = lesson ? (lesson.videoUrl || '') : '';
-  document.getElementById('lessonPdfUrl').value = lesson ? (lesson.pdfUrl || '') : '';
   document.getElementById('lessonModal').classList.add('show');
 }
 function addVideoField(title, url) {
@@ -565,6 +806,222 @@ function saveQuiz() {
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify({ title: title, questions: questions, timerMinutes: timerMinutes })
   }).then(function(r){ return r.json(); }).then(function(d){ if (d.success) location.reload(); else alert(d.error); });
+}
+
+// ===== TAB SWITCHING =====
+function switchCourseTab(courseId, tab) {
+  var panels = document.querySelectorAll('.tab-panel[id^="tab-"][id$="-'+courseId+'"]');
+  panels.forEach(function(p){ p.style.display = 'none'; });
+  document.getElementById('tab-'+tab+'-'+courseId).style.display = '';
+  var btns = document.querySelectorAll('.tab-btn[data-course="'+courseId+'"]');
+  btns.forEach(function(b){
+    b.style.color = 'var(--text-light)';
+    b.style.borderBottomColor = 'transparent';
+  });
+  var activeBtn = document.querySelector('.tab-btn[data-course="'+courseId+'"][data-tab="'+tab+'"]');
+  if (activeBtn) {
+    activeBtn.style.color = 'var(--text)';
+    activeBtn.style.borderBottomColor = 'var(--accent)';
+  }
+}
+
+// ===== NOTES CRUD =====
+function openNoteModal(courseId, note) {
+  document.getElementById('noteModalTitle').textContent = note ? 'تعديل المذكرة' : 'إضافة مذكرة';
+  document.getElementById('noteId').value = note ? note.id : '';
+  document.getElementById('noteCourseId').value = courseId;
+  document.getElementById('noteTitle').value = note ? note.title : '';
+  document.getElementById('noteDescription').value = note ? (note.description || '') : '';
+  document.getElementById('noteFileUrl').value = note ? (note.fileUrl || '') : '';
+  document.getElementById('noteIsFree').checked = note ? !!note.isFree : false;
+  document.getElementById('noteOrder').value = note ? (note.order || 0) : 0;
+  document.getElementById('noteModal').classList.add('show');
+}
+function saveNote() {
+  var id = document.getElementById('noteId').value;
+  var data = {
+    courseId: document.getElementById('noteCourseId').value,
+    title: document.getElementById('noteTitle').value,
+    description: document.getElementById('noteDescription').value,
+    fileUrl: document.getElementById('noteFileUrl').value,
+    isFree: document.getElementById('noteIsFree').checked,
+    order: parseInt(document.getElementById('noteOrder').value) || 0
+  };
+  var url = id ? '/api/admin/notes/' + id : '/api/admin/notes';
+  var method = id ? 'PUT' : 'POST';
+  fetch(url, { method: method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) })
+    .then(function(r){ return r.json(); }).then(function(d){ if (d.success) location.reload(); else alert(d.error); });
+}
+function deleteNote(id) {
+  if (!confirm('هل أنت متأكد من حذف هذه المذكرة؟')) return;
+  fetch('/api/admin/notes/' + id, { method: 'DELETE' })
+    .then(function(r){ return r.json(); }).then(function(d){ if (d.success) location.reload(); else alert(d.error); });
+}
+
+// ===== COURSE REVIEWS CRUD (within course page) =====
+function openCourseReviewModal(courseId, r) {
+  document.getElementById('courseReviewModalTitle').textContent = r ? 'تعديل المراجعة' : 'إضافة مراجعة';
+  document.getElementById('crId').value = r ? r.id : '';
+  document.getElementById('crCourseId').value = courseId;
+  document.getElementById('crTitle').value = r ? r.title : '';
+  document.getElementById('crDescription').value = r ? (r.desc || '') : '';
+  document.getElementById('crIcon').value = r ? (r.icon || 'fa-book-open') : 'fa-book-open';
+  document.getElementById('crColor').value = r ? (r.color || '#A07200') : '#A07200';
+  document.getElementById('crIsFree').checked = r ? !!r.isFree : false;
+  document.getElementById('crOrder').value = r ? (r.order || 0) : 0;
+  var vc = document.getElementById('crVideosContainer');
+  vc.innerHTML = '';
+  var videos = (r && r.videos) || [];
+  videos.forEach(function(v){ addCrVideoField(v.title, v.url); });
+  var pc = document.getElementById('crPdfsContainer');
+  pc.innerHTML = '';
+  var pdfs = (r && r.pdfFiles) || [];
+  pdfs.forEach(function(p){ addCrPdfField(p.title, p.url); });
+  document.getElementById('courseReviewModal').classList.add('show');
+}
+function addCrVideoField(title, url) {
+  var container = document.getElementById('crVideosContainer');
+  var div = document.createElement('div');
+  div.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:flex-end;';
+  div.innerHTML = '<div class="form-group" style="flex:1;margin-bottom:0;"><label style="font-size:11px;">عنوان الفيديو</label><input class="cr-video-title" placeholder="مثال: شرح المراجعة" value="' + (title || '') + '"></div><div class="form-group" style="flex:2;margin-bottom:0;"><label style="font-size:11px;">رابط YouTube Embed</label><input class="cr-video-url" placeholder="https://www.youtube.com/embed/..." value="' + (url || '') + '"></div><button class="btn btn-sm" style="background:#ef4444;color:#fff;height:36px;width:36px;padding:0;display:flex;align-items:center;justify-content:center;flex-shrink:0;" onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>';
+  container.appendChild(div);
+}
+function addCrPdfField(title, url) {
+  var container = document.getElementById('crPdfsContainer');
+  var div = document.createElement('div');
+  div.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:flex-end;';
+  div.innerHTML = '<div class="form-group" style="flex:1;margin-bottom:0;"><label style="font-size:11px;">عنوان الملف</label><input class="cr-pdf-title" placeholder="مثال: مذكرة المراجعة" value="' + (title || '') + '"></div><div class="form-group" style="flex:2;margin-bottom:0;"><label style="font-size:11px;">رابط الملف</label><input class="cr-pdf-url" placeholder="/files/review.pdf" value="' + (url || '') + '"></div><button class="btn btn-sm" style="background:#ef4444;color:#fff;height:36px;width:36px;padding:0;display:flex;align-items:center;justify-content:center;flex-shrink:0;" onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>';
+  container.appendChild(div);
+}
+function saveCourseReview() {
+  var id = document.getElementById('crId').value;
+  var courseId = document.getElementById('crCourseId').value;
+  var videoInputs = document.querySelectorAll('#crVideosContainer > div');
+  var videos = [];
+  videoInputs.forEach(function(v) {
+    var t = v.querySelector('.cr-video-title').value;
+    var u = v.querySelector('.cr-video-url').value;
+    if (u) videos.push({ title: t || 'فيديو', url: u });
+  });
+  var pdfInputs = document.querySelectorAll('#crPdfsContainer > div');
+  var pdfFiles = [];
+  pdfInputs.forEach(function(p) {
+    var t = p.querySelector('.cr-pdf-title').value;
+    var u = p.querySelector('.cr-pdf-url').value;
+    if (u) pdfFiles.push({ title: t || 'ملف', url: u });
+  });
+  var data = {
+    title: document.getElementById('crTitle').value,
+    desc: document.getElementById('crDescription').value,
+    courseId: courseId,
+    course: '',
+    icon: document.getElementById('crIcon').value,
+    color: document.getElementById('crColor').value,
+    videos: videos,
+    pdfFiles: pdfFiles,
+    isFree: document.getElementById('crIsFree').checked,
+    order: parseInt(document.getElementById('crOrder').value) || 0,
+    stage: '',
+    grade: ''
+  };
+  var url = id ? '/api/admin/reviews/' + id : '/api/admin/reviews';
+  var method = id ? 'PUT' : 'POST';
+  fetch(url, { method: method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) })
+    .then(function(r){ return r.json(); }).then(function(d){ if (d.success) location.reload(); else alert(d.error); });
+}
+function openCourseReviewQuizModal(r) {
+  document.getElementById('courseReviewQuizModalTitle').textContent = 'اختبار - ' + r.title;
+  document.getElementById('crqReviewId').value = r.id;
+  document.getElementById('crqTitle').value = r.quiz ? r.quiz.title : 'اختبار المراجعة';
+  var container = document.getElementById('crqQuestionsContainer');
+  var existing = container.querySelectorAll('.question-block');
+  existing.forEach(function(el){ el.remove(); });
+  if (r.quiz && r.quiz.questions) {
+    r.quiz.questions.forEach(function(q, i){ addCrqQuestion(q, i); });
+  }
+  document.getElementById('courseReviewQuizModal').classList.add('show');
+}
+function addCrqQuestion(q, idx) {
+  var container = document.getElementById('crqQuestionsContainer');
+  var div = document.createElement('div');
+  div.className = 'question-block';
+  div.style.cssText = 'background:var(--bg);border-radius:10px;padding:16px;margin-bottom:12px;border:1px solid var(--border);';
+  var qi = idx !== undefined ? idx : container.querySelectorAll('.question-block').length;
+  div.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><strong style="color:var(--primary);">السؤال ' + (qi + 1) + '</strong><button class="btn btn-sm" style="background:#ef4444;color:#fff;font-size:11px;padding:4px 10px;" onclick="this.closest(\'.question-block\').remove()">حذف</button></div><div class="form-group"><input class="crq-text" placeholder="نص السؤال" value="' + (q ? q.question : '') + '"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' + ['أ','ب','ج','د'].map(function(letter, oi){ return '<div class="form-group" style="margin-bottom:4px;"><label style="font-size:11px;margin-bottom:2px;">الخيار ' + letter + '</label><input class="crq-opt-' + oi + '" placeholder="الخيار ' + letter + '" value="' + (q && q.options && q.options[oi] ? q.options[oi] : '') + '"></div>'; }).join('') + '</div><div class="form-group" style="margin-bottom:0;"><label style="font-size:12px;">الإجابة الصحيحة (0-3)</label><input class="crq-correct" type="number" min="0" max="3" value="' + (q ? q.correct : 0) + '" style="width:80px;"></div>';
+  container.appendChild(div);
+}
+function saveCourseReviewQuiz() {
+  var reviewId = document.getElementById('crqReviewId').value;
+  var title = document.getElementById('crqTitle').value;
+  var blocks = document.querySelectorAll('#crqQuestionsContainer .question-block');
+  var questions = [];
+  blocks.forEach(function(b) {
+    var q = b.querySelector('.crq-text').value;
+    var opts = [0,1,2,3].map(function(i){ return b.querySelector('.crq-opt-' + i).value; });
+    var c = parseInt(b.querySelector('.crq-correct').value) || 0;
+    if (q && opts.some(function(o){ return o; })) questions.push({ question: q, options: opts, correct: c });
+  });
+  fetch('/api/admin/reviews/' + reviewId + '/quiz', {
+    method: 'PUT',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ title: title, questions: questions })
+  }).then(function(r){ return r.json(); }).then(function(d){ if (d.success) location.reload(); else alert(d.error); });
+}
+
+// ===== QUESTION BANKS CRUD =====
+function openQuestionBankModal(courseId, bank) {
+  document.getElementById('questionBankModalTitle').textContent = bank ? 'تعديل بنك الأسئلة' : 'إضافة بنك أسئلة';
+  document.getElementById('qbId').value = bank ? bank.id : '';
+  document.getElementById('qbCourseId').value = courseId;
+  document.getElementById('qbTitle').value = bank ? bank.title : '';
+  document.getElementById('qbDescription').value = bank ? (bank.description || '') : '';
+  document.getElementById('qbTimer').value = bank ? (bank.timerMinutes || '') : '';
+  document.getElementById('qbOrder').value = bank ? (bank.order || 0) : 0;
+  var container = document.getElementById('qbQuestionsContainer');
+  var existing = container.querySelectorAll('.question-block');
+  existing.forEach(function(el){ el.remove(); });
+  if (bank && bank.questions) {
+    bank.questions.forEach(function(q, i){ addQbQuestion(q, i); });
+  }
+  document.getElementById('questionBankModal').classList.add('show');
+}
+function addQbQuestion(q, idx) {
+  var container = document.getElementById('qbQuestionsContainer');
+  var div = document.createElement('div');
+  div.className = 'question-block';
+  div.style.cssText = 'background:var(--bg);border-radius:10px;padding:16px;margin-bottom:12px;border:1px solid var(--border);';
+  var qi = idx !== undefined ? idx : container.querySelectorAll('.question-block').length;
+  div.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><strong style="color:var(--primary);">السؤال ' + (qi + 1) + '</strong><button class="btn btn-sm" style="background:#ef4444;color:#fff;font-size:11px;padding:4px 10px;" onclick="this.closest(\'.question-block\').remove()">حذف</button></div><div class="form-group"><input class="qbq-text" placeholder="نص السؤال" value="' + (q ? q.question : '') + '"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' + ['أ','ب','ج','د'].map(function(letter, oi){ return '<div class="form-group" style="margin-bottom:4px;"><label style="font-size:11px;margin-bottom:2px;">الخيار ' + letter + '</label><input class="qbq-opt-' + oi + '" placeholder="الخيار ' + letter + '" value="' + (q && q.options && q.options[oi] ? q.options[oi] : '') + '"></div>'; }).join('') + '</div><div class="form-group" style="margin-bottom:0;"><label style="font-size:12px;">الإجابة الصحيحة (0-3)</label><input class="qbq-correct" type="number" min="0" max="3" value="' + (q ? q.correct : 0) + '" style="width:80px;"></div>';
+  container.appendChild(div);
+}
+function saveQuestionBank() {
+  var id = document.getElementById('qbId').value;
+  var courseId = document.getElementById('qbCourseId').value;
+  var blocks = document.querySelectorAll('#qbQuestionsContainer .question-block');
+  var questions = [];
+  blocks.forEach(function(b) {
+    var q = b.querySelector('.qbq-text').value;
+    var opts = [0,1,2,3].map(function(i){ return b.querySelector('.qbq-opt-' + i).value; });
+    var c = parseInt(b.querySelector('.qbq-correct').value) || 0;
+    if (q && opts.some(function(o){ return o; })) questions.push({ question: q, options: opts, correct: c });
+  });
+  var data = {
+    courseId: courseId,
+    title: document.getElementById('qbTitle').value,
+    description: document.getElementById('qbDescription').value,
+    timerMinutes: parseInt(document.getElementById('qbTimer').value) || null,
+    order: parseInt(document.getElementById('qbOrder').value) || 0,
+    questions: questions
+  };
+  var url = id ? '/api/admin/question-banks/' + id : '/api/admin/question-banks';
+  var method = id ? 'PUT' : 'POST';
+  fetch(url, { method: method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) })
+    .then(function(r){ return r.json(); }).then(function(d){ if (d.success) location.reload(); else alert(d.error); });
+}
+function deleteQuestionBank(id) {
+  if (!confirm('هل أنت متأكد من حذف بنك الأسئلة هذا؟')) return;
+  fetch('/api/admin/question-banks/' + id, { method: 'DELETE' })
+    .then(function(r){ return r.json(); }).then(function(d){ if (d.success) location.reload(); else alert(d.error); });
 }
 
 document.querySelectorAll('.modal-overlay').forEach(function(m) {

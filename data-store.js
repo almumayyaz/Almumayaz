@@ -12,6 +12,8 @@ try { memoryCache.set('users.json', require('./data/users.json')); } catch(e) {}
 try { memoryCache.set('announcements.json', require('./data/announcements.json')); } catch(e) {}
 try { memoryCache.set('subscriptions.json', require('./data/subscriptions.json')); } catch(e) {}
 try { memoryCache.set('reviews.json', require('./data/reviews.json')); } catch(e) {}
+try { memoryCache.set('notes.json', require('./data/notes.json')); } catch(e) {}
+try { memoryCache.set('questionBanks.json', require('./data/questionBanks.json')); } catch(e) {}
 
 async function readJSON(filename) {
   if (memoryCache.has(filename)) {

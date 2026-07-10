@@ -8,6 +8,16 @@
     </div>
   </div>
 
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
+    <div style="flex:1;min-width:200px;">
+      <select id="courseFilter" onchange="filterByCourse()" style="width:100%;padding:10px 14px;border:2px solid var(--border);border-radius:var(--radius);background:var(--card);color:var(--text);font-size:13px;">
+        <option value="">كل المواد</option>
+        <% (courses||[]).forEach(function(c) { %>
+          <option value="<%= c.id %>" <%= currentCourseId === c.id ? 'selected' : '' %>><%= c.name %></option>
+        <% }) %>
+      </select>
+    </div>
+  </div>
   <div class="reviews-timeline">
     <% if (reviews && reviews.length > 0) { %>
       <% reviews.forEach(function(r, idx) { %>
@@ -38,5 +48,14 @@
     <% } %>
   </div>
 </main>
+<script>
+function filterByCourse() {
+  var courseId = document.getElementById('courseFilter').value;
+  var params = new URLSearchParams(window.location.search);
+  if (courseId) params.set('courseId', courseId);
+  else params.delete('courseId');
+  window.location.search = params.toString();
+}
+</script>
 </body>
 </html>

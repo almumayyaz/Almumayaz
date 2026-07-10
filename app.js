@@ -84,6 +84,56 @@ app.use((req, res, next) => {
   next();
 });
 
+/* ===================== AUTO-MIGRATION ===================== */
+(async function autoMigrate() {
+  try {
+    // Migrate courses: videoUrl → videos[], pdfUrl → pdfFiles[]
+    var courses = await readData('courses');
+    var coursesChanged = false;
+    courses.forEach(function(c) {
+      (c.lessons || []).forEach(function(l) {
+        if (l.videoUrl && (!l.videos || l.videos.length === 0)) {
+          l.videos = [{ title: 'فيديو', url: l.videoUrl }];
+          delete l.videoUrl;
+          coursesChanged = true;
+        }
+        if (l.pdfUrl && (!l.pdfFiles || l.pdfFiles.length === 0)) {
+          l.pdfFiles = [{ title: 'ملف', url: l.pdfUrl }];
+          delete l.pdfUrl;
+          coursesChanged = true;
+        }
+      });
+    });
+    if (coursesChanged) await writeData('courses', courses);
+    // Migrate reviews: videoUrl → videos[], pdfUrl → pdfFiles[], add courseId from course name
+    var reviews = await readData('reviews');
+    var reviewsChanged = false;
+    reviews.forEach(function(r) {
+      if (r.videoUrl && (!r.videos || r.videos.length === 0)) {
+        r.videos = [{ title: 'فيديو', url: r.videoUrl }];
+        delete r.videoUrl;
+        reviewsChanged = true;
+      }
+      if (r.pdfUrl && (!r.pdfFiles || r.pdfFiles.length === 0)) {
+        r.pdfFiles = [{ title: 'ملف', url: r.pdfUrl }];
+        delete r.pdfUrl;
+        reviewsChanged = true;
+      }
+      if (!r.courseId && r.course) {
+        var match = courses.find(function(c) { return c.title === r.course; });
+        if (match) r.courseId = match.id;
+        reviewsChanged = true;
+      }
+      if (r.order === undefined) { r.order = 0; reviewsChanged = true; }
+      if (r.isFree === undefined) { r.isFree = false; reviewsChanged = true; }
+    });
+    if (reviewsChanged) await writeData('reviews', reviews);
+    console.log('Auto-migration complete');
+  } catch(e) {
+    console.log('Auto-migration note:', e.message);
+  }
+})();
+
 /* ===================== AUTH ===================== */
 
 app.post('/api/auth/firebase-login', async (req, res) => {
@@ -404,12 +454,16 @@ app.get('/student/notes', requireStudentOrGuest, async (req, res) => {
 
 app.get('/student/reviews', requireStudentOrGuest, async (req, res) => {
   var reviews = await readData('reviews');
+  var courses = await readData('courses');
   var u = req.session.user;
   var us = (u && u.stage) || '';
   var ug = (u && u.grade) || '';
   if (us) reviews = reviews.filter(function(r) { return r.stage === us || r.stage === 'all' || !r.stage; });
   if (ug) reviews = reviews.filter(function(r) { return r.grade === ug || !r.grade; });
-  res.render('student/reviews', { reviews, title: 'المراجعات - لغتي' });
+  var courseIdFilter = req.query.courseId;
+  if (courseIdFilter) reviews = reviews.filter(function(r) { return r.courseId === courseIdFilter; });
+  var filteredCourses = courses.filter(function(c) { return (!us || c.stage === us) && (!ug || c.grade === ug); });
+  res.render('student/reviews', { reviews, courses: filteredCourses, currentCourseId: courseIdFilter || '', title: 'المراجعات - لغتي' });
 });
 
 app.get('/student/review/:id', requireStudentOrGuest, async (req, res) => {
@@ -678,13 +732,21 @@ app.get('/admin/students', requireAdmin, async (req, res) => {
 });
 
 app.get('/admin/courses', requireAdmin, async (req, res) => {
-  const allCourses = await readData('courses');
-  const stage = req.query.stage || '';
-  const grade = req.query.grade || '';
-  var courses = allCourses;
-  if (stage) courses = courses.filter(function(c) { return c.stage === stage; });
-  if (grade) courses = courses.filter(function(c) { return c.grade === grade; });
-  res.render('admin/courses', { courses, allCourses, stage, grade, title: 'المحاضرات - الإدارة' });
+  try {
+    const allCourses = await readData('courses');
+    const stage = req.query.stage || '';
+    const grade = req.query.grade || '';
+    var courses = allCourses;
+    if (stage) courses = courses.filter(function(c) { return c.stage === stage; });
+    if (grade) courses = courses.filter(function(c) { return c.grade === grade; });
+    const allNotes = await readData('notes') || [];
+    const allReviews = await readData('reviews') || [];
+    const allQuestionBanks = await readData('questionBanks') || [];
+    res.render('admin/courses', { courses, allCourses, stage, grade, allNotes, allReviews, allQuestionBanks, title: 'المحاضرات - الإدارة' });
+  } catch(e) {
+    console.error('Admin courses error:', e);
+    res.status(500).send('خطأ في تحميل صفحة المحاضرات: ' + e.message);
+  }
 });
 
 app.get('/admin/subscriptions', requireAdmin, async (req, res) => {
@@ -711,12 +773,13 @@ app.get('/admin/announcements', requireAdmin, async (req, res) => {
 
 app.get('/admin/reviews', requireAdmin, async (req, res) => {
   var allReviews = await readData('reviews');
+  var allCourses = await readData('courses');
   var stage = req.query.stage || '';
   var grade = req.query.grade || '';
   var reviews = allReviews;
   if (stage) reviews = reviews.filter(function(r) { return r.stage === stage || r.stage === 'all' || !r.stage; });
   if (grade) reviews = reviews.filter(function(r) { return r.grade === grade || !r.grade; });
-  res.render('admin/reviews', { reviews, allReviews, stage, grade, title: 'المراجعات - الإدارة' });
+  res.render('admin/reviews', { reviews, allReviews, allCourses, stage, grade, title: 'المراجعات - الإدارة' });
 });
 
 app.get('/admin/chat', requireAdmin, (req, res) => {
@@ -766,7 +829,7 @@ app.get('/api/admin/chats', requireAdmin, async (req, res) => {
 app.post('/api/admin/courses', requireAdmin, async (req, res) => {
   try {
     const courses = await readData('courses');
-    const { title, subtitle, description, icon, color, gradient, stage, grade } = req.body;
+    const { title, subtitle, description, icon, color, gradient, stage, grade, semester } = req.body;
     const newCourse = {
       id: Date.now().toString(),
       title: title || 'مادة جديدة',
@@ -777,6 +840,7 @@ app.post('/api/admin/courses', requireAdmin, async (req, res) => {
       gradient: gradient || 'linear-gradient(135deg, #A07200 0%, #D4A017 50%, #F6C453 100%)',
       stage: stage || 'all',
       grade: grade || '',
+      semester: semester || 'all',
       sections: [],
       lessons: [],
       quiz: null
@@ -948,6 +1012,106 @@ app.delete('/api/admin/courses/:id/quiz', requireAdmin, async (req, res) => {
     if (!course) return res.status(404).json({ error: 'المادة غير موجودة' });
     course.quiz = null;
     await writeData('courses', courses);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/* ===================== ADMIN API: NOTES (مذكرات) ===================== */
+
+app.post('/api/admin/notes', requireAdmin, async (req, res) => {
+  try {
+    const notes = await readData('notes');
+    const { courseId, title, description, fileUrl, order, isFree } = req.body;
+    const newNote = {
+      id: 'note-' + Date.now(),
+      courseId: courseId || '',
+      title: title || 'مذكرة جديدة',
+      description: description || '',
+      fileUrl: fileUrl || '',
+      order: order || 0,
+      isFree: isFree || false,
+      createdAt: new Date().toISOString()
+    };
+    notes.push(newNote);
+    await writeData('notes', notes);
+    res.json({ success: true, note: newNote });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.put('/api/admin/notes/:id', requireAdmin, async (req, res) => {
+  try {
+    const notes = await readData('notes');
+    const idx = notes.findIndex(n => n.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'المذكرة غير موجودة' });
+    Object.assign(notes[idx], req.body);
+    await writeData('notes', notes);
+    res.json({ success: true, note: notes[idx] });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/admin/notes/:id', requireAdmin, async (req, res) => {
+  try {
+    const notes = await readData('notes');
+    const idx = notes.findIndex(n => n.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'المذكرة غير موجودة' });
+    notes.splice(idx, 1);
+    await writeData('notes', notes);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/* ===================== ADMIN API: QUESTION BANKS (بنوك الأسئلة) ===================== */
+
+app.post('/api/admin/question-banks', requireAdmin, async (req, res) => {
+  try {
+    const banks = await readData('questionBanks');
+    const { courseId, title, description, timerMinutes, order, questions } = req.body;
+    const newBank = {
+      id: 'qb-' + Date.now(),
+      courseId: courseId || '',
+      title: title || 'بنك أسئلة جديد',
+      description: description || '',
+      timerMinutes: timerMinutes || null,
+      order: order || 0,
+      questions: questions || [],
+      createdAt: new Date().toISOString()
+    };
+    banks.push(newBank);
+    await writeData('questionBanks', banks);
+    res.json({ success: true, bank: newBank });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.put('/api/admin/question-banks/:id', requireAdmin, async (req, res) => {
+  try {
+    const banks = await readData('questionBanks');
+    const idx = banks.findIndex(b => b.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'بنك الأسئلة غير موجود' });
+    Object.assign(banks[idx], req.body);
+    await writeData('questionBanks', banks);
+    res.json({ success: true, bank: banks[idx] });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/admin/question-banks/:id', requireAdmin, async (req, res) => {
+  try {
+    const banks = await readData('questionBanks');
+    const idx = banks.findIndex(b => b.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'بنك الأسئلة غير موجود' });
+    banks.splice(idx, 1);
+    await writeData('questionBanks', banks);
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -1255,19 +1419,22 @@ app.delete('/api/admin/charge-codes/:id', requireAdmin, async (req, res) => {
 app.post('/api/admin/reviews', requireAdmin, async (req, res) => {
   try {
     const reviews = await readData('reviews');
-    const { title, course, color, icon, desc, videoUrl, pdfUrl, stage, grade } = req.body;
+    const { title, course, courseId, color, icon, desc, videoUrl, pdfUrl, videos, pdfFiles, stage, grade, order, isFree } = req.body;
     const newReview = {
       id: Date.now().toString(),
       title: title || 'مراجعة جديدة',
       course: course || '',
+      courseId: courseId || '',
       color: color || '#A07200',
       icon: icon || 'fa-book-open',
       date: new Date().toISOString().split('T')[0],
       desc: desc || '',
-      videoUrl: videoUrl || '',
-      pdfUrl: pdfUrl || '',
+      videos: videos || (videoUrl ? [{ title: 'فيديو', url: videoUrl }] : []),
+      pdfFiles: pdfFiles || (pdfUrl ? [{ title: 'ملف', url: pdfUrl }] : []),
       stage: stage || 'all',
-      grade: grade || ''
+      grade: grade || '',
+      order: order || 0,
+      isFree: isFree || false
     };
     reviews.push(newReview);
     await writeData('reviews', reviews);

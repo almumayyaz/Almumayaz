@@ -63,7 +63,8 @@
         "duration": "45:30",
         "isFree": true,
         "guestVisible": true,
-        "sectionId": "sec-nahw-1"
+        "sectionId": "sec-nahw-1",
+        "order": 0
       },
       {
         "id": "102",
@@ -84,7 +85,8 @@
         "duration": "38:15",
         "isFree": false,
         "guestVisible": true,
-        "sectionId": "sec-nahw-1"
+        "sectionId": "sec-nahw-1",
+        "order": 1
       },
       {
         "id": "103",
@@ -109,7 +111,8 @@
         "duration": "42:00",
         "isFree": false,
         "guestVisible": false,
-        "sectionId": "sec-nahw-2"
+        "sectionId": "sec-nahw-2",
+        "order": 2
       },
       {
         "id": "104",
@@ -130,7 +133,8 @@
         "duration": "50:20",
         "isFree": false,
         "guestVisible": false,
-        "sectionId": "sec-nahw-2"
+        "sectionId": "sec-nahw-2",
+        "order": 3
       },
       {
         "id": "105",
@@ -151,7 +155,8 @@
         "duration": "41:10",
         "isFree": false,
         "guestVisible": true,
-        "sectionId": "sec-nahw-3"
+        "sectionId": "sec-nahw-3",
+        "order": 4
       },
       {
         "id": "106",
@@ -172,7 +177,8 @@
         "duration": "36:45",
         "isFree": false,
         "guestVisible": false,
-        "sectionId": "sec-nahw-3"
+        "sectionId": "sec-nahw-3",
+        "order": 5
       },
       {
         "id": "107",
@@ -193,7 +199,8 @@
         "duration": "40:00",
         "isFree": false,
         "guestVisible": false,
-        "sectionId": "sec-nahw-4"
+        "sectionId": "sec-nahw-4",
+        "order": 6
       },
       {
         "id": "108",
@@ -214,7 +221,8 @@
         "duration": "40:00",
         "isFree": false,
         "guestVisible": false,
-        "sectionId": "sec-nahw-4"
+        "sectionId": "sec-nahw-4",
+        "order": 7
       },
       {
         "id": "109",
@@ -235,7 +243,8 @@
         "duration": "35:00",
         "isFree": false,
         "guestVisible": false,
-        "sectionId": "sec-nahw-4"
+        "sectionId": "sec-nahw-4",
+        "order": 8
       }
     ],
     "quiz": {
@@ -315,7 +324,8 @@
         }
       ]
     },
-    "grade": "الثالث الثانوي"
+    "grade": "الثالث الثانوي",
+    "semester": "all"
   },
   {
     "id": "2",
@@ -365,7 +375,8 @@
         "duration": "40:00",
         "isFree": true,
         "guestVisible": true,
-        "sectionId": "sec-bal-1"
+        "sectionId": "sec-bal-1",
+        "order": 0
       },
       {
         "id": "202",
@@ -386,7 +397,8 @@
         "duration": "35:45",
         "isFree": false,
         "guestVisible": true,
-        "sectionId": "sec-bal-1"
+        "sectionId": "sec-bal-1",
+        "order": 1
       },
       {
         "id": "203",
@@ -407,7 +419,8 @@
         "duration": "32:20",
         "isFree": false,
         "guestVisible": false,
-        "sectionId": "sec-bal-1"
+        "sectionId": "sec-bal-1",
+        "order": 2
       },
       {
         "id": "204",
@@ -428,7 +441,8 @@
         "duration": "28:50",
         "isFree": false,
         "guestVisible": false,
-        "sectionId": "sec-bal-2"
+        "sectionId": "sec-bal-2",
+        "order": 3
       },
       {
         "id": "205",
@@ -449,7 +463,8 @@
         "duration": "34:10",
         "isFree": false,
         "guestVisible": false,
-        "sectionId": "sec-bal-2"
+        "sectionId": "sec-bal-2",
+        "order": 4
       }
     ],
     "quiz": {
@@ -499,7 +514,8 @@
         }
       ]
     },
-    "grade": "الثالث الثانوي"
+    "grade": "الثالث الثانوي",
+    "semester": "all"
   },
   {
     "id": "3",
@@ -569,7 +585,8 @@
         "duration": "48:10",
         "isFree": true,
         "guestVisible": true,
-        "sectionId": "sec-adab-1"
+        "sectionId": "sec-adab-1",
+        "order": 0
       },
       {
         "id": "302",
@@ -590,7 +607,8 @@
         "duration": "42:30",
         "isFree": false,
         "guestVisible": true,
-        "sectionId": "sec-adab-2"
+        "sectionId": "sec-adab-2",
+        "order": 1
       },
       {
         "id": "303",
@@ -611,7 +629,8 @@
         "duration": "55:00",
         "isFree": false,
         "guestVisible": false,
-        "sectionId": "sec-adab-3"
+        "sectionId": "sec-adab-3",
+        "order": 2
       },
       {
         "id": "304",
@@ -632,7 +651,8 @@
         "duration": "44:20",
         "isFree": false,
         "guestVisible": false,
-        "sectionId": "sec-adab-4"
+        "sectionId": "sec-adab-4",
+        "order": 3
       },
       {
         "id": "305",
@@ -653,7 +673,8 @@
         "duration": "37:40",
         "isFree": false,
         "guestVisible": false,
-        "sectionId": "sec-adab-4"
+        "sectionId": "sec-adab-4",
+        "order": 4
       },
       {
         "id": "306",
@@ -674,7 +695,8 @@
         "duration": "39:15",
         "isFree": false,
         "guestVisible": false,
-        "sectionId": "sec-adab-5"
+        "sectionId": "sec-adab-5",
+        "order": 5
       },
       {
         "id": "307",
@@ -695,7 +717,8 @@
         "duration": "35:00",
         "isFree": false,
         "guestVisible": false,
-        "sectionId": "sec-adab-5"
+        "sectionId": "sec-adab-5",
+        "order": 6
       }
     ],
     "quiz": {
@@ -755,7 +778,8 @@
         }
       ]
     },
-    "grade": "الثالث الثانوي"
+    "grade": "الثالث الثانوي",
+    "semester": "all"
   },
   {
     "id": "4",
@@ -812,7 +836,8 @@
         "duration": "36:40",
         "isFree": true,
         "guestVisible": true,
-        "sectionId": "sec-nus-1"
+        "sectionId": "sec-nus-1",
+        "order": 0
       },
       {
         "id": "402",
@@ -833,7 +858,8 @@
         "duration": "40:15",
         "isFree": false,
         "guestVisible": true,
-        "sectionId": "sec-nus-1"
+        "sectionId": "sec-nus-1",
+        "order": 1
       },
       {
         "id": "403",
@@ -854,7 +880,8 @@
         "duration": "34:50",
         "isFree": false,
         "guestVisible": false,
-        "sectionId": "sec-nus-2"
+        "sectionId": "sec-nus-2",
+        "order": 2
       },
       {
         "id": "404",
@@ -875,7 +902,8 @@
         "duration": "38:30",
         "isFree": false,
         "guestVisible": false,
-        "sectionId": "sec-nus-2"
+        "sectionId": "sec-nus-2",
+        "order": 3
       },
       {
         "id": "405",
@@ -896,7 +924,8 @@
         "duration": "55:20",
         "isFree": false,
         "guestVisible": false,
-        "sectionId": "sec-nus-3"
+        "sectionId": "sec-nus-3",
+        "order": 4
       },
       {
         "id": "406",
@@ -917,7 +946,8 @@
         "duration": "45:00",
         "isFree": false,
         "guestVisible": false,
-        "sectionId": "sec-nus-3"
+        "sectionId": "sec-nus-3",
+        "order": 5
       }
     ],
     "quiz": {
@@ -987,7 +1017,8 @@
         }
       ]
     },
-    "grade": "الثالث الثانوي"
+    "grade": "الثالث الثانوي",
+    "semester": "all"
   },
   {
     "id": "5",
@@ -1019,7 +1050,8 @@
         "duration": "30:00",
         "isFree": true,
         "guestVisible": true,
-        "sectionId": ""
+        "sectionId": "",
+        "order": 0
       },
       {
         "id": "502",
@@ -1040,7 +1072,8 @@
         "duration": "35:00",
         "isFree": false,
         "guestVisible": true,
-        "sectionId": ""
+        "sectionId": "",
+        "order": 1
       },
       {
         "id": "503",
@@ -1061,7 +1094,8 @@
         "duration": "32:00",
         "isFree": false,
         "guestVisible": false,
-        "sectionId": ""
+        "sectionId": "",
+        "order": 2
       }
     ],
     "quiz": {
@@ -1101,6 +1135,7 @@
         }
       ]
     },
-    "grade": ""
+    "grade": "",
+    "semester": "all"
   }
 ]

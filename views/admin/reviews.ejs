@@ -27,18 +27,19 @@
   <div class="admin-table">
     <table>
       <thead>
-        <tr><th>#</th><th>العنوان</th><th>المادة</th><th>المرحلة</th><th>الصف</th><th>التاريخ</th><th>اختبار</th><th>الإجراءات</th></tr>
+        <tr><th>#</th><th>العنوان</th><th>المادة</th><th>المرحلة</th><th>الصف</th><th>المادة (ID)</th><th>التاريخ</th><th>اختبار</th><th>الإجراءات</th></tr>
       </thead>
       <tbody>
         <% if (reviews.length > 0) { %>
           <% reviews.forEach(function(r, i) { %>
-          <tr>
-            <td><%= i + 1 %></td>
-            <td><strong><%= r.title %></strong></td>
-            <td><%= r.course || '---' %></td>
-            <td><%= r.stage || 'الكل' %></td>
-            <td><%= r.grade || 'الكل' %></td>
-            <td><%= r.date %></td>
+            <tr>
+              <td><%= i + 1 %></td>
+              <td><strong><%= r.title %></strong></td>
+              <td><%= r.course || '---' %></td>
+              <td><%= r.stage || 'الكل' %></td>
+              <td><%= r.grade || 'الكل' %></td>
+              <td><%= r.courseId || '---' %></td>
+              <td><%= r.date %></td>
             <td><% if (r.quiz) { %><span class="status-badge active"><%= r.quiz.questions.length %> سؤال</span><% } else { %><span class="status-badge pending">لا يوجد</span><% } %></td>
             <td>
               <div class="admin-actions">
@@ -50,7 +51,7 @@
           </tr>
           <% }) %>
         <% } else { %>
-          <tr><td colspan="8" style="text-align:center;color:var(--text-light);">لا توجد مراجعات</td></tr>
+          <tr><td colspan="9" style="text-align:center;color:var(--text-light);">لا توجد مراجعات</td></tr>
         <% } %>
       </tbody>
     </table>
@@ -68,7 +69,8 @@
       <input type="hidden" id="reviewId">
       <div class="form-group"><label>عنوان المراجعة</label><input id="reviewTitle" placeholder="مثال: مراجعة النحو الشاملة"></div>
       <div class="form-group"><label>المادة</label><input id="reviewCourse" placeholder="نحو - بلاغة - أدب - نصوص"></div>
-      <div class="form-group"><label>الوصف</label><textarea id="reviewDesc" rows="3" placeholder="وصف المراجعة"></textarea></div>
+      <div class="form-group"><label>معرف المادة (courseId)</label><input id="reviewCourseId" placeholder="معرف المادة لربط المراجعة"></div>
+      <div class="form-group"><label>الوصف</label><textarea id="reviewDesc" rows="2" placeholder="وصف المراجعة"></textarea></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
         <div class="form-group"><label>أيقونة</label><input id="reviewIcon" value="fa-book-open"></div>
         <div class="form-group"><label>اللون</label><input type="color" id="reviewColor" value="#A07200"></div>
@@ -77,8 +79,28 @@
         <div class="form-group"><label>المرحلة</label><select id="reviewStage"><option value="all">الكل</option><option value="إعدادية">إعدادية</option><option value="ثانوية">ثانوية</option></select></div>
         <div class="form-group"><label>الصف</label><select id="reviewGrade"><option value="">الكل</option><option value="الأول الإعدادي">الأول الإعدادي</option><option value="الثاني الإعدادي">الثاني الإعدادي</option><option value="الثالث الإعدادي">الثالث الإعدادي</option><option value="الأول الثانوي">الأول الثانوي</option><option value="الثاني الثانوي">الثاني الثانوي</option><option value="الثالث الثانوي">الثالث الثانوي</option></select></div>
       </div>
-      <div class="form-group"><label>رابط فيديو (YouTube Embed)</label><input id="reviewVideoUrl" placeholder="https://www.youtube.com/embed/..."></div>
-      <div class="form-group"><label>رابط PDF</label><input id="reviewPdfUrl" placeholder="/files/review.pdf"></div>
+      <div id="reviewVideosSection" style="margin-top:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <label style="font-size:13px;font-weight:600;color:var(--text-light);">الفيديوهات</label>
+          <button class="btn btn-sm" style="background:var(--accent);color:#fff;" onclick="addReviewVideoField()"><i class="fas fa-plus"></i> إضافة فيديو</button>
+        </div>
+        <div id="reviewVideosContainer"></div>
+      </div>
+      <div id="reviewPdfsSection" style="margin-top:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <label style="font-size:13px;font-weight:600;color:var(--text-light);">ملفات PDF</label>
+          <button class="btn btn-sm" style="background:var(--accent);color:#fff;" onclick="addReviewPdfField()"><i class="fas fa-plus"></i> إضافة PDF</button>
+        </div>
+        <div id="reviewPdfsContainer"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
+        <div class="form-group">
+          <label style="display:flex;align-items:center;gap:8px;">
+            <input type="checkbox" id="reviewIsFree"> مجاني
+          </label>
+        </div>
+        <div class="form-group"><label>الترتيب</label><input id="reviewOrder" type="number" min="0" value="0"></div>
+      </div>
       <button class="btn btn-primary" onclick="saveReview()" style="width:100%;"><i class="fas fa-save"></i> حفظ</button>
     </div>
   </div>
@@ -111,28 +133,68 @@ function openReviewModal(r) {
   document.getElementById('reviewId').value = r ? r.id : '';
   document.getElementById('reviewTitle').value = r ? r.title : '';
   document.getElementById('reviewCourse').value = r ? (r.course || '') : '';
+  document.getElementById('reviewCourseId').value = r ? (r.courseId || '') : '';
   document.getElementById('reviewDesc').value = r ? (r.desc || '') : '';
   document.getElementById('reviewIcon').value = r ? (r.icon || 'fa-book-open') : 'fa-book-open';
   document.getElementById('reviewColor').value = r ? (r.color || '#A07200') : '#A07200';
-  document.getElementById('reviewVideoUrl').value = r ? (r.videoUrl || '') : '';
-  document.getElementById('reviewPdfUrl').value = r ? (r.pdfUrl || '') : '';
   document.getElementById('reviewStage').value = r ? (r.stage || 'all') : 'all';
   document.getElementById('reviewGrade').value = r ? (r.grade || '') : '';
+  document.getElementById('reviewIsFree').checked = r ? !!r.isFree : false;
+  document.getElementById('reviewOrder').value = r ? (r.order || 0) : 0;
+  var vc = document.getElementById('reviewVideosContainer');
+  vc.innerHTML = '';
+  var videos = (r && r.videos) || [];
+  videos.forEach(function(v){ addReviewVideoField(v.title, v.url); });
+  var pc = document.getElementById('reviewPdfsContainer');
+  pc.innerHTML = '';
+  var pdfs = (r && r.pdfFiles) || [];
+  pdfs.forEach(function(p){ addReviewPdfField(p.title, p.url); });
   document.getElementById('reviewModal').classList.add('show');
 }
 function closeRM() { document.getElementById('reviewModal').classList.remove('show'); }
+function addReviewVideoField(title, url) {
+  var container = document.getElementById('reviewVideosContainer');
+  var div = document.createElement('div');
+  div.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:flex-end;';
+  div.innerHTML = '<div class="form-group" style="flex:1;margin-bottom:0;"><label style="font-size:11px;">عنوان الفيديو</label><input class="rv-video-title" placeholder="مثال: شرح المراجعة" value="' + (title || '') + '"></div><div class="form-group" style="flex:2;margin-bottom:0;"><label style="font-size:11px;">رابط YouTube Embed</label><input class="rv-video-url" placeholder="https://www.youtube.com/embed/..." value="' + (url || '') + '"></div><button class="btn btn-sm" style="background:#ef4444;color:#fff;height:36px;width:36px;padding:0;display:flex;align-items:center;justify-content:center;flex-shrink:0;" onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>';
+  container.appendChild(div);
+}
+function addReviewPdfField(title, url) {
+  var container = document.getElementById('reviewPdfsContainer');
+  var div = document.createElement('div');
+  div.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:flex-end;';
+  div.innerHTML = '<div class="form-group" style="flex:1;margin-bottom:0;"><label style="font-size:11px;">عنوان الملف</label><input class="rv-pdf-title" placeholder="مثال: مذكرة المراجعة" value="' + (title || '') + '"></div><div class="form-group" style="flex:2;margin-bottom:0;"><label style="font-size:11px;">رابط الملف</label><input class="rv-pdf-url" placeholder="/files/review.pdf" value="' + (url || '') + '"></div><button class="btn btn-sm" style="background:#ef4444;color:#fff;height:36px;width:36px;padding:0;display:flex;align-items:center;justify-content:center;flex-shrink:0;" onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>';
+  container.appendChild(div);
+}
 function saveReview() {
   const id = document.getElementById('reviewId').value;
+  var videoInputs = document.querySelectorAll('#reviewVideosContainer > div');
+  var videos = [];
+  videoInputs.forEach(function(v) {
+    var t = v.querySelector('.rv-video-title').value;
+    var u = v.querySelector('.rv-video-url').value;
+    if (u) videos.push({ title: t || 'فيديو', url: u });
+  });
+  var pdfInputs = document.querySelectorAll('#reviewPdfsContainer > div');
+  var pdfFiles = [];
+  pdfInputs.forEach(function(p) {
+    var t = p.querySelector('.rv-pdf-title').value;
+    var u = p.querySelector('.rv-pdf-url').value;
+    if (u) pdfFiles.push({ title: t || 'ملف', url: u });
+  });
   const data = {
     title: document.getElementById('reviewTitle').value,
     course: document.getElementById('reviewCourse').value,
+    courseId: document.getElementById('reviewCourseId').value,
     desc: document.getElementById('reviewDesc').value,
     icon: document.getElementById('reviewIcon').value,
     color: document.getElementById('reviewColor').value,
-    videoUrl: document.getElementById('reviewVideoUrl').value,
-    pdfUrl: document.getElementById('reviewPdfUrl').value,
+    videos: videos,
+    pdfFiles: pdfFiles,
     stage: document.getElementById('reviewStage').value,
-    grade: document.getElementById('reviewGrade').value
+    grade: document.getElementById('reviewGrade').value,
+    isFree: document.getElementById('reviewIsFree').checked,
+    order: parseInt(document.getElementById('reviewOrder').value) || 0
   };
   const url = id ? '/api/admin/reviews/' + id : '/api/admin/reviews';
   const method = id ? 'PUT' : 'POST';
