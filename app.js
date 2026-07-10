@@ -288,9 +288,14 @@ function requireStudentOrGuest(req, res, next) {
 /* ===================== STUDENT ROUTES ===================== */
 
 app.get('/student', requireStudentOrGuest, async (req, res) => {
-  const courses = await readData('courses');
-  const announcements = await readData('announcements');
+  var courses = await readData('courses');
+  const user = req.session.user;
   const isGuest = req.session.demoMode;
+  var userStage = (user && user.stage) || '';
+  var userGrade = (user && user.grade) || '';
+  if (userStage) courses = courses.filter(function(c) { return c.stage === userStage || c.stage === 'all'; });
+  if (userGrade) courses = courses.filter(function(c) { return c.grade === userGrade || !c.grade; });
+  const announcements = await readData('announcements');
   let progress = {};
   if (!isGuest && req.session.user) {
     const userData = await readData('users');
@@ -301,10 +306,14 @@ app.get('/student', requireStudentOrGuest, async (req, res) => {
 });
 
 app.get('/student/courses', requireStudentOrGuest, async (req, res) => {
-  const courses = await readData('courses');
+  var courses = await readData('courses');
   const user = req.session.user;
-  const userStage = (user && user.stage) || '';
-  res.render('student/courses', { courses, userStage, title: 'المحاضرات - لغتي' });
+  var userStage = (user && user.stage) || '';
+  var userGrade = (user && user.grade) || '';
+  // Filter by student's stage and grade
+  if (userStage) courses = courses.filter(function(c) { return c.stage === userStage || c.stage === 'all'; });
+  if (userGrade) courses = courses.filter(function(c) { return c.grade === userGrade || !c.grade; });
+  res.render('student/courses', { courses, userStage, userGrade, title: 'المحاضرات - لغتي' });
 });
 
 app.get('/student/course/:id', requireStudentOrGuest, async (req, res) => {
@@ -654,8 +663,13 @@ app.get('/admin/students', requireAdmin, async (req, res) => {
 });
 
 app.get('/admin/courses', requireAdmin, async (req, res) => {
-  const courses = await readData('courses');
-  res.render('admin/courses', { courses, title: 'المحاضرات - الإدارة' });
+  const allCourses = await readData('courses');
+  const stage = req.query.stage || '';
+  const grade = req.query.grade || '';
+  var courses = allCourses;
+  if (stage) courses = courses.filter(function(c) { return c.stage === stage; });
+  if (grade) courses = courses.filter(function(c) { return c.grade === grade; });
+  res.render('admin/courses', { courses, allCourses, stage, grade, title: 'المحاضرات - الإدارة' });
 });
 
 app.get('/admin/subscriptions', requireAdmin, async (req, res) => {

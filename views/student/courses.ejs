@@ -4,26 +4,20 @@
   <div class="page-header">
     <div>
       <h1>المحاضرات</h1>
-      <p>جميع محاضرات اللغة العربية - اختر مرحلتك</p>
+      <p><%= userGrade ? 'محتوى ' + userGrade : 'جميع المحاضرات' %></p>
     </div>
   </div>
 
-  <!-- Stage Tabs -->
-  <div id="studentStageTabs" style="display:flex;gap:10px;margin-bottom:24px;flex-wrap:wrap;">
-    <button class="btn btn-primary btn-sm" onclick="studentFilterStage('all')">
-      <i class="fas fa-th-large"></i> الكل
-    </button>
-    <button class="btn btn-outline btn-sm" onclick="studentFilterStage('إعدادية')">
-      <i class="fas fa-school"></i> إعدادية
-    </button>
-    <button class="btn btn-outline btn-sm" onclick="studentFilterStage('ثانوية')">
-      <i class="fas fa-graduation-cap"></i> ثانوية
-    </button>
-  </div>
-
   <div id="studentCoursesContainer" class="courses-grid">
+    <% if (courses.length === 0) { %>
+    <div style="grid-column:1/-1;text-align:center;padding:60px 20px;background:var(--glass-bg);border-radius:var(--radius-xl);border:1px solid var(--border);">
+      <i class="fas fa-book-open" style="font-size:48px;color:var(--border);display:block;margin-bottom:16px;"></i>
+      <h3 style="font-size:20px;color:var(--text-light);margin-bottom:8px;">لا توجد محاضرات متاحة</h3>
+      <p style="color:var(--text-muted);">لم يتم إضافة محتوى لصفك بعد</p>
+    </div>
+    <% } %>
     <% courses.forEach(function(course) { %>
-    <div class="course-card" data-stage="<%= course.stage || 'all' %>" data-grade="<%= course.grade || '' %>">
+    <div class="course-card">
       <div class="course-card-header">
         <div class="icon"><i class="fas <%= course.icon %>"></i></div>
         <h3><%= course.title %></h3>
@@ -31,43 +25,13 @@
         <% if (course.grade) { %>
         <span style="display:inline-block;background:var(--accent-glow);color:var(--accent);font-size:11px;padding:2px 10px;border-radius:10px;font-weight:600;margin-top:4px;"><%= course.grade %></span>
         <% } %>
-        <% if (course.stage && course.stage !== 'all') { %>
-        <span style="display:inline-block;background:rgba(99,102,241,0.1);color:var(--primary);font-size:10px;padding:2px 8px;border-radius:4px;margin-top:2px;"><%= course.stage %></span>
-        <% } %>
       </div>
       <div class="course-card-body">
         <a href="/student/course/<%= course.id %>" class="btn btn-primary">الدخول إلى المحاضرات</a>
       </div>
     </div>
     <% }) %>
-    <% if (courses.length === 0) { %>
-    <div style="grid-column:1/-1;text-align:center;padding:60px 20px;background:var(--glass-bg);border-radius:var(--radius-xl);border:1px solid var(--border);">
-      <i class="fas fa-book-open" style="font-size:48px;color:var(--border);display:block;margin-bottom:16px;"></i>
-      <h3 style="font-size:20px;color:var(--text-light);margin-bottom:8px;">لا توجد محاضرات متاحة</h3>
-      <p style="color:var(--text-muted);">سيتم إضافة المحاضرات قريباً</p>
-    </div>
-    <% } %>
   </div>
 </main>
-
-<script>
-function studentFilterStage(stage) {
-  document.querySelectorAll('#studentCoursesContainer .course-card').forEach(function(el) {
-    var s = el.dataset.stage || 'all';
-    el.style.display = (stage === 'all' || s === 'all' || s === stage) ? '' : 'none';
-  });
-  document.querySelectorAll('#studentStageTabs .btn').forEach(function(btn) {
-    var match = btn.getAttribute('onclick') ? btn.getAttribute('onclick').match(/'([^']+)'/) : null;
-    var btnStage = match ? match[1] : 'all';
-    btn.className = 'btn btn-sm ' + (btnStage === stage ? 'btn-primary' : 'btn-outline');
-  });
-}
-// Auto-filter to student's stage if available
-<% if (userStage && userStage !== 'all') { %>
-document.addEventListener('DOMContentLoaded', function() { studentFilterStage('<%= userStage %>'); });
-<% } else { %>
-document.addEventListener('DOMContentLoaded', function() { studentFilterStage('all'); });
-<% } %>
-</script>
 </body>
 </html>
