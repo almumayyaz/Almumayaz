@@ -237,6 +237,10 @@ function openSubModal(s) {
   var status = statusMap[s.subscriptionStatus] || 'غير مشترك';
   var endDate = s.subscriptionEnd ? new Date(s.subscriptionEnd).toLocaleDateString('ar-EG') : '---';
   document.getElementById('subStudentStatus').textContent = 'الحالة: ' + status + ' | تاريخ النهاية: ' + endDate;
+  // Auto-select action based on current status
+  var actionMap = { stopped: 'activate', expired: 'activate', inactive: 'activate', cancelled: 'activate', active: 'stop' };
+  var suggested = actionMap[s.subscriptionStatus] || 'activate';
+  document.getElementById('subAction').value = suggested;
   document.getElementById('subModal').classList.add('show');
 }
 function closeSubModal() { document.getElementById('subModal').classList.remove('show'); }
