@@ -433,8 +433,10 @@
         <select id="lessonSectionId"><option value="">بدون باب</option></select>
       </div>
       <div class="form-group">
-        <label>مؤقت الاختبار (بالدقائق)</label>
-        <input id="lessonQuizTimer" type="number" min="0" placeholder="مثال: 15">
+        <label style="display:flex;align-items:center;gap:8px;">
+          <input id="lessonQuizTimerEnabled" type="checkbox" onchange="document.getElementById('lessonQuizTimer').style.display=this.checked?'':'none'"> تفعيل المؤقت
+        </label>
+        <input id="lessonQuizTimer" type="number" min="0" placeholder="مثال: 15" style="display:none;">
       </div>
       <button class="btn btn-primary" onclick="saveLesson()" style="width:100%;margin-top:8px;"><i class="fas fa-save"></i> حفظ</button>
     </div>
@@ -451,7 +453,12 @@
     <div class="modal-body">
       <input type="hidden" id="quizCourseId">
       <div class="form-group"><label>عنوان الاختبار</label><input id="quizTitle" placeholder="مثال: اختبار النحو الشامل"></div>
-      <div class="form-group"><label>المدة (بالدقائق)</label><input id="quizTimer" type="number" min="0" placeholder="15"></div>
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:8px;">
+          <input id="quizTimerEnabled" type="checkbox" onchange="document.getElementById('quizTimer').style.display=this.checked?'':'none'"> تفعيل المؤقت
+        </label>
+        <input id="quizTimer" type="number" min="0" placeholder="15" style="display:none;">
+      </div>
       <div id="questionsContainer">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
           <label>الأسئلة</label>
@@ -576,7 +583,12 @@
       <div class="form-group"><label>اسم بنك الأسئلة</label><input id="qbTitle" placeholder="مثال: بنك أسئلة الوحدة الأولى"></div>
       <div class="form-group"><label>الوصف</label><textarea id="qbDescription" rows="2" placeholder="وصف بنك الأسئلة"></textarea></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-        <div class="form-group"><label>المؤقت (بالدقائق)</label><input id="qbTimer" type="number" min="0" placeholder="15"></div>
+        <div class="form-group">
+          <label style="display:flex;align-items:center;gap:8px;">
+            <input id="qbTimerEnabled" type="checkbox" onchange="document.getElementById('qbTimer').style.display=this.checked?'':'none'"> تفعيل المؤقت
+          </label>
+          <input id="qbTimer" type="number" min="0" placeholder="15" style="display:none;">
+        </div>
         <div class="form-group"><label>الترتيب</label><input id="qbOrder" type="number" min="0" value="0"></div>
       </div>
       <div id="qbQuestionsContainer">
@@ -683,6 +695,9 @@ function openLessonModal(course, lesson) {
   document.getElementById('lessonGuestVisible').checked = lesson ? !!lesson.guestVisible : false;
   document.getElementById('lessonDuration').value = lesson ? (lesson.duration || '') : '';
   document.getElementById('lessonQuizTimer').value = lesson ? (lesson.quizTimer || '') : '';
+  var hasTimer = lesson && lesson.quizTimer;
+  document.getElementById('lessonQuizTimerEnabled').checked = !!hasTimer;
+  document.getElementById('lessonQuizTimer').style.display = hasTimer ? '' : 'none';
   var sel = document.getElementById('lessonSectionId');
   sel.innerHTML = '<option value="">بدون باب</option>';
   if (course.sections) {
@@ -745,7 +760,7 @@ function saveLesson() {
     isFree: document.getElementById('lessonIsFree').checked,
     guestVisible: document.getElementById('lessonGuestVisible').checked,
     sectionId: document.getElementById('lessonSectionId').value,
-    quizTimer: document.getElementById('lessonQuizTimer').value || null,
+    quizTimer: document.getElementById('lessonQuizTimerEnabled').checked ? (document.getElementById('lessonQuizTimer').value || null) : null,
     videoUrl: videos.length > 0 ? videos[0].url : '',
     pdfUrl: pdfFiles.length > 0 ? pdfFiles[0].url : ''
   };
@@ -766,6 +781,9 @@ function openQuizModal(course) {
   document.getElementById('quizCourseId').value = course.id;
   document.getElementById('quizTitle').value = course.quiz ? course.quiz.title : 'اختبار شامل';
   document.getElementById('quizTimer').value = course.quiz ? (course.quiz.timerMinutes || '') : '';
+  var hasTimer = course.quiz && course.quiz.timerMinutes;
+  document.getElementById('quizTimerEnabled').checked = !!hasTimer;
+  document.getElementById('quizTimer').style.display = hasTimer ? '' : 'none';
   var container = document.getElementById('questionsContainer');
   var existing = container.querySelectorAll('.question-block');
   existing.forEach(function(el){ el.remove(); });
@@ -807,7 +825,7 @@ function extractQuestions() {
 function saveQuiz() {
   var courseId = document.getElementById('quizCourseId').value;
   var title = document.getElementById('quizTitle').value;
-  var timerMinutes = parseInt(document.getElementById('quizTimer').value) || null;
+  var timerMinutes = document.getElementById('quizTimerEnabled').checked ? (parseInt(document.getElementById('quizTimer').value) || null) : null;
   var blocks = document.querySelectorAll('.question-block');
   var questions = [];
   blocks.forEach(function(b) {
@@ -991,6 +1009,9 @@ function openQuestionBankModal(courseId, bank) {
   document.getElementById('qbTitle').value = bank ? bank.title : '';
   document.getElementById('qbDescription').value = bank ? (bank.description || '') : '';
   document.getElementById('qbTimer').value = bank ? (bank.timerMinutes || '') : '';
+  var hasTimer = bank && bank.timerMinutes;
+  document.getElementById('qbTimerEnabled').checked = !!hasTimer;
+  document.getElementById('qbTimer').style.display = hasTimer ? '' : 'none';
   document.getElementById('qbOrder').value = bank ? (bank.order || 0) : 0;
   var container = document.getElementById('qbQuestionsContainer');
   var existing = container.querySelectorAll('.question-block');
@@ -1024,7 +1045,7 @@ function saveQuestionBank() {
     courseId: courseId,
     title: document.getElementById('qbTitle').value,
     description: document.getElementById('qbDescription').value,
-    timerMinutes: parseInt(document.getElementById('qbTimer').value) || null,
+    timerMinutes: document.getElementById('qbTimerEnabled').checked ? (parseInt(document.getElementById('qbTimer').value) || null) : null,
     order: parseInt(document.getElementById('qbOrder').value) || 0,
     questions: questions
   };
