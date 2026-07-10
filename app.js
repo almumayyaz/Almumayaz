@@ -705,6 +705,15 @@ app.post('/api/student/chat/send', requireStudentOrGuest, async (req, res) => {
     if (!text && !image) return res.status(400).json({ error: 'لا يمكن إرسال رسالة فارغة' });
     const msg = { senderId: senderId(req), senderName: req.session.user.name || 'زائر', timestamp: Date.now(), read: false, text: text || '', image: image || '' };
     const key = await fbPush('chats/' + cid + '/messages', msg);
+    // Send push to admin
+    const users = await readData('users');
+    const admin = users.find(u => u.role === 'admin' && u.fcmToken);
+    if (admin) {
+      try {
+        const m = { token: admin.fcmToken, notification: { title: 'رسالة جديدة من ' + (req.session.user.name || 'طالب'), body: text ? (text.length > 80 ? text.slice(0,80) + '...' : text) : '📷 صورة' }, data: { url: '/admin/chat/' + encodeURIComponent(req.session.user.id || (req.session.guestChatId || '')) } };
+        await admin.messaging().send(m);
+      } catch(e) {}
+    }
     res.json({ success: true, key: key, message: msg });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -725,6 +734,8 @@ app.post('/api/admin/chat/:studentId/send', requireAdmin, async (req, res) => {
     if (!text && !image) return res.status(400).json({ error: 'لا يمكن إرسال رسالة فارغة' });
     const msg = { senderId: 'teacher', senderName: 'محمد عفيفي', timestamp: Date.now(), read: false, text: text || '', image: image || '' };
     const key = await fbPush('chats/' + chatId + '/messages', msg);
+    // Send push to student
+    sendFCM(req.params.studentId, 'رسالة جديدة من الأستاذ محمد عفيفي 📩', text ? (text.length > 80 ? text.slice(0,80) + '...' : text) : '📷 صورة', '/student/chat');
     res.json({ success: true, key: key, message: msg });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
