@@ -464,8 +464,8 @@
       </div>
       <div id="wordUploadArea" style="display:none;margin-bottom:16px;">
         <div class="form-group">
-          <label>لصق محتوى الأسئلة من Word</label>
-          <textarea id="wordContent" rows="8" placeholder="الصق محتوى الأسئلة من ملف Word هنا (يدعم جدول Word أو تنسيق: سؤال [Tab] خيار1 [Tab] خيار2 [Tab] خيار3 [Tab] خيار4 [Tab] الإجابة)"></textarea>
+          <label>اختيار ملف Word</label>
+          <input id="wordFile" type="file" accept=".docx" style="padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;width:100%;">
         </div>
         <button class="btn btn-sm" style="background:var(--success);color:#fff;" onclick="extractQuestions()"><i class="fas fa-magic"></i> استخراج</button>
       </div>
@@ -602,8 +602,8 @@
       </div>
       <div id="qbuWordUploadArea" style="display:none;margin-bottom:16px;">
         <div class="form-group">
-          <label>لصق محتوى الأسئلة من Word</label>
-          <textarea id="qbuWordContent" rows="8" placeholder="الصق محتوى الأسئلة من ملف Word هنا (يدعم جدول Word)"></textarea>
+          <label>اختيار ملف Word</label>
+          <input id="qbuWordFile" type="file" accept=".docx" style="padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;width:100%;">
         </div>
         <button class="btn btn-sm" style="background:var(--success);color:#fff;" onclick="extractQbQuestions()"><i class="fas fa-magic"></i> استخراج</button>
       </div>
@@ -811,22 +811,24 @@ function addQuestion(q, idx) {
 function uploadWordFile() {
   var area = document.getElementById('wordUploadArea');
   area.style.display = area.style.display === 'none' ? 'block' : 'none';
+  if (area.style.display === 'none') document.getElementById('wordFile').value = '';
 }
 function extractQuestions() {
-  var content = document.getElementById('wordContent').value;
-  if (!content.trim()) { alert('يرجى لصق محتوى الأسئلة أولاً'); return; }
-  fetch('/api/admin/upload-questions', {
+  var fileInput = document.getElementById('wordFile');
+  if (!fileInput.files || !fileInput.files[0]) { alert('يرجى اختيار ملف Word أولاً'); return; }
+  var formData = new FormData();
+  formData.append('file', fileInput.files[0]);
+  fetch('/api/admin/upload-word-file', {
     method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ fileContent: content })
+    body: formData
   }).then(function(r){ return r.json(); }).then(function(d){
     if (d.success && d.questions) {
       d.questions.forEach(function(q){ addQuestion(q); });
       document.getElementById('wordUploadArea').style.display = 'none';
-      document.getElementById('wordContent').value = '';
+      fileInput.value = '';
       alert('تم استخراج ' + d.questions.length + ' سؤال');
-    } else alert('فشل استخراج الأسئلة');
-  });
+    } else alert(d.error || 'فشل استخراج الأسئلة');
+  }).catch(function(){ alert('فشل الاتصال بالخادم'); });
 }
 function saveQuiz() {
   var courseId = document.getElementById('quizCourseId').value;
@@ -1031,7 +1033,7 @@ function openQuestionBankModal(courseId, bank) {
     bank.questions.forEach(function(q, i){ addQbQuestion(q, i); });
   }
   document.getElementById('qbuWordUploadArea').style.display = 'none';
-  document.getElementById('qbuWordContent').value = '';
+  document.getElementById('qbuWordFile').value = '';
   document.getElementById('questionBankModal').classList.add('show');
 }
 function addQbQuestion(q, idx) {
@@ -1075,22 +1077,24 @@ function deleteQuestionBank(id) {
 function toggleQbWordUpload() {
   var area = document.getElementById('qbuWordUploadArea');
   area.style.display = area.style.display === 'none' ? 'block' : 'none';
+  if (area.style.display === 'none') document.getElementById('qbuWordFile').value = '';
 }
 function extractQbQuestions() {
-  var content = document.getElementById('qbuWordContent').value;
-  if (!content.trim()) { alert('يرجى لصق محتوى الأسئلة أولاً'); return; }
-  fetch('/api/admin/upload-questions', {
+  var fileInput = document.getElementById('qbuWordFile');
+  if (!fileInput.files || !fileInput.files[0]) { alert('يرجى اختيار ملف Word أولاً'); return; }
+  var formData = new FormData();
+  formData.append('file', fileInput.files[0]);
+  fetch('/api/admin/upload-word-file', {
     method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ fileContent: content })
+    body: formData
   }).then(function(r){ return r.json(); }).then(function(d){
     if (d.success && d.questions) {
       d.questions.forEach(function(q){ addQbQuestion(q); });
       document.getElementById('qbuWordUploadArea').style.display = 'none';
-      document.getElementById('qbuWordContent').value = '';
+      fileInput.value = '';
       alert('تم استخراج ' + d.questions.length + ' سؤال');
-    } else alert('فشل استخراج الأسئلة');
-  });
+    } else alert(d.error || 'فشل استخراج الأسئلة');
+  }).catch(function(){ alert('فشل الاتصال بالخادم'); });
 }
 
 document.querySelectorAll('.modal-overlay').forEach(function(m) {
