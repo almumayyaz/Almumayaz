@@ -37,12 +37,9 @@
     </div>
     <% }) %>
 
-    <div style="margin-top:28px;display:flex;gap:16px;flex-wrap:wrap;">
+    <div style="margin-top:28px;">
       <button class="btn btn-primary btn-sm btn-submit-quiz" style="width:100%;">
         <i class="fas fa-check-circle"></i> تقييم الإجابات
-      </button>
-      <button class="btn btn-sm" style="background:var(--bg);color:var(--text);border:2px solid var(--border);width:100%;" onclick="resetExam()">
-        <i class="fas fa-redo"></i> إعادة الاختبار
       </button>
     </div>
   </div>
@@ -68,22 +65,6 @@ function startTimer() {
       document.querySelector('.btn-submit-quiz')?.click();
     }
   }, 1000);
-}
-
-function resetExam() {
-  if (!confirm('هل تريد إعادة الاختبار؟ سيتم مسح جميع الإجابات.')) return;
-  clearInterval(timerInterval);
-  seconds = <%= (course.quiz.timerMinutes || 15) * 60 %>;
-  document.getElementById('timerDisplay').textContent = '<%= String(course.quiz.timerMinutes || 15).padStart(2,'0') %>:00';
-  document.getElementById('examTimer').style.background = '';
-  document.querySelectorAll('.quiz-option').forEach(o => {
-    o.style.borderColor = 'var(--border)';
-    o.style.background = '';
-  });
-  document.querySelectorAll('.quiz-question input[type="radio"]').forEach(r => r.checked = false);
-  document.querySelectorAll('.quiz-results').forEach(r => r.remove());
-  document.querySelectorAll('.btn-submit-quiz').forEach(b => b.style.display = '');
-  startTimer();
 }
 
 startTimer();

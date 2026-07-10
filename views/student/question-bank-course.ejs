@@ -36,12 +36,9 @@
     </div>
     <% }) %>
 
-    <div style="margin-top:28px;display:flex;gap:16px;flex-wrap:wrap;">
+    <div style="margin-top:28px;">
       <button class="btn btn-primary btn-sm btn-submit-quiz" style="width:100%;">
         <i class="fas fa-check-circle"></i> تقييم الإجابات
-      </button>
-      <button class="btn btn-sm" style="background:var(--bg);color:var(--text);border:2px solid var(--border);width:100%;" onclick="resetBank()">
-        <i class="fas fa-redo"></i> إعادة المحاولة
       </button>
     </div>
   </div>
@@ -129,7 +126,7 @@ function resetBank() {
   document.querySelectorAll('.quiz-question input[type="radio"]').forEach(r => r.checked = false);
   document.querySelectorAll('.quiz-results').forEach(r => r.remove());
   document.querySelectorAll('.btn-submit-quiz').forEach(b => b.style.display = '');
-}
+});
 startTimer();
 </script>
 </body>
