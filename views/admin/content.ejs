@@ -1,0 +1,622 @@
+<%- include('../partials/header', { title: title, bodyClass: 'admin-body' }) %>
+<%- include('../partials/admin-sidebar') %>
+<main class="admin-content">
+  <div class="page-header">
+    <div>
+      <h1><i class="fas fa-sitemap" style="color:var(--accent);"></i> إدارة المحتوى</h1>
+      <p>إدارة المحتوى حسب المرحلة والصف الدراسي</p>
+    </div>
+  </div>
+
+  <!-- Stage Selection -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;">
+    <% var allStages = ['إعدادية', 'ثانوية']; %>
+    <% allStages.forEach(function(s) { %>
+      <% var count = 0; Object.keys(stages[s] || {}).forEach(function(g) { count += (stages[s][g].courses.length + stages[s][g].reviews.length); }); %>
+      <a href="/admin/content?stage=<%= encodeURIComponent(s) %><%= activeGrade ? '&grade=' + encodeURIComponent(activeGrade) : '' %>" class="stage-card <%= activeStage === s ? 'active' : '' %>" style="<%= activeStage === s ? 'border-color:var(--accent);box-shadow:0 0 0 2px var(--accent);' : '' %>">
+        <i class="fas <%= s === 'إعدادية' ? 'fa-school' : 'fa-graduation-cap' %>" style="font-size:32px;color:<%= s === 'إعدادية' ? 'var(--success)' : '#F6C453' %>;display:block;margin-bottom:10px;"></i>
+        <h3 style="font-size:20px;font-weight:700;margin:0 0 4px;font-family:'Aref Ruqaa',serif;">المرحلة <%= s %></h3>
+        <span style="font-size:13px;color:var(--text-light);"><%= count %> عنصر</span>
+      </a>
+    <% }) %>
+  </div>
+
+  <% if (activeStage) { %>
+    <!-- Grade Selection -->
+    <div style="margin-bottom:20px;">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <% var gradeList = activeStage === 'إعدادية' ? ['الأول الإعدادي', 'الثاني الإعدادي', 'الثالث الإعدادي'] : ['الأول الثانوي', 'الثاني الثانوي', 'الثالث الثانوي']; %>
+        <% gradeList.forEach(function(g) { %>
+          <% var data = stages[activeStage][g]; %>
+          <% var total = data.courses.length + data.reviews.length; %>
+          <a href="/admin/content?stage=<%= encodeURIComponent(activeStage) %>&grade=<%= encodeURIComponent(g) %>" class="grade-chip <%= activeGrade === g ? 'active' : '' %>" style="<%= activeGrade === g ? 'background:var(--accent);color:#fff;border-color:var(--accent);' : '' %>">
+            <%= g %> <span style="font-size:11px;opacity:0.7;">(<%= total %>)</span>
+          </a>
+        <% }) %>
+      </div>
+    </div>
+  <% } %>
+
+  <% if (activeData) { %>
+    <!-- Active Grade Content -->
+    <div id="gradeContent">
+      <!-- Summary Stats -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:20px;">
+        <div class="stat-mini"><i class="fas fa-book" style="color:var(--accent);"></i> <span><%= activeData.courses.length %></span> فرع</div>
+        <div class="stat-mini"><i class="fas fa-star" style="color:#F6C453;"></i> <span><%= activeData.reviews.length %></span> مراجعة</div>
+        <div class="stat-mini"><i class="fas fa-video" style="color:var(--purple);"></i> <span><%= activeData.courses.reduce(function(s,c){return s + c.lessons.reduce(function(ls,l){return ls + (l.videos?l.videos.length:0);},0);},0) %></span> فيديو</div>
+        <div class="stat-mini"><i class="fas fa-file-pdf" style="color:#ef4444;"></i> <span><%= activeData.courses.reduce(function(s,c){return s + c.lessons.reduce(function(ls,l){return ls + (l.pdfFiles?l.pdfFiles.length:0);},0);},0) %></span> ملف PDF</div>
+        <div class="stat-mini"><i class="fas fa-question-circle" style="color:var(--success);"></i> <span><%= activeData.courses.reduce(function(s,c){return s + (c.quiz && c.quiz.questions ? c.quiz.questions.length : 0);},0) %></span> سؤال</div>
+        <div class="stat-mini"><i class="fas fa-gift" style="color:#f97316;"></i> <span><%= activeData.courses.reduce(function(s,c){return s + c.lessons.filter(function(l){return l.isFree;}).length;},0) %></span> درس مجاني</div>
+      </div>
+
+      <!-- Resource Sections -->
+      <div class="resource-sections">
+        <!-- Sections/Units -->
+        <% if (activeStage === 'ثانوية') { %>
+        <div class="resource-section" id="rs-sections">
+          <div class="rs-header" onclick="toggleRS('sections')">
+            <i class="fas fa-folder-tree" style="color:var(--accent);"></i>
+            <span>الفروع</span>
+            <span class="rs-count"><%= activeData.courses.reduce(function(s,c){return s + (c.sections?c.sections.length:0);},0) %></span>
+            <i class="fas fa-chevron-down rs-arrow"></i>
+          </div>
+          <div class="rs-body">
+            <% activeData.courses.forEach(function(c) { %>
+              <% if (c.sections && c.sections.length > 0) { %>
+                <div class="rs-course-group">
+                  <strong><%= c.title %></strong>
+                  <% c.sections.forEach(function(sec, si) { %>
+                    <div class="rs-item" data-course="<%= c.id %>" data-section="<%= sec.id %>">
+                      <span class="rs-drag"><i class="fas fa-grip-vertical"></i></span>
+                      <span class="rs-name"><%= sec.name %></span>
+                      <span class="rs-sub"><%= (sec.lessons||[]).length %> درس</span>
+                      <span class="rs-actions">
+                        <button class="rs-btn edit" onclick="editSection('<%= c.id %>','<%= sec.id %>','<%= sec.name.replace(/'/g,"\\'") %>')"><i class="fas fa-edit"></i></button>
+                        <button class="rs-btn delete" onclick="deleteSection('<%= c.id %>','<%= sec.id %>')"><i class="fas fa-trash"></i></button>
+                      </span>
+                    </div>
+                  <% }) %>
+                  <button class="rs-add" onclick="addSection('<%= c.id %>')"><i class="fas fa-plus"></i> إضافة فرع</button>
+                </div>
+              <% } %>
+            <% }) %>
+            <% if (activeData.courses.every(function(c){return !c.sections||c.sections.length===0;})) { %>
+              <div style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px;">لا توجد فروع. قم بإضافة فروع من خلال إدارة المحاضرات.</div>
+            <% } %>
+          </div>
+        </div>
+        <% } %>
+
+        <!-- Units (Prep) -->
+        <% if (activeStage === 'إعدادية') { %>
+        <div class="resource-section" id="rs-units">
+          <div class="rs-header" onclick="toggleRS('units')">
+            <i class="fas fa-layer-group" style="color:var(--success);"></i>
+            <span>الوحدات</span>
+            <span class="rs-count"><%= activeData.courses.reduce(function(s,c){return s + (c.units?c.units.length:0);},0) %></span>
+            <i class="fas fa-chevron-down rs-arrow"></i>
+          </div>
+          <div class="rs-body">
+            <% activeData.courses.forEach(function(c) { %>
+              <% if (c.units && c.units.length > 0) { %>
+                <div class="rs-course-group">
+                  <strong><%= c.title %></strong>
+                  <% c.units.forEach(function(u, ui) { %>
+                    <div class="rs-item" data-course="<%= c.id %>" data-unit="<%= u.id %>">
+                      <span class="rs-drag"><i class="fas fa-grip-vertical"></i></span>
+                      <span class="rs-name"><%= u.name %></span>
+                      <span class="rs-actions">
+                        <button class="rs-btn edit" onclick="editUnit('<%= c.id %>','<%= u.id %>','<%= u.name.replace(/'/g,"\\'") %>')"><i class="fas fa-edit"></i></button>
+                        <button class="rs-btn delete" onclick="deleteUnit('<%= c.id %>','<%= u.id %>')"><i class="fas fa-trash"></i></button>
+                      </span>
+                    </div>
+                  <% }) %>
+                  <button class="rs-add" onclick="addUnit('<%= c.id %>')"><i class="fas fa-plus"></i> إضافة وحدة</button>
+                </div>
+              <% } %>
+            <% }) %>
+            <% if (activeData.courses.every(function(c){return !c.units||c.units.length===0;})) { %>
+              <div style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px;">لا توجد وحدات.</div>
+            <% } %>
+          </div>
+        </div>
+        <% } %>
+
+        <!-- Lessons -->
+        <div class="resource-section" id="rs-lessons">
+          <div class="rs-header" onclick="toggleRS('lessons')">
+            <i class="fas fa-video" style="color:var(--purple);"></i>
+            <span>الدروس</span>
+            <span class="rs-count"><%= activeData.courses.reduce(function(s,c){return s + (c.lessons?c.lessons.length:0);},0) %></span>
+            <i class="fas fa-chevron-down rs-arrow"></i>
+          </div>
+          <div class="rs-body">
+            <div class="rs-search"><i class="fas fa-search"></i> <input type="text" oninput="filterRS('lessons',this.value)" placeholder="بحث في الدروس..."></div>
+            <% activeData.courses.forEach(function(c) { %>
+              <% if (c.lessons && c.lessons.length > 0) { %>
+                <div class="rs-course-group">
+                  <strong><%= c.title %> (<%= c.lessons.length %>)</strong>
+                  <% c.lessons.forEach(function(l, li) { %>
+                    <div class="rs-item" data-course="<%= c.id %>" data-lesson="<%= l.id %>">
+                      <span class="rs-drag"><i class="fas fa-grip-vertical"></i></span>
+                      <span class="rs-name"><%= l.title %></span>
+                      <span class="rs-sub"><%= l.duration %> | <% if(l.isFree){ %><span class="free-badge">مجاني</span><% } %></span>
+                      <span class="rs-actions">
+                        <button class="rs-btn edit" onclick="openLessonModal('<%= c.id %>','<%= l.id %>')"><i class="fas fa-edit"></i></button>
+                        <button class="rs-btn delete" onclick="deleteLesson('<%= c.id %>','<%= l.id %>')"><i class="fas fa-trash"></i></button>
+                      </span>
+                    </div>
+                  <% }) %>
+                </div>
+              <% } %>
+            <% }) %>
+            <button class="rs-add" onclick="openLessonModal('<%= activeData.courses.length > 0 ? activeData.courses[0].id : '' %>','')"><i class="fas fa-plus"></i> إضافة درس</button>
+          </div>
+        </div>
+
+        <!-- Videos -->
+        <div class="resource-section" id="rs-videos">
+          <div class="rs-header" onclick="toggleRS('videos')">
+            <i class="fas fa-play-circle" style="color:var(--accent);"></i>
+            <span>الفيديوهات</span>
+            <span class="rs-count"><%= activeData.courses.reduce(function(s,c){return s + c.lessons.reduce(function(ls,l){return ls + (l.videos?l.videos.length:0);},0);},0) %></span>
+            <i class="fas fa-chevron-down rs-arrow"></i>
+          </div>
+          <div class="rs-body">
+            <% activeData.courses.forEach(function(c) { %>
+              <% c.lessons.forEach(function(l) { %>
+                <% if (l.videos && l.videos.length > 0) { %>
+                  <div class="rs-course-group">
+                    <strong><%= c.title %> → <%= l.title %> (<%= l.videos.length %>)</strong>
+                    <% l.videos.forEach(function(v, vi) { %>
+                      <div class="rs-item">
+                        <span class="rs-drag"><i class="fas fa-grip-vertical"></i></span>
+                        <span class="rs-name"><%= v.title %></span>
+                        <span class="rs-sub"><a href="<%= v.url %>" target="_blank" style="color:var(--accent);font-size:11px;"><i class="fas fa-external-link-alt"></i> مشاهدة</a></span>
+                        <span class="rs-actions">
+                          <button class="rs-btn delete" onclick="deleteVideo('<%= c.id %>','<%= l.id %>',<%= vi %>)"><i class="fas fa-trash"></i></button>
+                        </span>
+                      </div>
+                    <% }) %>
+                  </div>
+                <% } %>
+              <% }) %>
+            <% }) %>
+            <% if (activeData.courses.every(function(c){return c.lessons.every(function(l){return !l.videos||l.videos.length===0;});})) { %>
+              <div style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px;">لا توجد فيديوهات.</div>
+            <% } %>
+          </div>
+        </div>
+
+        <!-- PDFs -->
+        <div class="resource-section" id="rs-pdfs">
+          <div class="rs-header" onclick="toggleRS('pdfs')">
+            <i class="fas fa-file-pdf" style="color:#ef4444;"></i>
+            <span>ملفات PDF</span>
+            <span class="rs-count"><%= activeData.courses.reduce(function(s,c){return s + c.lessons.reduce(function(ls,l){return ls + (l.pdfFiles?l.pdfFiles.length:0);},0);},0) %></span>
+            <i class="fas fa-chevron-down rs-arrow"></i>
+          </div>
+          <div class="rs-body">
+            <% activeData.courses.forEach(function(c) { %>
+              <% c.lessons.forEach(function(l) { %>
+                <% if (l.pdfFiles && l.pdfFiles.length > 0) { %>
+                  <div class="rs-course-group">
+                    <strong><%= c.title %> → <%= l.title %> (<%= l.pdfFiles.length %>)</strong>
+                    <% l.pdfFiles.forEach(function(p, pi) { %>
+                      <div class="rs-item">
+                        <span class="rs-drag"><i class="fas fa-grip-vertical"></i></span>
+                        <span class="rs-name"><%= p.title %></span>
+                        <span class="rs-sub"><a href="<%= p.url %>" target="_blank" style="color:var(--accent);font-size:11px;"><i class="fas fa-external-link-alt"></i> عرض</a></span>
+                        <span class="rs-actions">
+                          <button class="rs-btn delete" onclick="deletePdf('<%= c.id %>','<%= l.id %>',<%= pi %>)"><i class="fas fa-trash"></i></button>
+                        </span>
+                      </div>
+                    <% }) %>
+                  </div>
+                <% } %>
+              <% }) %>
+            <% }) %>
+            <% if (activeData.courses.every(function(c){return c.lessons.every(function(l){return !l.pdfFiles||l.pdfFiles.length===0;});})) { %>
+              <div style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px;">لا توجد ملفات PDF.</div>
+            <% } %>
+          </div>
+        </div>
+
+        <!-- Reviews -->
+        <div class="resource-section" id="rs-reviews">
+          <div class="rs-header" onclick="toggleRS('reviews')">
+            <i class="fas fa-star" style="color:#F6C453;"></i>
+            <span>المراجعات</span>
+            <span class="rs-count"><%= activeData.reviews.length %></span>
+            <i class="fas fa-chevron-down rs-arrow"></i>
+          </div>
+          <div class="rs-body">
+            <div class="rs-search"><i class="fas fa-search"></i> <input type="text" oninput="filterRS('reviews',this.value)" placeholder="بحث في المراجعات..."></div>
+            <% if (activeData.reviews.length > 0) { %>
+              <% activeData.reviews.forEach(function(r, ri) { %>
+                <div class="rs-item" data-review="<%= r.id %>">
+                  <span class="rs-drag"><i class="fas fa-grip-vertical"></i></span>
+                  <span class="rs-name"><%= r.title %></span>
+                  <span class="rs-sub"><%= r.course || '---' %> | <%= r.quiz ? r.quiz.questions.length + ' سؤال' : 'بدون اختبار' %></span>
+                  <span class="rs-actions">
+                    <button class="rs-btn edit" onclick="openReviewModal('<%= r.id %>')"><i class="fas fa-edit"></i></button>
+                    <button class="rs-btn delete" onclick="deleteReview('<%= r.id %>')"><i class="fas fa-trash"></i></button>
+                    <button class="rs-btn move" onclick="moveResource('review','<%= r.id %>')"><i class="fas fa-arrows-alt-h"></i></button>
+                  </span>
+                </div>
+              <% }) %>
+            <% } else { %>
+              <div style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px;">لا توجد مراجعات لهذا الصف.</div>
+            <% } %>
+            <button class="rs-add" onclick="openReviewModal('')"><i class="fas fa-plus"></i> إضافة مراجعة</button>
+          </div>
+        </div>
+
+        <!-- Quiz Bank -->
+        <div class="resource-section" id="rs-quiz">
+          <div class="rs-header" onclick="toggleRS('quiz')">
+            <i class="fas fa-question-circle" style="color:var(--success);"></i>
+            <span>بنك الأسئلة والاختبارات</span>
+            <span class="rs-count"><%= activeData.courses.reduce(function(s,c){return s + (c.quiz && c.quiz.questions ? c.quiz.questions.length : 0);},0) %></span>
+            <i class="fas fa-chevron-down rs-arrow"></i>
+          </div>
+          <div class="rs-body">
+            <% activeData.courses.forEach(function(c) { %>
+              <% if (c.quiz && c.quiz.questions && c.quiz.questions.length > 0) { %>
+                <div class="rs-course-group">
+                  <strong><%= c.title %> — <%= c.quiz.title || 'اختبار' %> (<%= c.quiz.questions.length %> سؤال)</strong>
+                  <% c.quiz.questions.forEach(function(q, qi) { %>
+                    <div class="rs-item">
+                      <span class="rs-name" style="font-size:12px;"><%= q.question.substring(0,80) %></span>
+                      <span class="rs-sub">الإجابة: <%= q.options[q.correct] %></span>
+                    </div>
+                  <% }) %>
+                  <a href="/admin/courses?stage=<%= encodeURIComponent(activeStage) %>&grade=<%= encodeURIComponent(grade) %>" style="display:inline-block;margin-top:8px;font-size:12px;color:var(--accent);"><i class="fas fa-external-link-alt"></i> إدارة الاختبارات من المحاضرات</a>
+                </div>
+              <% } %>
+            <% }) %>
+            <% if (activeData.courses.every(function(c){return !c.quiz||!c.quiz.questions||c.quiz.questions.length===0;})) { %>
+              <div style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px;">لا توجد أسئلة أو اختبارات لهذا الصف.</div>
+            <% } %>
+          </div>
+        </div>
+
+        <!-- Free Lessons -->
+        <div class="resource-section" id="rs-free">
+          <div class="rs-header" onclick="toggleRS('free')">
+            <i class="fas fa-gift" style="color:#f97316;"></i>
+            <span>الدروس المجانية</span>
+            <span class="rs-count"><%= activeData.courses.reduce(function(s,c){return s + c.lessons.filter(function(l){return l.isFree;}).length;},0) %></span>
+            <i class="fas fa-chevron-down rs-arrow"></i>
+          </div>
+          <div class="rs-body">
+            <% activeData.courses.forEach(function(c) { %>
+              <% var freeLessons = c.lessons.filter(function(l){return l.isFree;}); %>
+              <% if (freeLessons.length > 0) { %>
+                <div class="rs-course-group">
+                  <strong><%= c.title %> (<%= freeLessons.length %>)</strong>
+                  <% freeLessons.forEach(function(l) { %>
+                    <div class="rs-item">
+                      <span class="rs-name"><%= l.title %></span>
+                      <span class="rs-sub"><%= l.duration %></span>
+                    </div>
+                  <% }) %>
+                </div>
+              <% } %>
+            <% }) %>
+            <% if (activeData.courses.every(function(c){return c.lessons.every(function(l){return !l.isFree;});})) { %>
+              <div style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px;">لا توجد دروس مجانية.</div>
+            <% } %>
+          </div>
+        </div>
+      </div>
+    </div>
+  <% } else if (activeStage && !activeGrade) { %>
+    <div style="text-align:center;padding:60px;color:var(--text-muted);">
+      <i class="fas fa-hand-pointer" style="font-size:48px;display:block;margin-bottom:16px;color:var(--border);"></i>
+      <h3 style="font-size:18px;color:var(--text-light);">اختر صفًا دراسيًا</h3>
+      <p style="font-size:14px;">اختر الصف الدراسي من الأعلى لعرض محتواه</p>
+    </div>
+  <% } else { %>
+    <div style="text-align:center;padding:60px;color:var(--text-muted);">
+      <i class="fas fa-sitemap" style="font-size:64px;display:block;margin-bottom:16px;color:var(--border);"></i>
+      <h3 style="font-size:20px;color:var(--text-light);">مرحبًا بك في إدارة المحتوى</h3>
+      <p style="font-size:14px;">اختر المرحلة الدراسية من الأعلى للبدء في إدارة المحتوى</p>
+    </div>
+  <% } %>
+</main>
+
+<!-- Lesson Modal -->
+<div class="modal-overlay" id="lessonModal"><div class="modal modal-lg"><div class="modal-header"><h3 id="lessonModalTitle">إضافة/تعديل درس</h3><button class="modal-close" onclick="closeModal('lessonModal')">&times;</button></div><div class="modal-body">
+<input type="hidden" id="lmCourseId"><input type="hidden" id="lmLessonId">
+<div class="form-group"><label>عنوان الدرس</label><input id="lmTitle" placeholder="عنوان الدرس"></div>
+<div class="form-group"><label>المدة</label><input id="lmDuration" placeholder="مثال: 30:00"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+<div class="form-group"><label><input type="checkbox" id="lmIsFree"> درس مجاني</label></div>
+<div class="form-group"><label><input type="checkbox" id="lmGuestVisible"> متاح للضيوف</label></div>
+</div>
+<div class="form-group"><label>رابط فيديو (YouTube Embed)</label><input id="lmVideoUrl" placeholder="https://www.youtube.com/embed/..."></div>
+<div class="form-group"><label>رابط PDF</label><input id="lmPdfUrl" placeholder="/files/..."></div>
+<button class="btn btn-primary" onclick="saveLesson()" style="width:100%;"><i class="fas fa-save"></i> حفظ</button>
+</div></div></div>
+
+<!-- Review Modal -->
+<div class="modal-overlay" id="reviewModal"><div class="modal"><div class="modal-header"><h3 id="reviewModalTitle">إضافة/تعديل مراجعة</h3><button class="modal-close" onclick="closeModal('reviewModal')">&times;</button></div><div class="modal-body">
+<input type="hidden" id="rmId"><input type="hidden" id="rmStage" value="<%= activeStage %>"><input type="hidden" id="rmGrade" value="<%= grade %>">
+<div class="form-group"><label>عنوان المراجعة</label><input id="rmTitle" placeholder="مثال: مراجعة النحو"></div>
+<div class="form-group"><label>المادة</label><input id="rmCourse" placeholder="نحو - بلاغة - أدب"></div>
+<div class="form-group"><label>الوصف</label><textarea id="rmDesc" rows="2"></textarea></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+<div class="form-group"><label>المرحلة</label><select id="rmStageSelect"><option value="all">الكل</option><option value="إعدادية">إعدادية</option><option value="ثانوية">ثانوية</option></select></div>
+<div class="form-group"><label>الصف</label><select id="rmGradeSelect"><option value="">الكل</option><option value="الأول الإعدادي">الأول الإعدادي</option><option value="الثاني الإعدادي">الثاني الإعدادي</option><option value="الثالث الإعدادي">الثالث الإعدادي</option><option value="الأول الثانوي">الأول الثانوي</option><option value="الثاني الثانوي">الثاني الثانوي</option><option value="الثالث الثانوي">الثالث الثانوي</option></select></div>
+</div>
+<div class="form-group"><label>اللون</label><input type="color" id="rmColor" value="#A07200"></div>
+<button class="btn btn-primary" onclick="saveReview()" style="width:100%;"><i class="fas fa-save"></i> حفظ</button>
+</div></div></div>
+
+<!-- Move Resource Modal -->
+<div class="modal-overlay" id="moveModal"><div class="modal" style="max-width:400px;"><div class="modal-header"><h3>نقل عنصر</h3><button class="modal-close" onclick="closeModal('moveModal')">&times;</button></div><div class="modal-body">
+<p style="font-size:13px;color:var(--text-light);margin-bottom:12px;">اختر الصف الدراسي لنقل العنصر إليه:</p>
+<input type="hidden" id="moveType"><input type="hidden" id="moveId">
+<div class="form-group"><label>المرحلة</label><select id="moveStage" onchange="updateMoveGrades()"><option value="إعدادية">إعدادية</option><option value="ثانوية">ثانوية</option></select></div>
+<div class="form-group"><label>الصف</label><select id="moveGrade"><option value="الأول الإعدادي">الأول الإعدادي</option><option value="الثاني الإعدادي">الثاني الإعدادي</option><option value="الثالث الإعدادي">الثالث الإعدادي</option><option value="الأول الثانوي">الأول الثانوي</option><option value="الثاني الثانوي">الثاني الثانوي</option><option value="الثالث الثانوي">الثالث الثانوي</option></select></div>
+<button class="btn btn-primary" onclick="confirmMove()" style="width:100%;"><i class="fas fa-check"></i> تأكيد النقل</button>
+</div></div></div>
+
+<style>
+.stage-card { display:block;text-decoration:none;padding:28px 20px;background:var(--glass-bg);backdrop-filter:blur(var(--glass-blur));border-radius:var(--radius-xl);border:2px solid var(--glass-border);text-align:center;color:var(--text);transition:all .3s; }
+.stage-card:hover { transform:translateY(-3px);box-shadow:var(--shadow-lg); }
+.grade-chip { display:inline-flex;align-items:center;gap:6px;padding:10px 18px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);text-decoration:none;font-size:14px;font-weight:600;transition:all .2s;cursor:pointer; }
+.grade-chip:hover { border-color:var(--accent); }
+.stat-mini { background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;text-align:center;font-size:13px;font-weight:600; }
+.stat-mini i { font-size:18px;display:block;margin-bottom:6px; }
+.stat-mini span { font-size:16px; }
+.resource-sections { display:flex;flex-direction:column;gap:8px; }
+.resource-section { background:var(--glass-bg);backdrop-filter:blur(var(--glass-blur));border-radius:var(--radius-lg);border:1px solid var(--glass-border);overflow:hidden; }
+.rs-header { display:flex;align-items:center;gap:12px;padding:14px 18px;cursor:pointer;transition:var(--transition);font-weight:700;font-size:15px;user-select:none; }
+.rs-header:hover { background:var(--accent-glow); }
+.rs-count { margin-right:auto;background:var(--bg);padding:2px 10px;border-radius:10px;font-size:12px;font-weight:600;color:var(--text-light); }
+.rs-arrow { transition:transform .3s;color:var(--text-muted);font-size:12px; }
+.resource-section.expanded .rs-arrow { transform:rotate(180deg); }
+.rs-body { max-height:0;overflow:hidden;transition:max-height .4s ease; }
+.resource-section.expanded .rs-body { max-height:5000px; }
+.rs-course-group { padding:12px 18px 8px;border-top:1px solid var(--border); }
+.rs-course-group > strong { display:block;font-size:13px;color:var(--accent);margin-bottom:6px; }
+.rs-item { display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:6px;transition:var(--transition); }
+.rs-item:hover { background:var(--bg); }
+.rs-drag { color:var(--text-muted);font-size:12px;cursor:grab; }
+.rs-name { flex:1;font-size:13px;font-weight:500;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+.rs-sub { font-size:11px;color:var(--text-light);white-space:nowrap; }
+.rs-sub .free-badge { background:rgba(5,150,105,0.1);color:var(--success);padding:1px 6px;border-radius:3px;font-weight:600; }
+.rs-actions { display:flex;gap:4px;flex-shrink:0; }
+.rs-btn { background:none;border:none;width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12px;transition:all .2s; }
+.rs-btn.edit { color:var(--accent); }
+.rs-btn.edit:hover { background:var(--accent-glow); }
+.rs-btn.delete { color:#ef4444; }
+.rs-btn.delete:hover { background:rgba(239,68,68,0.1); }
+.rs-btn.move { color:var(--text-muted); }
+.rs-btn.move:hover { background:var(--bg); }
+.rs-add { display:block;width:100%;padding:10px;background:none;border:none;border-top:1px solid var(--border);color:var(--accent);font-size:13px;font-weight:600;cursor:pointer;transition:var(--transition);text-align:center; }
+.rs-add:hover { background:var(--accent-glow); }
+.rs-search { padding:10px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px; }
+.rs-search input { flex:1;border:none;background:var(--bg);padding:8px 12px;border-radius:6px;color:var(--text);font-size:13px;outline:none; }
+.rs-search i { color:var(--text-muted);font-size:13px; }
+</style>
+
+<script>
+function toggleRS(id) {
+  var el = document.getElementById('rs-' + id);
+  if (el) el.classList.toggle('expanded');
+}
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+document.querySelectorAll('.modal-overlay').forEach(function(m) {
+  m.addEventListener('click', function(e) { if (e.target === this) this.classList.remove('show'); });
+});
+
+// --- Sections (Secondary) ---
+function addSection(courseId) {
+  var name = prompt('اسم الفرع الجديد:');
+  if (!name) return;
+  fetch('/api/admin/courses/' + courseId + '/sections', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:name}) })
+    .then(function(r){return r.json()}).then(function(d){if(d.success) location.reload();else alert(d.error);});
+}
+function editSection(courseId, sectionId, name) {
+  var newName = prompt('تعديل اسم الفرع:', name);
+  if (!newName || newName === name) return;
+  fetch('/api/admin/courses/' + courseId + '/sections/' + sectionId, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:newName}) })
+    .then(function(r){return r.json()}).then(function(d){if(d.success) location.reload();else alert(d.error);});
+}
+function deleteSection(courseId, sectionId) {
+  if (!confirm('هل أنت متأكد من حذف هذا الفرع؟')) return;
+  fetch('/api/admin/courses/' + courseId + '/sections/' + sectionId, { method:'DELETE' })
+    .then(function(r){return r.json()}).then(function(d){if(d.success) location.reload();else alert(d.error);});
+}
+
+// --- Units (Prep) ---
+function addUnit(courseId) {
+  var name = prompt('اسم الوحدة الجديدة:');
+  if (!name) return;
+  var courses = <%= JSON.stringify(activeData ? activeData.courses : []) %>;
+  var course = courses.find(function(c){return c.id === courseId;});
+  if (!course) return;
+  var units = course.units || [];
+  units.push({ id: 'unit-' + Date.now(), name: name });
+  fetch('/api/admin/courses/' + courseId, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({units:units}) })
+    .then(function(r){return r.json()}).then(function(d){if(d.success) location.reload();else alert(d.error);});
+}
+function editUnit(courseId, unitId, name) {
+  var newName = prompt('تعديل اسم الوحدة:', name);
+  if (!newName || newName === name) return;
+  var courses = <%= JSON.stringify(activeData ? activeData.courses : []) %>;
+  var course = courses.find(function(c){return c.id === courseId;});
+  if (!course) return;
+  var units = course.units || [];
+  var unit = units.find(function(u){return u.id === unitId;});
+  if (unit) unit.name = newName;
+  fetch('/api/admin/courses/' + courseId, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({units:units}) })
+    .then(function(r){return r.json()}).then(function(d){if(d.success) location.reload();else alert(d.error);});
+}
+function deleteUnit(courseId, unitId) {
+  if (!confirm('هل أنت متأكد من حذف هذه الوحدة؟')) return;
+  var courses = <%= JSON.stringify(activeData ? activeData.courses : []) %>;
+  var course = courses.find(function(c){return c.id === courseId;});
+  if (!course) return;
+  var units = (course.units || []).filter(function(u){return u.id !== unitId;});
+  fetch('/api/admin/courses/' + courseId, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({units:units}) })
+    .then(function(r){return r.json()}).then(function(d){if(d.success) location.reload();else alert(d.error);});
+}
+
+// --- Lessons ---
+var allCoursesData = <%= JSON.stringify(activeData ? activeData.courses : []) %>;
+function openLessonModal(courseId, lessonId) {
+  document.getElementById('lessonModalTitle').textContent = lessonId ? 'تعديل الدرس' : 'إضافة درس جديد';
+  document.getElementById('lmCourseId').value = courseId;
+  document.getElementById('lmLessonId').value = lessonId || '';
+  if (lessonId) {
+    var course = allCoursesData.find(function(c){return c.id === courseId;});
+    var lesson = course ? course.lessons.find(function(l){return l.id === lessonId;}) : null;
+    if (lesson) {
+      document.getElementById('lmTitle').value = lesson.title || '';
+      document.getElementById('lmDuration').value = lesson.duration || '';
+      document.getElementById('lmIsFree').checked = !!lesson.isFree;
+      document.getElementById('lmGuestVisible').checked = !!lesson.guestVisible;
+      document.getElementById('lmVideoUrl').value = (lesson.videos && lesson.videos[0]) ? lesson.videos[0].url : '';
+      document.getElementById('lmPdfUrl').value = (lesson.pdfFiles && lesson.pdfFiles[0]) ? lesson.pdfFiles[0].url : '';
+    }
+  } else {
+    ['lmTitle','lmDuration','lmVideoUrl','lmPdfUrl'].forEach(function(id){document.getElementById(id).value='';});
+    document.getElementById('lmIsFree').checked = false;
+    document.getElementById('lmGuestVisible').checked = false;
+  }
+  document.getElementById('lessonModal').classList.add('show');
+}
+function saveLesson() {
+  var courseId = document.getElementById('lmCourseId').value;
+  var lessonId = document.getElementById('lmLessonId').value;
+  if (!courseId) { alert('اختر مادة أولاً'); return; }
+  var lesson = {
+    title: document.getElementById('lmTitle').value,
+    duration: document.getElementById('lmDuration').value,
+    isFree: document.getElementById('lmIsFree').checked,
+    guestVisible: document.getElementById('lmGuestVisible').checked,
+    videos: document.getElementById('lmVideoUrl').value ? [{title:document.getElementById('lmTitle').value,url:document.getElementById('lmVideoUrl').value}] : [],
+    pdfFiles: document.getElementById('lmPdfUrl').value ? [{title:'ملف ' + document.getElementById('lmTitle').value,url:document.getElementById('lmPdfUrl').value}] : []
+  };
+  var url = lessonId ? '/api/admin/courses/' + courseId + '/lessons/' + lessonId : '/api/admin/courses/' + courseId + '/lessons';
+  var method = lessonId ? 'PUT' : 'POST';
+  fetch(url, { method:method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(lesson) })
+    .then(function(r){return r.json()}).then(function(d){if(d.success) location.reload();else alert(d.error);});
+}
+function deleteLesson(courseId, lessonId) {
+  if (!confirm('هل أنت متأكد من حذف هذا الدرس؟')) return;
+  fetch('/api/admin/courses/' + courseId + '/lessons/' + lessonId, { method:'DELETE' })
+    .then(function(r){return r.json()}).then(function(d){if(d.success) location.reload();else alert(d.error);});
+}
+
+// --- Videos & PDFs ---
+function deleteVideo(courseId, lessonId, idx) {
+  if (!confirm('هل أنت متأكد من حذف هذا الفيديو؟')) return;
+  var course = allCoursesData.find(function(c){return c.id === courseId;});
+  var lesson = course ? course.lessons.find(function(l){return l.id === lessonId;}) : null;
+  if (!lesson) return;
+  var videos = lesson.videos || [];
+  videos.splice(idx, 1);
+  fetch('/api/admin/courses/' + courseId + '/lessons/' + lessonId, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({videos:videos}) })
+    .then(function(r){return r.json()}).then(function(d){if(d.success) location.reload();else alert(d.error);});
+}
+function deletePdf(courseId, lessonId, idx) {
+  if (!confirm('هل أنت متأكد من حذف هذا الملف؟')) return;
+  var course = allCoursesData.find(function(c){return c.id === courseId;});
+  var lesson = course ? course.lessons.find(function(l){return l.id === lessonId;}) : null;
+  if (!lesson) return;
+  var pdfFiles = lesson.pdfFiles || [];
+  pdfFiles.splice(idx, 1);
+  fetch('/api/admin/courses/' + courseId + '/lessons/' + lessonId, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({pdfFiles:pdfFiles}) })
+    .then(function(r){return r.json()}).then(function(d){if(d.success) location.reload();else alert(d.error);});
+}
+
+// --- Reviews ---
+function openReviewModal(id) {
+  document.getElementById('reviewModalTitle').textContent = id ? 'تعديل المراجعة' : 'مراجعة جديدة';
+  document.getElementById('rmId').value = id || '';
+  if (id) {
+    var reviews = <%= JSON.stringify(activeData ? activeData.reviews : []) %>;
+    var r = reviews.find(function(x){return x.id === id;});
+    if (r) {
+      document.getElementById('rmTitle').value = r.title || '';
+      document.getElementById('rmCourse').value = r.course || '';
+      document.getElementById('rmDesc').value = r.desc || '';
+      document.getElementById('rmColor').value = r.color || '#A07200';
+      document.getElementById('rmStageSelect').value = r.stage || 'all';
+      document.getElementById('rmGradeSelect').value = r.grade || '';
+    }
+  } else {
+    document.getElementById('rmTitle').value = '';
+    document.getElementById('rmCourse').value = '';
+    document.getElementById('rmDesc').value = '';
+    document.getElementById('rmColor').value = '#A07200';
+    document.getElementById('rmStageSelect').value = '<%= activeStage || 'all' %>';
+    document.getElementById('rmGradeSelect').value = '<%= grade || '' %>';
+  }
+  document.getElementById('reviewModal').classList.add('show');
+}
+function saveReview() {
+  var id = document.getElementById('rmId').value;
+  var data = {
+    title: document.getElementById('rmTitle').value,
+    course: document.getElementById('rmCourse').value,
+    desc: document.getElementById('rmDesc').value,
+    color: document.getElementById('rmColor').value,
+    stage: document.getElementById('rmStageSelect').value,
+    grade: document.getElementById('rmGradeSelect').value
+  };
+  var url = id ? '/api/admin/reviews/' + id : '/api/admin/reviews';
+  var method = id ? 'PUT' : 'POST';
+  fetch(url, { method:method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) })
+    .then(function(r){return r.json()}).then(function(d){if(d.success) location.reload();else alert(d.error);});
+}
+function deleteReview(id) {
+  if (!confirm('هل أنت متأكد من حذف هذه المراجعة؟')) return;
+  fetch('/api/admin/reviews/' + id, { method:'DELETE' })
+    .then(function(r){return r.json()}).then(function(d){if(d.success) location.reload();else alert(d.error);});
+}
+
+// --- Move Resource ---
+function moveResource(type, id) {
+  document.getElementById('moveType').value = type;
+  document.getElementById('moveId').value = id;
+  document.getElementById('moveModal').classList.add('show');
+}
+function updateMoveGrades() {
+  var stage = document.getElementById('moveStage').value;
+  var gradeSelect = document.getElementById('moveGrade');
+  var options = stage === 'إعدادية' ? ['الأول الإعدادي','الثاني الإعدادي','الثالث الإعدادي'] : ['الأول الثانوي','الثاني الثانوي','الثالث الثانوي'];
+  gradeSelect.innerHTML = options.map(function(g){return '<option value="'+g+'">'+g+'</option>';}).join('');
+}
+function confirmMove() {
+  var type = document.getElementById('moveType').value;
+  var id = document.getElementById('moveId').value;
+  var stage = document.getElementById('moveStage').value;
+  var grade = document.getElementById('moveGrade').value;
+  if (!confirm('تأكيد نقل العنصر إلى ' + stage + ' - ' + grade + '؟')) return;
+  if (type === 'review') {
+    fetch('/api/admin/reviews/' + id, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({stage:stage,grade:grade}) })
+      .then(function(r){return r.json()}).then(function(d){if(d.success) location.reload();else alert(d.error);});
+  }
+}
+
+// --- Search / Filter ---
+function filterRS(section, query) {
+  var container = document.getElementById('rs-' + section);
+  if (!container) return;
+  var items = container.querySelectorAll('.rs-item');
+  var q = query.toLowerCase();
+  items.forEach(function(item) {
+    var name = (item.querySelector('.rs-name') || {}).textContent || '';
+    item.style.display = name.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+</script>
+</body>
+</html>

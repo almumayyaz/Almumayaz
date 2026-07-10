@@ -687,6 +687,43 @@ app.get('/admin/courses', requireAdmin, async (req, res) => {
   res.render('admin/courses', { courses, allCourses, stage, grade, title: 'المحاضرات - الإدارة' });
 });
 
+app.get('/admin/content', requireAdmin, async (req, res) => {
+  var courses = await readData('courses');
+  var reviews = await readData('reviews');
+  var stage = req.query.stage || '';
+  var grade = req.query.grade || '';
+  // Build hierarchical structure
+  var stages = { 'إعدادية': {}, 'ثانوية': {} };
+  var prepGrades = ['الأول الإعدادي', 'الثاني الإعدادي', 'الثالث الإعدادي'];
+  var secGrades = ['الأول الثانوي', 'الثاني الثانوي', 'الثالث الثانوي'];
+  prepGrades.forEach(function(g) { stages['إعدادية'][g] = { courses: [], reviews: [] }; });
+  secGrades.forEach(function(g) { stages['ثانوية'][g] = { courses: [], reviews: [] }; });
+  courses.forEach(function(c) {
+    var s = c.stage || 'all';
+    var g = c.grade || '';
+    if (s === 'all') { prepGrades.forEach(function(pg) { stages['إعدادية'][pg].courses.push(c); }); secGrades.forEach(function(sg) { stages['ثانوية'][sg].courses.push(c); }); return; }
+    if (!stages[s] || !stages[s][g]) return;
+    stages[s][g].courses.push(c);
+  });
+  reviews.forEach(function(r) {
+    var s = r.stage || 'all';
+    var g = r.grade || '';
+    if (s === 'all') { prepGrades.forEach(function(pg) { if (stages['إعدادية'][pg]) stages['إعدادية'][pg].reviews.push(r); }); secGrades.forEach(function(sg) { if (stages['ثانوية'][sg]) stages['ثانوية'][sg].reviews.push(r); }); return; }
+    if (!stages[s] || !stages[s][g]) return;
+    stages[s][g].reviews.push(r);
+  });
+  if (stage && stages[stage]) {
+    if (grade && stages[stage][grade]) {
+      var activeData = stages[stage][grade];
+      res.render('admin/content', { stages, activeStage: stage, activeGrade: grade, activeData, title: 'إدارة المحتوى - الإدارة' });
+    } else {
+      res.render('admin/content', { stages, activeStage: stage, activeGrade: '', activeData: null, title: 'إدارة المحتوى - الإدارة' });
+    }
+  } else {
+    res.render('admin/content', { stages, activeStage: '', activeGrade: '', activeData: null, title: 'إدارة المحتوى - الإدارة' });
+  }
+});
+
 app.get('/admin/subscriptions', requireAdmin, async (req, res) => {
   const subscriptions = await readData('subscriptions');
   res.render('admin/subscriptions', { subscriptions, title: 'الاشتراكات - الإدارة' });
