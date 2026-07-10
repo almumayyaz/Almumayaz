@@ -48,10 +48,8 @@
   var chatInput = document.getElementById('chatInput');
   var studentNameEl = document.getElementById('chatStudentName');
 
-  // Show delete button only for non-protected chats
-  if (studentId !== 'lughati-chat') {
-    document.getElementById('deleteChatBtn').style.display = '';
-  }
+  // Show delete button
+  document.getElementById('deleteChatBtn').style.display = '';
 
   function scrollToBottom() {
     setTimeout(function(){ chatDiv.scrollTop = chatDiv.scrollHeight; }, 50);

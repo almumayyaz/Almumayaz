@@ -65,6 +65,25 @@ function checkSubscription(req, res, next) {
   next();
 }
 
+// Refresh student session data from DB on every request (throttled to 30s)
+async function refreshSession(req, res, next) {
+  const user = req.session.user;
+  if (!user || user.role === 'admin') return next();
+  const now = Date.now();
+  if (user._lastSync && (now - user._lastSync) < 30000) return next();
+  try {
+    const users = await readData('users');
+    const fresh = users.find(u => u.id === user.id);
+    if (fresh) {
+      ['subscriptionStatus','subscriptionEnd','subscriptionStart','name','phone','parentPhone','stage','grade','governorate','referralCode','referralDiscount','fcmToken'].forEach(k => {
+        req.session.user[k] = fresh[k];
+      });
+      req.session.user._lastSync = now;
+    }
+  } catch(e) {}
+  next();
+}
+
 app.get('/parent-login', (req, res) => {
   if (req.session.user) return req.session.user.role === 'admin' ? res.redirect('/admin') : res.redirect('/student');
   res.render('auth/login', { title: 'تسجيل دخول ولي الأمر - المُميز', error: null, parentLogin: true });
@@ -88,6 +107,8 @@ app.use((req, res, next) => {
   res.locals.instaPay = stripBOM(process.env.INSTAPAY || 'example@instapay.com');
   next();
 });
+
+app.use(refreshSession);
 
 /* ===================== AUTO-MIGRATION ===================== */
 (async function autoMigrate() {
@@ -141,6 +162,11 @@ app.use((req, res, next) => {
       if (!u.referralCode) { u.referralCode = 'REF-' + Math.random().toString(36).substr(2, 8).toUpperCase(); usersChanged = true; }
     });
     if (usersChanged) await writeData('users', users);
+    // Delete lughati-chat if it exists
+    try {
+      const { fbRemove } = require('./firebase-admin');
+      await fbRemove('chats/student-lughati-chat');
+    } catch(e) {}
     console.log('Auto-migration complete');
   } catch(e) {
     console.log('Auto-migration note:', e.message);
@@ -706,10 +732,6 @@ app.post('/api/admin/chat/:studentId/send', requireAdmin, async (req, res) => {
 app.delete('/api/admin/chat/:studentId', requireAdmin, async (req, res) => {
   try {
     const chatId = 'student-' + req.params.studentId;
-    // Protect the main "لغة عربية - المُميز" chat from deletion
-    if (req.params.studentId === 'lughati-chat') {
-      return res.status(403).json({ error: 'لا يمكن حذف محادثة الدعم الرئيسية' });
-    }
     await fbRemove('chats/' + chatId);
     res.json({ success: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
