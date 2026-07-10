@@ -385,7 +385,7 @@ app.get('/student/lesson/:courseId/:lessonId', requireStudentOrGuest, async (req
   const courses = await readData('courses');
   const course = courses.find(c => c.id === req.params.courseId);
   if (!course) return res.redirect('/student/courses');
-  const lesson = course.lessons.find(l => l.id === req.params.lessonId);
+  const lesson = (course.lessons||[]).find(l => l.id === req.params.lessonId);
   if (!lesson) return res.redirect(`/student/course/${course.id}`);
 
   const user = req.session.user;
