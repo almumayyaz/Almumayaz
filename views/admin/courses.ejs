@@ -462,14 +462,41 @@
           </div>
         </div>
       </div>
-      <div id="wordUploadArea" style="display:none;margin-bottom:16px;">
-        <div class="form-group">
-          <label>اختيار ملف Word</label>
-          <input id="wordFile" type="file" accept=".docx" style="padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;width:100%;">
-        </div>
-        <button class="btn btn-sm" style="background:var(--success);color:#fff;" onclick="extractQuestions()"><i class="fas fa-magic"></i> استخراج</button>
-      </div>
       <button class="btn btn-primary" onclick="saveQuiz()" style="width:100%;margin-top:16px;"><i class="fas fa-save"></i> حفظ الاختبار</button>
+    </div>
+  </div>
+</div>
+
+<!-- Word Upload Popup -->
+<div class="modal-overlay" id="wordUploadModal">
+  <div class="modal" style="max-width:500px;">
+    <div class="modal-header">
+      <h3>رفع ملف Word</h3>
+      <button class="modal-close" onclick="closeModal('wordUploadModal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>اختيار ملف Word يحتوي على الأسئلة</label>
+        <input id="wordFilePopup" type="file" accept=".docx" style="padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;width:100%;">
+      </div>
+      <button class="btn btn-sm" style="background:var(--success);color:#fff;width:100%;" onclick="extractQuestionsFromPopup()"><i class="fas fa-magic"></i> استخراج</button>
+    </div>
+  </div>
+</div>
+
+<!-- Word Upload Popup (Question Bank) -->
+<div class="modal-overlay" id="qbuWordUploadModal">
+  <div class="modal" style="max-width:500px;">
+    <div class="modal-header">
+      <h3>رفع ملف Word لبنك الأسئلة</h3>
+      <button class="modal-close" onclick="closeModal('qbuWordUploadModal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>اختيار ملف Word يحتوي على الأسئلة</label>
+        <input id="qbuWordFilePopup" type="file" accept=".docx" style="padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;width:100%;">
+      </div>
+      <button class="btn btn-sm" style="background:var(--success);color:#fff;width:100%;" onclick="extractQbQuestionsFromPopup()"><i class="fas fa-magic"></i> استخراج</button>
     </div>
   </div>
 </div>
@@ -600,19 +627,15 @@
           </div>
         </div>
       </div>
-      <div id="qbuWordUploadArea" style="display:none;margin-bottom:16px;">
-        <div class="form-group">
-          <label>اختيار ملف Word</label>
-          <input id="qbuWordFile" type="file" accept=".docx" style="padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;width:100%;">
-        </div>
-        <button class="btn btn-sm" style="background:var(--success);color:#fff;" onclick="extractQbQuestions()"><i class="fas fa-magic"></i> استخراج</button>
-      </div>
       <button class="btn btn-primary" onclick="saveQuestionBank()" style="width:100%;margin-top:16px;"><i class="fas fa-save"></i> حفظ</button>
     </div>
   </div>
 </div>
 
 <script>
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escAttr(s) { return String(s).replace(/"/g,'&quot;').replace(/&/g,'&amp;'); }
+function extractSrcFromIframe(v) { var m = String(v).match(/src=["']([^"']+)["']/); return m ? m[1] : v; }
 // ===== COURSE CRUD =====
 function openCourseModal(course) {
   document.getElementById('courseModalTitle').textContent = course ? 'تعديل الفرع' : 'إضافة فرع جديد';
@@ -730,14 +753,14 @@ function addVideoField(title, url) {
   var container = document.getElementById('videosContainer');
   var div = document.createElement('div');
   div.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:flex-end;';
-  div.innerHTML = '<div class="form-group" style="flex:1;margin-bottom:0;"><label style="font-size:11px;">عنوان الفيديو</label><input class="video-title" placeholder="مثال: شرح الجزء الأول" value="' + (title || '') + '"></div><div class="form-group" style="flex:2;margin-bottom:0;"><label style="font-size:11px;">رابط YouTube Embed</label><input class="video-url" placeholder="https://www.youtube.com/embed/..." value="' + (url || '') + '"></div><button class="btn btn-sm" style="background:#ef4444;color:#fff;height:36px;width:36px;padding:0;display:flex;align-items:center;justify-content:center;flex-shrink:0;" onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>';
+  div.innerHTML = '<div class="form-group" style="flex:1;margin-bottom:0;"><label style="font-size:11px;">عنوان الفيديو</label><input class="video-title" placeholder="مثال: شرح الجزء الأول" value="' + escAttr(title||'') + '"></div><div class="form-group" style="flex:2;margin-bottom:0;"><label style="font-size:11px;">رابط YouTube Embed</label><input class="video-url" placeholder="https://www.youtube.com/embed/..." value="' + escAttr(url||'') + '"></div><button class="btn btn-sm" style="background:#ef4444;color:#fff;height:36px;width:36px;padding:0;display:flex;align-items:center;justify-content:center;flex-shrink:0;" onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>';
   container.appendChild(div);
 }
 function addPdfField(title, url) {
   var container = document.getElementById('pdfsContainer');
   var div = document.createElement('div');
   div.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:flex-end;';
-  div.innerHTML = '<div class="form-group" style="flex:1;margin-bottom:0;"><label style="font-size:11px;">عنوان الملف</label><input class="pdf-title" placeholder="مثال: مذكرة الدرس" value="' + (title || '') + '"></div><div class="form-group" style="flex:2;margin-bottom:0;"><label style="font-size:11px;">رابط الملف</label><input class="pdf-url" placeholder="/files/lesson.pdf" value="' + (url || '') + '"></div><button class="btn btn-sm" style="background:#ef4444;color:#fff;height:36px;width:36px;padding:0;display:flex;align-items:center;justify-content:center;flex-shrink:0;" onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>';
+  div.innerHTML = '<div class="form-group" style="flex:1;margin-bottom:0;"><label style="font-size:11px;">عنوان الملف</label><input class="pdf-title" placeholder="مثال: مذكرة الدرس" value="' + escAttr(title||'') + '"></div><div class="form-group" style="flex:2;margin-bottom:0;"><label style="font-size:11px;">رابط الملف</label><input class="pdf-url" placeholder="/files/lesson.pdf" value="' + escAttr(url||'') + '"></div><button class="btn btn-sm" style="background:#ef4444;color:#fff;height:36px;width:36px;padding:0;display:flex;align-items:center;justify-content:center;flex-shrink:0;" onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>';
   container.appendChild(div);
 }
 function saveLesson() {
@@ -747,7 +770,7 @@ function saveLesson() {
   var videos = [];
   videoInputs.forEach(function(v) {
     var title = v.querySelector('.video-title').value;
-    var url = v.querySelector('.video-url').value;
+    var url = extractSrcFromIframe(v.querySelector('.video-url').value);
     if (url) videos.push({ title: title || 'فيديو', url: url });
   });
   var pdfInputs = document.querySelectorAll('#pdfsContainer > div');
@@ -793,7 +816,7 @@ function openQuizModal(course) {
   if (course.quiz && course.quiz.questions) {
     course.quiz.questions.forEach(function(q, i){ addQuestion(q, i); });
   }
-  document.getElementById('wordUploadArea').style.display = 'none';
+/* old extractQuestions removed */
   document.getElementById('quizModal').classList.add('show');
 }
 function addQuestion(q, idx) {
@@ -802,16 +825,15 @@ function addQuestion(q, idx) {
   div.className = 'question-block';
   div.style.cssText = 'background:var(--bg);border-radius:10px;padding:16px;margin-bottom:12px;border:1px solid var(--border);';
   var qi = idx !== undefined ? idx : container.querySelectorAll('.question-block').length;
-  div.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><strong style="color:var(--primary);">السؤال ' + (qi + 1) + '</strong><button class="btn btn-sm" style="background:#ef4444;color:#fff;font-size:11px;padding:4px 10px;" onclick="this.closest(\'.question-block\').remove()">حذف</button></div><div class="form-group"><input class="q-text" placeholder="نص السؤال" value="' + (q ? q.question : '') + '"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' + ['أ','ب','ج','د'].map(function(letter, oi){ return '<div class="form-group" style="margin-bottom:4px;"><label style="font-size:11px;margin-bottom:2px;">الخيار ' + letter + '</label><input class="q-opt-' + oi + '" placeholder="الخيار ' + letter + '" value="' + (q && q.options && q.options[oi] ? q.options[oi] : '') + '"></div>'; }).join('') + '</div><div class="form-group" style="margin-bottom:0;"><label style="font-size:12px;">الإجابة الصحيحة</label><select class="q-correct" style="width:80px;padding:6px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;">' + ['أ','ب','ج','د'].map(function(letter, oi){ return '<option value="' + oi + '"' + ((q ? q.correct + '' : '0') === '' + oi ? ' selected' : '') + '>' + letter + '</option>'; }).join('') + '</select></div>';
+  div.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><strong style="color:var(--primary);">السؤال ' + (qi + 1) + '</strong><button class="btn btn-sm" style="background:#ef4444;color:#fff;font-size:11px;padding:4px 10px;" onclick="this.closest(\'.question-block\').remove()">حذف</button></div><div class="form-group"><input class="q-text" placeholder="نص السؤال" value="' + escAttr(q ? q.question : '') + '"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' + ['أ','ب','ج','د'].map(function(letter, oi){ return '<div class="form-group" style="margin-bottom:4px;"><label style="font-size:11px;margin-bottom:2px;">الخيار ' + letter + '</label><input class="q-opt-' + oi + '" placeholder="الخيار ' + letter + '" value="' + escAttr(q && q.options && q.options[oi] ? q.options[oi] : '') + '"></div>'; }).join('') + '</div><div class="form-group" style="margin-bottom:0;"><label style="font-size:12px;">الإجابة الصحيحة</label><select class="q-correct" style="width:80px;padding:6px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;">' + ['أ','ب','ج','د'].map(function(letter, oi){ return '<option value="' + oi + '"' + ((q ? q.correct + '' : '0') === '' + oi ? ' selected' : '') + '>' + letter + '</option>'; }).join('') + '</select></div>';
   container.appendChild(div);
 }
 function uploadWordFile() {
-  var area = document.getElementById('wordUploadArea');
-  area.style.display = area.style.display === 'none' ? 'block' : 'none';
-  if (area.style.display === 'none') document.getElementById('wordFile').value = '';
+  document.getElementById('wordFilePopup').value = '';
+  document.getElementById('wordUploadModal').classList.add('show');
 }
 function extractQuestions() {
-  var fileInput = document.getElementById('wordFile');
+  var fileInput = document.getElementById('wordFilePopup');
   if (!fileInput.files || !fileInput.files[0]) { alert('يرجى اختيار ملف Word أولاً'); return; }
   var formData = new FormData();
   formData.append('file', fileInput.files[0]);
@@ -821,7 +843,7 @@ function extractQuestions() {
   }).then(function(r){ return r.json(); }).then(function(d){
     if (d.success && d.questions) {
       d.questions.forEach(function(q){ addQuestion(q); });
-      document.getElementById('wordUploadArea').style.display = 'none';
+      closeModal('wordUploadModal');
       fileInput.value = '';
       alert('تم استخراج ' + d.questions.length + ' سؤال');
     } else alert(d.error || 'فشل استخراج الأسئلة');
@@ -921,14 +943,14 @@ function addCrVideoField(title, url) {
   var container = document.getElementById('crVideosContainer');
   var div = document.createElement('div');
   div.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:flex-end;';
-  div.innerHTML = '<div class="form-group" style="flex:1;margin-bottom:0;"><label style="font-size:11px;">عنوان الفيديو</label><input class="cr-video-title" placeholder="مثال: شرح المراجعة" value="' + (title || '') + '"></div><div class="form-group" style="flex:2;margin-bottom:0;"><label style="font-size:11px;">رابط YouTube Embed</label><input class="cr-video-url" placeholder="https://www.youtube.com/embed/..." value="' + (url || '') + '"></div><button class="btn btn-sm" style="background:#ef4444;color:#fff;height:36px;width:36px;padding:0;display:flex;align-items:center;justify-content:center;flex-shrink:0;" onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>';
+  div.innerHTML = '<div class="form-group" style="flex:1;margin-bottom:0;"><label style="font-size:11px;">عنوان الفيديو</label><input class="cr-video-title" placeholder="مثال: شرح المراجعة" value="' + escAttr(title||'') + '"></div><div class="form-group" style="flex:2;margin-bottom:0;"><label style="font-size:11px;">رابط YouTube Embed</label><input class="cr-video-url" placeholder="https://www.youtube.com/embed/..." value="' + escAttr(url||'') + '"></div><button class="btn btn-sm" style="background:#ef4444;color:#fff;height:36px;width:36px;padding:0;display:flex;align-items:center;justify-content:center;flex-shrink:0;" onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>';
   container.appendChild(div);
 }
 function addCrPdfField(title, url) {
   var container = document.getElementById('crPdfsContainer');
   var div = document.createElement('div');
   div.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:flex-end;';
-  div.innerHTML = '<div class="form-group" style="flex:1;margin-bottom:0;"><label style="font-size:11px;">عنوان الملف</label><input class="cr-pdf-title" placeholder="مثال: مذكرة المراجعة" value="' + (title || '') + '"></div><div class="form-group" style="flex:2;margin-bottom:0;"><label style="font-size:11px;">رابط الملف</label><input class="cr-pdf-url" placeholder="/files/review.pdf" value="' + (url || '') + '"></div><button class="btn btn-sm" style="background:#ef4444;color:#fff;height:36px;width:36px;padding:0;display:flex;align-items:center;justify-content:center;flex-shrink:0;" onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>';
+  div.innerHTML = '<div class="form-group" style="flex:1;margin-bottom:0;"><label style="font-size:11px;">عنوان الملف</label><input class="cr-pdf-title" placeholder="مثال: مذكرة المراجعة" value="' + escAttr(title||'') + '"></div><div class="form-group" style="flex:2;margin-bottom:0;"><label style="font-size:11px;">رابط الملف</label><input class="cr-pdf-url" placeholder="/files/review.pdf" value="' + escAttr(url||'') + '"></div><button class="btn btn-sm" style="background:#ef4444;color:#fff;height:36px;width:36px;padding:0;display:flex;align-items:center;justify-content:center;flex-shrink:0;" onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>';
   container.appendChild(div);
 }
 function saveCourseReview() {
@@ -938,7 +960,7 @@ function saveCourseReview() {
   var videos = [];
   videoInputs.forEach(function(v) {
     var t = v.querySelector('.cr-video-title').value;
-    var u = v.querySelector('.cr-video-url').value;
+    var u = extractSrcFromIframe(v.querySelector('.cr-video-url').value);
     if (u) videos.push({ title: t || 'فيديو', url: u });
   });
   var pdfInputs = document.querySelectorAll('#crPdfsContainer > div');
@@ -989,7 +1011,7 @@ function addCrqQuestion(q, idx) {
   div.className = 'question-block';
   div.style.cssText = 'background:var(--bg);border-radius:10px;padding:16px;margin-bottom:12px;border:1px solid var(--border);';
   var qi = idx !== undefined ? idx : container.querySelectorAll('.question-block').length;
-  div.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><strong style="color:var(--primary);">السؤال ' + (qi + 1) + '</strong><button class="btn btn-sm" style="background:#ef4444;color:#fff;font-size:11px;padding:4px 10px;" onclick="this.closest(\'.question-block\').remove()">حذف</button></div><div class="form-group"><input class="crq-text" placeholder="نص السؤال" value="' + (q ? q.question : '') + '"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' + ['أ','ب','ج','د'].map(function(letter, oi){ return '<div class="form-group" style="margin-bottom:4px;"><label style="font-size:11px;margin-bottom:2px;">الخيار ' + letter + '</label><input class="crq-opt-' + oi + '" placeholder="الخيار ' + letter + '" value="' + (q && q.options && q.options[oi] ? q.options[oi] : '') + '"></div>'; }).join('') + '</div><div class="form-group" style="margin-bottom:0;"><label style="font-size:12px;">الإجابة الصحيحة</label><select class="crq-correct" style="width:80px;padding:6px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;">' + ['أ','ب','ج','د'].map(function(letter, oi){ return '<option value="' + oi + '"' + ((q ? q.correct + '' : '0') === '' + oi ? ' selected' : '') + '>' + letter + '</option>'; }).join('') + '</select></div>';
+  div.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><strong style="color:var(--primary);">السؤال ' + (qi + 1) + '</strong><button class="btn btn-sm" style="background:#ef4444;color:#fff;font-size:11px;padding:4px 10px;" onclick="this.closest(\'.question-block\').remove()">حذف</button></div><div class="form-group"><input class="crq-text" placeholder="نص السؤال" value="' + escAttr(q ? q.question : '') + '"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' + ['أ','ب','ج','د'].map(function(letter, oi){ return '<div class="form-group" style="margin-bottom:4px;"><label style="font-size:11px;margin-bottom:2px;">الخيار ' + letter + '</label><input class="crq-opt-' + oi + '" placeholder="الخيار ' + letter + '" value="' + escAttr(q && q.options && q.options[oi] ? q.options[oi] : '') + '"></div>'; }).join('') + '</div><div class="form-group" style="margin-bottom:0;"><label style="font-size:12px;">الإجابة الصحيحة</label><select class="crq-correct" style="width:80px;padding:6px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;">' + ['أ','ب','ج','د'].map(function(letter, oi){ return '<option value="' + oi + '"' + ((q ? q.correct + '' : '0') === '' + oi ? ' selected' : '') + '>' + letter + '</option>'; }).join('') + '</select></div>';
   container.appendChild(div);
 }
 function saveCourseReviewQuiz() {
@@ -1029,8 +1051,7 @@ function openQuestionBankModal(courseId, bank) {
   if (bank && bank.questions) {
     bank.questions.forEach(function(q, i){ addQbQuestion(q, i); });
   }
-  document.getElementById('qbuWordUploadArea').style.display = 'none';
-  document.getElementById('qbuWordFile').value = '';
+  document.getElementById('qbuWordFilePopup').value = '';
   document.getElementById('questionBankModal').classList.add('show');
 }
 function addQbQuestion(q, idx) {
@@ -1039,7 +1060,7 @@ function addQbQuestion(q, idx) {
   div.className = 'question-block';
   div.style.cssText = 'background:var(--bg);border-radius:10px;padding:16px;margin-bottom:12px;border:1px solid var(--border);';
   var qi = idx !== undefined ? idx : container.querySelectorAll('.question-block').length;
-  div.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><strong style="color:var(--primary);">السؤال ' + (qi + 1) + '</strong><button class="btn btn-sm" style="background:#ef4444;color:#fff;font-size:11px;padding:4px 10px;" onclick="this.closest(\'.question-block\').remove()">حذف</button></div><div class="form-group"><input class="qbq-text" placeholder="نص السؤال" value="' + (q ? q.question : '') + '"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' + ['أ','ب','ج','د'].map(function(letter, oi){ return '<div class="form-group" style="margin-bottom:4px;"><label style="font-size:11px;margin-bottom:2px;">الخيار ' + letter + '</label><input class="qbq-opt-' + oi + '" placeholder="الخيار ' + letter + '" value="' + (q && q.options && q.options[oi] ? q.options[oi] : '') + '"></div>'; }).join('') + '</div><div class="form-group" style="margin-bottom:0;"><label style="font-size:12px;">الإجابة الصحيحة</label><select class="qbq-correct" style="width:80px;padding:6px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;">' + ['أ','ب','ج','د'].map(function(letter, oi){ return '<option value="' + oi + '"' + ((q ? q.correct + '' : '0') === '' + oi ? ' selected' : '') + '>' + letter + '</option>'; }).join('') + '</select></div>';
+  div.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><strong style="color:var(--primary);">السؤال ' + (qi + 1) + '</strong><button class="btn btn-sm" style="background:#ef4444;color:#fff;font-size:11px;padding:4px 10px;" onclick="this.closest(\'.question-block\').remove()">حذف</button></div><div class="form-group"><input class="qbq-text" placeholder="نص السؤال" value="' + escAttr(q ? q.question : '') + '"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' + ['أ','ب','ج','د'].map(function(letter, oi){ return '<div class="form-group" style="margin-bottom:4px;"><label style="font-size:11px;margin-bottom:2px;">الخيار ' + letter + '</label><input class="qbq-opt-' + oi + '" placeholder="الخيار ' + letter + '" value="' + escAttr(q && q.options && q.options[oi] ? q.options[oi] : '') + '"></div>'; }).join('') + '</div><div class="form-group" style="margin-bottom:0;"><label style="font-size:12px;">الإجابة الصحيحة</label><select class="qbq-correct" style="width:80px;padding:6px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;">' + ['أ','ب','ج','د'].map(function(letter, oi){ return '<option value="' + oi + '"' + ((q ? q.correct + '' : '0') === '' + oi ? ' selected' : '') + '>' + letter + '</option>'; }).join('') + '</select></div>';
   container.appendChild(div);
 }
 function saveQuestionBank() {
@@ -1072,12 +1093,11 @@ function deleteQuestionBank(id) {
     .then(function(r){ return r.json(); }).then(function(d){ if (d.success) location.reload(); else alert(d.error); });
 }
 function toggleQbWordUpload() {
-  var area = document.getElementById('qbuWordUploadArea');
-  area.style.display = area.style.display === 'none' ? 'block' : 'none';
-  if (area.style.display === 'none') document.getElementById('qbuWordFile').value = '';
+  document.getElementById('qbuWordFilePopup').value = '';
+  document.getElementById('qbuWordUploadModal').classList.add('show');
 }
 function extractQbQuestions() {
-  var fileInput = document.getElementById('qbuWordFile');
+  var fileInput = document.getElementById('qbuWordFilePopup');
   if (!fileInput.files || !fileInput.files[0]) { alert('يرجى اختيار ملف Word أولاً'); return; }
   var formData = new FormData();
   formData.append('file', fileInput.files[0]);
@@ -1087,7 +1107,7 @@ function extractQbQuestions() {
   }).then(function(r){ return r.json(); }).then(function(d){
     if (d.success && d.questions) {
       d.questions.forEach(function(q){ addQbQuestion(q); });
-      document.getElementById('qbuWordUploadArea').style.display = 'none';
+      closeModal('qbuWordUploadModal');
       fileInput.value = '';
       alert('تم استخراج ' + d.questions.length + ' سؤال');
     } else alert(d.error || 'فشل استخراج الأسئلة');
