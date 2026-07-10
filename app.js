@@ -376,7 +376,10 @@ app.get('/student/exam/:courseId', requireStudentOrGuest, async (req, res) => {
 });
 
 app.get('/student/question-bank', requireStudentOrGuest, async (req, res) => {
-  const courses = await readData('courses');
+  var courses = await readData('courses');
+  var u = req.session.user;
+  var ug = (u && u.grade) || '';
+  if (ug) courses = courses.filter(function(c) { return c.grade === ug || !c.grade; });
   res.render('student/question-bank', { courses, title: 'بنك الأسئلة - لغتي' });
 });
 
@@ -388,7 +391,10 @@ app.get('/student/question-bank/:courseId', requireStudentOrGuest, async (req, r
 });
 
 app.get('/student/notes', requireStudentOrGuest, async (req, res) => {
-  const courses = await readData('courses');
+  var courses = await readData('courses');
+  var u = req.session.user;
+  var ug = (u && u.grade) || '';
+  if (ug) courses = courses.filter(function(c) { return c.grade === ug || !c.grade; });
   res.render('student/notes', { courses, title: 'المذكرات - لغتي' });
 });
 
