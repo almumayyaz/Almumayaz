@@ -702,25 +702,34 @@ app.get('/admin/content', requireAdmin, async (req, res) => {
     var s = c.stage || 'all';
     var g = c.grade || '';
     if (s === 'all') { prepGrades.forEach(function(pg) { stages['إعدادية'][pg].courses.push(c); }); secGrades.forEach(function(sg) { stages['ثانوية'][sg].courses.push(c); }); return; }
-    if (!stages[s] || !stages[s][g]) return;
+    if (!stages[s]) return;
+    if (!stages[s][g]) {
+      // Course has stage but no specific grade — show in all grades of that stage
+      Object.keys(stages[s]).forEach(function(pg) { stages[s][pg].courses.push(c); });
+      return;
+    }
     stages[s][g].courses.push(c);
   });
   reviews.forEach(function(r) {
     var s = r.stage || 'all';
     var g = r.grade || '';
     if (s === 'all') { prepGrades.forEach(function(pg) { if (stages['إعدادية'][pg]) stages['إعدادية'][pg].reviews.push(r); }); secGrades.forEach(function(sg) { if (stages['ثانوية'][sg]) stages['ثانوية'][sg].reviews.push(r); }); return; }
-    if (!stages[s] || !stages[s][g]) return;
+    if (!stages[s]) return;
+    if (!stages[s][g]) {
+      Object.keys(stages[s]).forEach(function(pg) { stages[s][pg].reviews.push(r); });
+      return;
+    }
     stages[s][g].reviews.push(r);
   });
   if (stage && stages[stage]) {
     if (grade && stages[stage][grade]) {
       var activeData = stages[stage][grade];
-      res.render('admin/content', { stages, activeStage: stage, activeGrade: grade, grade, activeData, title: 'إدارة المحتوى - الإدارة' });
+      res.render('admin/content', { stages, allCoursesFull: courses, activeStage: stage, activeGrade: grade, grade, activeData, title: 'إدارة المحتوى - الإدارة' });
     } else {
-      res.render('admin/content', { stages, activeStage: stage, activeGrade: '', grade: '', activeData: null, title: 'إدارة المحتوى - الإدارة' });
+      res.render('admin/content', { stages, allCoursesFull: courses, activeStage: stage, activeGrade: '', grade: '', activeData: null, title: 'إدارة المحتوى - الإدارة' });
     }
   } else {
-    res.render('admin/content', { stages, activeStage: '', activeGrade: '', grade: '', activeData: null, title: 'إدارة المحتوى - الإدارة' });
+    res.render('admin/content', { stages, allCoursesFull: courses, activeStage: '', activeGrade: '', grade: '', activeData: null, title: 'إدارة المحتوى - الإدارة' });
   }
 });
 
