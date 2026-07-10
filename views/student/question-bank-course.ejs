@@ -7,14 +7,14 @@
         <i class="fas fa-chevron-right"></i> العودة إلى بنك الأسئلة
       </a>
       <h1>بنك أسئلة <%= course.title %></h1>
-      <p><%= course.quiz.questions.length %> سؤال تدريبي مع التصحيح الفوري</p>
+      <p><%= (course.quiz.questions||[]).length %> سؤال تدريبي مع التصحيح الفوري</p>
     </div>
   </div>
 
   <div class="quiz-section">
     <h2 style="margin-bottom:20px;"><i class="fas <%= course.icon %>" style="color:<%= course.color %>;"></i> <%= course.quiz.title %></h2>
 
-    <% course.quiz.questions.forEach(function(q, qi) { %>
+    <% (course.quiz.questions||[]).forEach(function(q, qi) { %>
     <div class="quiz-question" data-correct="<%= q.correct %>">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
         <span style="background:var(--gold-gradient);color:var(--primary);width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;"><%= qi + 1 %></span>

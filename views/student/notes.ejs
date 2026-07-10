@@ -7,7 +7,7 @@
       <p>جميع المذكرات بصيغة PDF للتحميل والطباعة - من إعداد الأستاذ محمد عفيفي</p>
     </div>
     <span style="font-size:13px;color:var(--text-light);background:var(--card);padding:8px 16px;border-radius:8px;border:1px solid var(--border);">
-      <i class="fas fa-file-pdf" style="color:var(--accent);"></i> <%= courses.reduce((a, c) => a + c.lessons.length, 0) %> مذكرة
+      <i class="fas fa-file-pdf" style="color:var(--accent);"></i> <%= courses.reduce((a, c) => a + (c.lessons||[]).length, 0) %> مذكرة
     </span>
   </div>
   <div class="notes-grid">
@@ -29,13 +29,13 @@
             <i class="fas fa-sticky-note" style="color:var(--accent);"></i> <%= n.title.substring(0, 20) %>
           </span>
           <% }); } %>
-          <% course.lessons.slice(0, 3).forEach(function(l) { %>
+          <% (course.lessons||[]).slice(0, 3).forEach(function(l) { %>
           <span style="font-size:11px;background:var(--bg);padding:4px 10px;border-radius:4px;color:var(--text-light);">
             <i class="fas fa-file-pdf" style="color:var(--accent);"></i> <%= l.title.substring(0, 20) %>
           </span>
           <% }) %>
-          <% if (course.lessons.length > 3) { %>
-          <span style="font-size:11px;background:var(--bg);padding:4px 10px;border-radius:4px;color:var(--text-light);">+<%= course.lessons.length - 3 %></span>
+          <% if ((course.lessons||[]).length > 3) { %>
+          <span style="font-size:11px;background:var(--bg);padding:4px 10px;border-radius:4px;color:var(--text-light);">+<%= (course.lessons||[]).length - 3 %></span>
           <% } %>
         </div>
         <div class="note-actions">

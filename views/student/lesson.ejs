@@ -54,7 +54,7 @@
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px;padding:16px;background:var(--bg);border-radius:8px;">
       <div><span style="font-weight:600;color:var(--primary);">المادة:</span> <span style="color:var(--text-light);"><%= course.title %></span></div>
       <div><span style="font-weight:600;color:var(--primary);">المدة:</span> <span style="color:var(--text-light);"><%= lesson.duration %></span></div>
-      <div><span style="font-weight:600;color:var(--primary);">عدد الدروس:</span> <span style="color:var(--text-light);"><%= course.lessons.length %></span></div>
+      <div><span style="font-weight:600;color:var(--primary);">عدد الدروس:</span> <span style="color:var(--text-light);"><%= (course.lessons||[]).length %></span></div>
       <div><span style="font-weight:600;color:var(--primary);">مشاهدة:</span> <span style="color:var(--text-light);">HD عالية الجودة</span></div>
       <% if (lesson.videos) { %><div><span style="font-weight:600;color:var(--primary);">عدد المقاطع:</span> <span style="color:var(--text-light);"><%= lesson.videos.length %></span></div><% } %>
     </div>

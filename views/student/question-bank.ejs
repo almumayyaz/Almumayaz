@@ -8,7 +8,7 @@
     </div>
     <span style="font-size:13px;color:var(--text-light);background:var(--card);padding:8px 16px;border-radius:8px;border:1px solid var(--border);">
       <i class="fas fa-question-circle" style="color:var(--accent);"></i> 
-      <%= courses.reduce((a, c) => a + (c.quiz ? c.quiz.questions.length : 0), 0) %> سؤال
+      <%= courses.reduce((a, c) => a + (c.quiz ? (c.quiz.questions||[]).length : 0), 0) %> سؤال
     </span>
   </div>
 
@@ -20,7 +20,7 @@
       <a href="/student/question-bank/<%= course.id %>" class="qb-cat">
         <div class="icon" style="color:<%= course.color %>;"><i class="fas <%= course.icon %>"></i></div>
         <h3><%= course.title %></h3>
-        <div style="font-size:12px;color:var(--text-light);"><%= course.quiz.questions.length %> سؤال</div>
+        <div style="font-size:12px;color:var(--text-light);"><%= (course.quiz.questions||[]).length %> سؤال</div>
       </a>
       <% } %>
       <% }) %>
