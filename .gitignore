@@ -4,5 +4,6 @@ node_modules
 .DS_Store
 .vercel
 service-account.json
-
+nul
+NUL
 .env*

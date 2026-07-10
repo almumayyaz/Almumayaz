@@ -6,6 +6,13 @@ const dataDir = path.join(__dirname, 'data');
 // In-memory cache for serverless environments
 const memoryCache = new Map();
 
+// Preload with require() so JSON files are bundled on Vercel
+try { memoryCache.set('courses.json', require('./data/courses.json')); } catch(e) {}
+try { memoryCache.set('users.json', require('./data/users.json')); } catch(e) {}
+try { memoryCache.set('announcements.json', require('./data/announcements.json')); } catch(e) {}
+try { memoryCache.set('subscriptions.json', require('./data/subscriptions.json')); } catch(e) {}
+try { memoryCache.set('reviews.json', require('./data/reviews.json')); } catch(e) {}
+
 async function readJSON(filename) {
   if (memoryCache.has(filename)) {
     return memoryCache.get(filename);
@@ -41,7 +48,7 @@ async function writeData(key, data) {
 }
 
 async function init() {
-  const files = ['users.json', 'courses.json', 'announcements.json', 'subscriptions.json'];
+  const files = ['users.json', 'courses.json', 'announcements.json', 'subscriptions.json', 'reviews.json'];
   for (const file of files) {
     try {
       const content = await fs.readFile(path.join(dataDir, file), 'utf8');
