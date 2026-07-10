@@ -1568,8 +1568,28 @@ app.post('/api/admin/upload-questions', requireAdmin, async (req, res) => {
 
     const lines = fileContent.split('\n').filter(l => l.trim());
     const questions = [];
-    let currentQ = null;
 
+    // Try TSV/CSV format (from Word table: question\topt1\topt2\topt3\topt4\tcorrect)
+    if (lines.length > 1 && lines[0].includes('\t') && lines[0].split('\t').length >= 6) {
+      var header = lines[0].split('\t');
+      for (var i = 1; i < lines.length; i++) {
+        var cols = lines[i].split('\t');
+        if (cols.length < 6) continue;
+        var qText = cols[0].trim();
+        if (!qText) continue;
+        var opts = [cols[1], cols[2], cols[3], cols[4]].map(function(o) {
+          return o.replace(/^[أ-دأ-د\s]*[\.\-\)]\s*/, '').trim();
+        });
+        var correctLetter = cols[5].trim().charAt(0);
+        var correctMap = { 'أ': 0, 'ا': 0, 'ب': 1, 'ج': 2, 'د': 3 };
+        var correct = correctMap[correctLetter] !== undefined ? correctMap[correctLetter] : 0;
+        questions.push({ question: qText, options: opts, correct: correct });
+      }
+      return res.json({ success: true, questions: questions });
+    }
+
+    // Legacy format support
+    let currentQ = null;
     for (const line of lines) {
       const trimmed = line.trim();
       if (/^\d+[\.\-\)]/.test(trimmed)) {
