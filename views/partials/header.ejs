@@ -23,7 +23,7 @@ firebase.initializeApp(fbConfig);
   <% } %>
   <script>
 if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js')}
-function toggleNav(){document.getElementById('navOverlay')?.classList.toggle('open');var sb=document.getElementById('sidebar');if(sb){sb.classList.add('open');document.getElementById('sidebarOverlay')?.classList.add('show')}}
+function toggleNav(){document.getElementById('navOverlay')?.classList.toggle('open')}
 function setTheme(t){document.documentElement.setAttribute('data-theme',t);localStorage.setItem('lughati-theme',t);document.querySelectorAll('.theme-toggle i').forEach(i=>{i.className=t==='dark'?'fas fa-sun':'fas fa-moon'});const mb=document.querySelector('.nav-buttons-mobile .btn-outline');if(mb){mb.innerHTML=t==='dark'?'<i class="fas fa-sun"></i> الوضع النهاري':'<i class="fas fa-moon"></i> الوضع الليلي'}}
 function spinTheme(el){el.classList.remove('spin');void el.offsetWidth;el.classList.add('spin')}
 function toggleTheme(){fetch('/api/toggle-dark-mode',{method:'POST'}).then(r=>r.json()).then(d=>setTheme(d.darkMode?'dark':'light'))}
