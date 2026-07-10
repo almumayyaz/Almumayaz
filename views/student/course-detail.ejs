@@ -34,32 +34,83 @@
   <% } %>
 
   <% if (course.lessons.length > 0) { %>
-      <%
-        var treeBranches = [];
-        if (course.sections && course.sections.length > 0) {
-          course.sections.forEach(function(section) {
-            var sectionLessons = (section.lessons || []).map(function(lid) { return course.lessons.find(function(l) { return l.id === lid; }); }).filter(function(l) { return l; });
-            if (sectionLessons.length > 0) treeBranches.push({ name: section.name, lessons: sectionLessons });
-          });
-        } else {
-          var unitMap = {};
-          var units = course.units || [];
-          units.forEach(function(u) { unitMap[u.id] = u; });
-          course.lessons.forEach(function(l) {
-            var key = l.unitId || '_ungrouped';
-            if (!unitMap[key]) unitMap[key] = { id: key, name: l.title.replace(/^باب:\s*/, '') || key };
-            if (!unitMap[key]._lessons) unitMap[key]._lessons = [];
-            unitMap[key]._lessons.push(l);
-          });
-          Object.keys(unitMap).forEach(function(key) {
-            var ls = unitMap[key]._lessons || [];
-            if (ls.length > 0) treeBranches.push({ name: unitMap[key].name, lessons: ls });
-          });
-        }
-        if (treeBranches.length === 0) {
-          treeBranches.push({ name: 'المنهج', lessons: course.lessons });
-        }
+    <% if (course.stage === 'إعدادية') { %>
+      <!-- Preparatory Stage: Card-based display (each card = باب) -->
+      <% 
+        var babGroups = {};
+        course.lessons.forEach(function(l) {
+          var key = l.sectionId || 'main';
+          if (!babGroups[key]) babGroups[key] = [];
+          babGroups[key].push(l);
+        });
       %>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
+        <h2 style="font-size:20px;font-weight:700;color:var(--primary);display:flex;align-items:center;gap:10px;">
+          <i class="fas fa-layer-group" style="color:var(--accent);"></i> المنهج
+        </h2>
+        <span style="font-size:13px;color:var(--text-light);"><%= course.lessons.length %> درس</span>
+      </div>
+      <div class="bab-cards-grid">
+        <% Object.keys(babGroups).forEach(function(key) { %>
+          <% var lessons = babGroups[key]; %>
+          <% var babName = lessons[0].title.replace(/^باب:\s*/, '') || key; %>
+          <% var freeCount = lessons.filter(function(l) { return l.isFree; }).length; %>
+          <div class="bab-card" onclick="this.classList.toggle('expanded')">
+            <div class="bab-card-header">
+              <div class="bab-icon"><i class="fas fa-folder-open"></i></div>
+              <div class="bab-info">
+                <h3><%= babName %></h3>
+                <span class="bab-count"><%= lessons.length %> درس</span>
+                <% if (freeCount > 0) { %><span class="bab-free-badge"><%= freeCount %> مجاني</span><% } %>
+              </div>
+              <i class="fas fa-chevron-down bab-arrow"></i>
+            </div>
+            <div class="bab-lessons">
+              <% lessons.forEach(function(lesson, idx) { %>
+                <%
+                  var canAccess = isSubscribed || lesson.isFree || (isGuest && lesson.guestVisible);
+                  var progressData = (user && user.progress && user.progress[course.id]) || null;
+                  var isCompleted = progressData && progressData.completedLessons && progressData.completedLessons.includes(lesson.id);
+                %>
+                <a href="<%= canAccess ? '/student/lesson/' + course.id + '/' + lesson.id : '#' %>" class="bab-lesson-item <%= !canAccess ? 'locked' : '' %> <%= isCompleted ? 'completed' : '' %>" <%= !canAccess ? 'onclick="alert(\'هذا الدرس تجريبي للضيوف فقط. سجل للوصول الكامل.\');return false;"' : '' %>>
+                  <span class="bab-lesson-num"><%- isCompleted ? '<i class="fas fa-check-circle" style="color:var(--success);"></i>' : (idx + 1) %></span>
+                  <span class="bab-lesson-title"><%= lesson.title %></span>
+                  <span class="bab-lesson-duration"><i class="fas fa-clock"></i> <%= lesson.duration %></span>
+                  <% if (lesson.isFree) { %><span class="bab-free-tag">مجاني</span><% } %>
+                  <% if (isGuest && lesson.guestVisible) { %><span class="bab-free-tag" style="background:rgba(99,102,241,0.1);color:var(--accent);">تجريبي</span><% } %>
+                  <% if (!canAccess) { %><i class="fas fa-lock" style="color:var(--text-muted);font-size:12px;"></i><% } %>
+                </a>
+              <% }) %>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+      <style>
+        .bab-cards-grid { display:flex; flex-direction:column; gap:12px; }
+        .bab-card { background:var(--glass-bg); backdrop-filter:blur(var(--glass-blur)); border-radius:var(--radius-lg); border:1px solid var(--glass-border); overflow:hidden; transition:var(--transition); box-shadow:var(--shadow-sm); }
+        .bab-card:hover { box-shadow:var(--shadow-md); }
+        .bab-card-header { display:flex; align-items:center; gap:14px; padding:16px 20px; cursor:pointer; transition:var(--transition); }
+        .bab-card-header:hover { background:var(--accent-glow); }
+        .bab-icon { width:44px; height:44px; background:var(--accent-glow); border-radius:12px; display:flex; align-items:center; justify-content:center; color:var(--accent); font-size:20px; flex-shrink:0; }
+        .bab-info { flex:1; min-width:0; }
+        .bab-info h3 { font-size:16px; font-weight:700; font-family:'Cairo',sans-serif; }
+        .bab-count { font-size:12px; color:var(--text-light); }
+        .bab-free-badge { display:inline-block; background:rgba(5,150,105,0.1); color:var(--success); font-size:11px; padding:2px 8px; border-radius:4px; margin-right:8px; font-weight:600; }
+        .bab-arrow { transition:transform 0.3s ease; color:var(--text-muted); font-size:14px; }
+        .bab-card.expanded .bab-arrow { transform:rotate(180deg); }
+        .bab-lessons { max-height:0; overflow:hidden; transition:max-height 0.4s ease; }
+        .bab-card.expanded .bab-lessons { max-height:2000px; }
+        .bab-lesson-item { display:flex; align-items:center; gap:12px; padding:10px 20px 10px 20px; border-top:1px solid var(--border); transition:var(--transition); color:var(--text); }
+        .bab-lesson-item:hover { background:var(--accent-glow); padding-right:24px; }
+        .bab-lesson-item.locked { opacity:0.6; cursor:not-allowed; }
+        .bab-lesson-item.completed { background:rgba(5,150,105,0.04); }
+        .bab-lesson-num { width:28px; height:28px; background:var(--bg); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; color:var(--primary); flex-shrink:0; }
+        .bab-lesson-title { flex:1; font-size:14px; font-weight:500; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .bab-lesson-duration { font-size:11px; color:var(--text-light); white-space:nowrap; }
+        .bab-free-tag { background:rgba(5,150,105,0.1); color:var(--success); font-size:10px; padding:1px 8px; border-radius:3px; font-weight:600; }
+      </style>
+    <% } else { %>
+      <!-- Secondary Stage: Tree View -->
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
         <h2 style="font-size:20px;font-weight:700;color:var(--primary);display:flex;align-items:center;gap:10px;">
           <i class="fas fa-sitemap" style="color:var(--accent);"></i> شجرة المنهج
@@ -67,60 +118,85 @@
         <span style="font-size:13px;color:var(--text-light);"><%= course.lessons.length %> درس</span>
       </div>
 
-      <div class="tree-view">
-        <% treeBranches.forEach(function(branch) { %>
-          <% if (branch.lessons.length === 0) return; %>
-          <div class="tree-section">
-            <div class="tree-section-header" onclick="this.parentElement.classList.toggle('expanded')">
-              <div class="tree-section-icon"><i class="fas fa-folder"></i></div>
-              <div class="tree-section-info">
-                <h4><%= branch.name %></h4>
-                <span class="tree-section-count"><%= branch.lessons.length %> درس</span>
+      <% if (course.sections && course.sections.length > 0) { %>
+        <div class="tree-view">
+          <% course.sections.forEach(function(section) { %>
+            <% var sectionLessons = section.lessons.map(function(lid) { return course.lessons.find(function(l) { return l.id === lid; }); }).filter(function(l) { return l; }); %>
+            <% if (sectionLessons.length === 0) return; %>
+            <div class="tree-section">
+              <div class="tree-section-header" onclick="this.parentElement.classList.toggle('expanded')">
+                <div class="tree-section-icon"><i class="fas fa-folder"></i></div>
+                <div class="tree-section-info">
+                  <h4><%= section.name %></h4>
+                  <span class="tree-section-count"><%= sectionLessons.length %> درس</span>
+                </div>
+                <i class="fas fa-chevron-left tree-arrow"></i>
               </div>
-              <i class="fas fa-chevron-left tree-arrow"></i>
+              <div class="tree-section-children">
+                <%- sectionLessons.map(function(lesson, idx) {
+                  var canAccess = isSubscribed || lesson.isFree || (isGuest && lesson.guestVisible);
+                  var progressData = (user && user.progress && user.progress[course.id]) || null;
+                  var isCompleted = progressData && progressData.completedLessons && progressData.completedLessons.includes(lesson.id);
+                  var attrs = 'href="' + (canAccess ? '/student/lesson/' + course.id + '/' + lesson.id : '#') + '" class="tree-lesson-item ' + (!canAccess ? 'locked' : '') + (isCompleted ? ' completed' : '') + '"' + (!canAccess ? ' onclick="alert(\'هذا الدرس تجريبي للضيوف فقط. سجل للوصول الكامل.\');return false;"' : '');
+                  var badge = '';
+                  if (lesson.isFree) badge += '<span class="tree-free-badge">مجاني</span>';
+                  if (isGuest && lesson.guestVisible) badge += '<span class="tree-free-badge" style="background:rgba(99,102,241,0.1);color:var(--accent);">تجريبي</span>';
+                  if (!canAccess) badge += '<i class="fas fa-lock" style="color:var(--text-muted);font-size:10px;margin-right:4px;"></i>';
+                  return '<a ' + attrs + '><span class="tree-lesson-num">' + (isCompleted ? '<i class="fas fa-check-circle" style="color:var(--success);font-size:14px;"></i>' : (idx + 1)) + '</span><span class="tree-lesson-title">' + lesson.title + '</span>' + badge + '<span class="tree-lesson-duration"><i class="fas fa-clock"></i> ' + lesson.duration + '</span></a>';
+                }).join('\n') %>
+              </div>
             </div>
-            <div class="tree-section-children">
-              <% branch.lessons.forEach(function(lesson, idx) {
-                var canAccess = isSubscribed || lesson.isFree || (isGuest && lesson.guestVisible);
-                var progressData = (user && user.progress && user.progress[course.id]) || null;
-                var isCompleted = progressData && progressData.completedLessons && progressData.completedLessons.includes(lesson.id);
-              %>
-              <a href="<%= canAccess ? '/student/lesson/' + course.id + '/' + lesson.id : '#' %>" class="tree-lesson-item <%= !canAccess ? 'locked' : '' %> <%= isCompleted ? 'completed' : '' %>" <%= !canAccess ? 'onclick="alert(\'هذا الدرس تجريبي للضيوف فقط. سجل للوصول الكامل.\');return false;"' : '' %>>
-                <span class="tree-lesson-num"><%- isCompleted ? '<i class="fas fa-check-circle" style="color:var(--success);font-size:14px;"></i>' : (idx + 1) %></span>
-                <span class="tree-lesson-title"><%= lesson.title %></span>
-                <span class="tree-lesson-duration"><i class="fas fa-clock"></i> <%= lesson.duration %></span>
-                <% if (lesson.isFree) { %><span class="tree-free-badge">مجاني</span><% } %>
-                <% if (isGuest && lesson.guestVisible) { %><span class="tree-free-badge" style="background:rgba(99,102,241,0.1);color:var(--accent);">تجريبي</span><% } %>
-                <% if (!canAccess) { %><i class="fas fa-lock" style="color:var(--text-muted);font-size:10px;margin-right:4px;"></i><% } %>
-              </a>
-              <% }) %>
+          <% }) %>
+        </div>
+        <style>
+          .tree-view { display:flex; flex-direction:column; gap:8px; }
+          .tree-section { background:var(--glass-bg); backdrop-filter:blur(var(--glass-blur)); border-radius:var(--radius); border:1px solid var(--glass-border); overflow:hidden; transition:var(--transition); }
+          .tree-section.expanded { box-shadow:var(--shadow); }
+          .tree-section-header { display:flex; align-items:center; gap:12px; padding:14px 18px; cursor:pointer; transition:var(--transition); }
+          .tree-section-header:hover { background:var(--accent-glow); }
+          .tree-section-icon { width:36px; height:36px; background:var(--bg); border-radius:10px; display:flex; align-items:center; justify-content:center; color:var(--accent); font-size:16px; flex-shrink:0; }
+          .tree-section-info { flex:1; min-width:0; }
+          .tree-section-info h4 { font-size:15px; font-weight:600; margin:0; }
+          .tree-section-count { font-size:11px; color:var(--text-light); }
+          .tree-arrow { transition:transform 0.3s ease; color:var(--text-muted); font-size:14px; }
+          .tree-section.expanded .tree-arrow { transform:rotate(-180deg); }
+          .tree-section-children { max-height:0; overflow:hidden; transition:max-height 0.4s ease; }
+          .tree-section.expanded .tree-section-children { max-height:2000px; }
+          .tree-lesson-item { display:flex; align-items:center; gap:10px; padding:8px 18px 8px 18px; border-top:1px solid var(--border); transition:all 0.2s; color:var(--text); font-size:13px; }
+          .tree-lesson-item:hover { background:var(--accent-glow); padding-right:22px; }
+          .tree-lesson-item.locked { opacity:0.6; cursor:not-allowed; }
+          .tree-lesson-item.completed { background:rgba(5,150,105,0.04); }
+          .tree-lesson-num { width:24px; height:24px; background:var(--bg); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:var(--primary); flex-shrink:0; }
+          .tree-lesson-title { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+          .tree-lesson-duration { font-size:11px; color:var(--text-light); white-space:nowrap; }
+          .tree-free-badge { background:rgba(5,150,105,0.1); color:var(--success); font-size:10px; padding:1px 6px; border-radius:3px; font-weight:600; }
+        </style>
+      <% } else { %>
+        <!-- Fallback: Simple lesson list -->
+        <div class="lessons-list" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <% course.lessons.forEach(function(lesson, idx) {
+            var canAccess = isSubscribed || lesson.isFree || (isGuest && lesson.guestVisible);
+            var progressData = (user && user.progress && user.progress[course.id]) || null;
+            var isCompleted = progressData && progressData.completedLessons && progressData.completedLessons.includes(lesson.id);
+          %>
+          <a href="<%= canAccess ? '/student/lesson/' + course.id + '/' + lesson.id : '#' %>" class="lesson-item" style="flex-direction:column;align-items:stretch;gap:10px;padding:14px 16px;position:relative;opacity:<%= canAccess ? 1 : 0.6 %>;" <%= !canAccess ? 'onclick="alert(\'هذا الدرس تجريبي للضيوف فقط. سجل للوصول الكامل.\');return false;"' : '' %>>
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div style="width:32px;height:32px;background:var(--bg);border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--primary);font-size:12px;font-weight:700;flex-shrink:0;">
+                <%- isCompleted ? '<i class="fas fa-check-circle" style="color:var(--success);font-size:16px;"></i>' : (idx + 1) %>
+              </div>
+              <div class="lesson-info" style="flex:1;">
+                <h3 style="font-size:14px;font-weight:600;margin-bottom:2px;font-family:\'Cairo\',sans-serif;"><%= lesson.title %></h3>
+                <p style="font-size:11px;margin:0;"><i class="fas fa-clock" style="color:var(--accent);font-size:10px;"></i> <%= lesson.duration %></p>
+              </div>
+              <% if (lesson.isFree) { %><span style="background:rgba(5,150,105,0.1);color:var(--success);font-size:10px;padding:2px 6px;border-radius:3px;font-weight:600;">مجاني</span><% } %>
+              <% if (isGuest && lesson.guestVisible) { %><span style="background:rgba(99,102,241,0.1);color:var(--accent);font-size:10px;padding:2px 6px;border-radius:3px;font-weight:600;">تجريبي</span><% } %>
             </div>
-          </div>
-        <% }) %>
-      </div>
-      <style>
-        .tree-view { display:flex; flex-direction:column; gap:8px; }
-        .tree-section { background:var(--glass-bg); backdrop-filter:blur(var(--glass-blur)); border-radius:var(--radius); border:1px solid var(--glass-border); overflow:hidden; transition:var(--transition); }
-        .tree-section.expanded { box-shadow:var(--shadow); }
-        .tree-section-header { display:flex; align-items:center; gap:12px; padding:14px 18px; cursor:pointer; transition:var(--transition); }
-        .tree-section-header:hover { background:var(--accent-glow); }
-        .tree-section-icon { width:36px; height:36px; background:var(--bg); border-radius:10px; display:flex; align-items:center; justify-content:center; color:var(--accent); font-size:16px; flex-shrink:0; }
-        .tree-section-info { flex:1; min-width:0; }
-        .tree-section-info h4 { font-size:15px; font-weight:600; margin:0; }
-        .tree-section-count { font-size:11px; color:var(--text-light); }
-        .tree-arrow { transition:transform 0.3s ease; color:var(--text-muted); font-size:14px; }
-        .tree-section.expanded .tree-arrow { transform:rotate(-180deg); }
-        .tree-section-children { max-height:0; overflow:hidden; transition:max-height 0.4s ease; }
-        .tree-section.expanded .tree-section-children { max-height:2000px; }
-        .tree-lesson-item { display:flex; align-items:center; gap:10px; padding:8px 18px 8px 18px; border-top:1px solid var(--border); transition:all 0.2s; color:var(--text); font-size:13px; }
-        .tree-lesson-item:hover { background:var(--accent-glow); padding-right:22px; }
-        .tree-lesson-item.locked { opacity:0.6; cursor:not-allowed; }
-        .tree-lesson-item.completed { background:rgba(5,150,105,0.04); }
-        .tree-lesson-num { width:24px; height:24px; background:var(--bg); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:var(--primary); flex-shrink:0; }
-        .tree-lesson-title { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-        .tree-lesson-duration { font-size:11px; color:var(--text-light); white-space:nowrap; }
-        .tree-free-badge { background:rgba(5,150,105,0.1); color:var(--success); font-size:10px; padding:1px 6px; border-radius:3px; font-weight:600; }
-      </style>
+            <% if (canAccess) { %><span class="watch-btn" style="align-self:flex-start;font-size:11px;padding:3px 10px;">مشاهدة</span><% } else { %><span style="align-self:flex-start;font-size:11px;color:var(--text-muted);"><i class="fas fa-lock"></i> مشترك</span><% } %>
+          </a>
+          <% }) %>
+        </div>
+      <% } %>
+    <% } %>
   <% } else { %>
     <div style="text-align:center;padding:60px 20px;background:var(--glass-bg);border-radius:var(--radius-xl);border:1px solid var(--border);">
       <i class="fas fa-book-open" style="font-size:48px;color:var(--border);display:block;margin-bottom:16px;"></i>
