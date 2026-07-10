@@ -99,9 +99,45 @@
               <td><%= li + 1 %></td>
               <td><%= l.title %></td>
               <td><%= l.duration %></td>
-              <td><%= (l.videos && l.videos.length > 0) ? '<i class="fas fa-check" style="color:var(--success);"></i> ' + l.videos.length : (l.videoUrl ? '<i class="fas fa-check" style="color:var(--success);"></i>' : '---') %></td>
-              <td><%= (l.pdfFiles && l.pdfFiles.length > 0) ? '<i class="fas fa-file-pdf" style="color:var(--danger);"></i> ' + l.pdfFiles.length : (l.pdfUrl ? '<i class="fas fa-check" style="color:var(--success);"></i>' : '---') %></td>
-              <td><%= l.isFree ? '<span style="color:var(--success);font-weight:600;">مجاني</span>' : '---' %> <% if (l.guestVisible) { %><span style="color:var(--accent);font-weight:600;font-size:11px;"><br>زائر</span><% } %></td>
+              <td>
+                <% if (l.videos && l.videos.length > 0) { %>
+                  <% l.videos.forEach(function(v, vi) { %>
+                  <div style="display:flex;align-items:center;gap:4px;margin-bottom:2px;font-size:11px;">
+                    <i class="fas fa-video" style="color:var(--accent);font-size:10px;flex-shrink:0;"></i>
+                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px;"><%= v.title %></span>
+                    <a href="<%= v.url %>" target="_blank" style="color:var(--accent);font-size:10px;flex-shrink:0;"><i class="fas fa-external-link-alt"></i></a>
+                  </div>
+                  <% }) %>
+                <% } else if (l.videoUrl) { %>
+                  <div style="display:flex;align-items:center;gap:4px;font-size:11px;">
+                    <i class="fas fa-video" style="color:var(--accent);font-size:10px;flex-shrink:0;"></i>
+                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px;">فيديو</span>
+                    <a href="<%= l.videoUrl %>" target="_blank" style="color:var(--accent);font-size:10px;flex-shrink:0;"><i class="fas fa-external-link-alt"></i></a>
+                  </div>
+                <% } else { %>
+                  <span style="color:var(--text-muted);font-size:11px;">---</span>
+                <% } %>
+              </td>
+              <td>
+                <% if (l.pdfFiles && l.pdfFiles.length > 0) { %>
+                  <% l.pdfFiles.forEach(function(p, pi) { %>
+                  <div style="display:flex;align-items:center;gap:4px;margin-bottom:2px;font-size:11px;">
+                    <i class="fas fa-file-pdf" style="color:var(--danger);font-size:10px;flex-shrink:0;"></i>
+                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px;"><%= p.title %></span>
+                    <a href="<%= p.url %>" target="_blank" style="color:var(--danger);font-size:10px;flex-shrink:0;"><i class="fas fa-external-link-alt"></i></a>
+                  </div>
+                  <% }) %>
+                <% } else if (l.pdfUrl) { %>
+                  <div style="display:flex;align-items:center;gap:4px;font-size:11px;">
+                    <i class="fas fa-file-pdf" style="color:var(--danger);font-size:10px;flex-shrink:0;"></i>
+                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px;">مذكرة</span>
+                    <a href="<%= l.pdfUrl %>" target="_blank" style="color:var(--danger);font-size:10px;flex-shrink:0;"><i class="fas fa-external-link-alt"></i></a>
+                  </div>
+                <% } else { %>
+                  <span style="color:var(--text-muted);font-size:11px;">---</span>
+                <% } %>
+              </td>
+              <td style="font-size:12px;"><%= l.isFree ? '<span style="color:var(--success);font-weight:600;">مجاني</span>' : '---' %> <% if (l.guestVisible) { %><span style="color:var(--accent);font-weight:600;font-size:11px;"><br>زائر</span><% } %></td>
               <td style="font-size:12px;"><%= l.sectionId ? (function(){ var s = (course.sections || []).find(function(s){ return s.id === l.sectionId; }); return s ? s.name : '---'; })() : '---' %></td>
               <td>
                 <div class="admin-actions">
