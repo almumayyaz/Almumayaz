@@ -39,10 +39,10 @@
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:20px;">
       <div class="stat-mini"><i class="fas fa-book" style="color:var(--accent);"></i><span><%= courses.length %></span> فرع</div>
       <div class="stat-mini"><i class="fas fa-star" style="color:#F6C453;"></i><span><%= reviews.length %></span> مراجعة</div>
-      <div class="stat-mini"><i class="fas fa-video" style="color:var(--purple);"></i><span><%= courses.reduce(function(s,c){return s + c.lessons.reduce(function(a,l){return a + (l.videos?l.videos.length:0);},0);},0) %></span> فيديو</div>
-      <div class="stat-mini"><i class="fas fa-file-pdf" style="color:#ef4444;"></i><span><%= courses.reduce(function(s,c){return s + c.lessons.reduce(function(a,l){return a + (l.pdfFiles?l.pdfFiles.length:0);},0);},0) %></span> PDF</div>
+      <div class="stat-mini"><i class="fas fa-video" style="color:var(--purple);"></i><span><%= courses.reduce(function(s,c){return s + (c.lessons||[]).reduce(function(a,l){return a + (l.videos?l.videos.length:0);},0);},0) %></span> فيديو</div>
+      <div class="stat-mini"><i class="fas fa-file-pdf" style="color:#ef4444;"></i><span><%= courses.reduce(function(s,c){return s + (c.lessons||[]).reduce(function(a,l){return a + (l.pdfFiles?l.pdfFiles.length:0);},0);},0) %></span> PDF</div>
       <div class="stat-mini"><i class="fas fa-question-circle" style="color:var(--success);"></i><span><%= courses.reduce(function(s,c){return s + (c.quiz&&c.quiz.questions?c.quiz.questions.length:0);},0) %></span> سؤال</div>
-      <div class="stat-mini"><i class="fas fa-gift" style="color:#f97316;"></i><span><%= courses.reduce(function(s,c){return s + c.lessons.filter(function(l){return l.isFree;}).length;},0) %></span> مجاني</div>
+      <div class="stat-mini"><i class="fas fa-gift" style="color:#f97316;"></i><span><%= courses.reduce(function(s,c){return s + (c.lessons||[]).filter(function(l){return l.isFree;}).length;},0) %></span> مجاني</div>
     </div>
 
     <div class="resource-sections">
@@ -177,13 +177,13 @@
       <div class="resource-section expanded" id="rs-videos">
         <div class="rs-header" onclick="toggleRS('videos')">
           <i class="fas fa-play-circle" style="color:var(--accent);"></i> الفيديوهات
-          <span class="rs-count"><%= courses.reduce(function(s,c){return s + c.lessons.reduce(function(a,l){return a + (l.videos?l.videos.length:0);},0);},0) %></span>
+          <span class="rs-count"><%= courses.reduce(function(s,c){return s + (c.lessons||[]).reduce(function(a,l){return a + (l.videos?l.videos.length:0);},0);},0) %></span>
           <i class="fas fa-chevron-down rs-arrow"></i>
         </div>
         <div class="rs-body">
           <div class="rs-search"><i class="fas fa-search"></i> <input type="text" oninput="filterRS('videos',this.value)" placeholder="بحث في الفيديوهات..."></div>
           <% courses.forEach(function(c) { %>
-            <% c.lessons.forEach(function(l) { %>
+            <% (c.lessons||[]).forEach(function(l) { %>
               <% if (l.videos && l.videos.length > 0) { %>
                 <div class="rs-course-group">
                   <strong><%= c.title %> → <%= l.title %></strong>
@@ -203,7 +203,7 @@
               <% } %>
             <% }) %>
           <% }) %>
-          <% if (courses.every(function(c){return c.lessons.every(function(l){return !l.videos||l.videos.length===0;});})) { %>
+          <% if (courses.every(function(c){return (c.lessons||[]).every(function(l){return !l.videos||l.videos.length===0;});})) { %>
             <div class="empty-msg">لا توجد فيديوهات.</div>
           <% } %>
         </div>
@@ -213,13 +213,13 @@
       <div class="resource-section expanded" id="rs-pdfs">
         <div class="rs-header" onclick="toggleRS('pdfs')">
           <i class="fas fa-file-pdf" style="color:#ef4444;"></i> ملفات PDF
-          <span class="rs-count"><%= courses.reduce(function(s,c){return s + c.lessons.reduce(function(a,l){return a + (l.pdfFiles?l.pdfFiles.length:0);},0);},0) %></span>
+          <span class="rs-count"><%= courses.reduce(function(s,c){return s + (c.lessons||[]).reduce(function(a,l){return a + (l.pdfFiles?l.pdfFiles.length:0);},0);},0) %></span>
           <i class="fas fa-chevron-down rs-arrow"></i>
         </div>
         <div class="rs-body">
           <div class="rs-search"><i class="fas fa-search"></i> <input type="text" oninput="filterRS('pdfs',this.value)" placeholder="بحث في ملفات PDF..."></div>
           <% courses.forEach(function(c) { %>
-            <% c.lessons.forEach(function(l) { %>
+            <% (c.lessons||[]).forEach(function(l) { %>
               <% if (l.pdfFiles && l.pdfFiles.length > 0) { %>
                 <div class="rs-course-group">
                   <strong><%= c.title %> → <%= l.title %></strong>
@@ -239,7 +239,7 @@
               <% } %>
             <% }) %>
           <% }) %>
-          <% if (courses.every(function(c){return c.lessons.every(function(l){return !l.pdfFiles||l.pdfFiles.length===0;});})) { %>
+          <% if (courses.every(function(c){return (c.lessons||[]).every(function(l){return !l.pdfFiles||l.pdfFiles.length===0;});})) { %>
             <div class="empty-msg">لا توجد ملفات PDF.</div>
           <% } %>
         </div>
@@ -309,12 +309,12 @@
       <div class="resource-section expanded" id="rs-free">
         <div class="rs-header" onclick="toggleRS('free')">
           <i class="fas fa-gift" style="color:#f97316;"></i> الدروس المجانية
-          <span class="rs-count"><%= courses.reduce(function(s,c){return s + c.lessons.filter(function(l){return l.isFree;}).length;},0) %></span>
+          <span class="rs-count"><%= courses.reduce(function(s,c){return s + (c.lessons||[]).filter(function(l){return l.isFree;}).length;},0) %></span>
           <i class="fas fa-chevron-down rs-arrow"></i>
         </div>
         <div class="rs-body">
           <% courses.forEach(function(c) { %>
-            <% var free = c.lessons.filter(function(l){return l.isFree;}); %>
+            <% var free = (c.lessons||[]).filter(function(l){return l.isFree;}); %>
             <% if (free.length > 0) { %>
               <div class="rs-course-group">
                 <strong><%= c.title %> (<%= free.length %>)</strong>
@@ -330,7 +330,7 @@
               </div>
             <% } %>
           <% }) %>
-          <% if (courses.every(function(c){return c.lessons.every(function(l){return !l.isFree;});})) { %>
+          <% if (courses.every(function(c){return (c.lessons||[]).every(function(l){return !l.isFree;});})) { %>
             <div class="empty-msg">لا توجد دروس مجانية. فعّل الدرس المجاني من قسم الدروس.</div>
           <% } %>
         </div>
