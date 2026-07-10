@@ -18,7 +18,7 @@
   <% if (lesson.videos && lesson.videos.length > 0) { %>
     <% if (lesson.videos.length === 1) { %>
     <div class="video-container" oncontextmenu="return false;" data-video="<%= lesson.videos[0].url %>">
-      <div class="yt-player-wrap"><div class="yt-player" id="yt0"></div><div class="yt-overlay"></div><button class="yt-play-btn"><i class="fas fa-play"></i></button></div>
+      <div class="yt-player-wrap"><div class="yt-player" id="yt0"></div><button class="yt-play-btn"><i class="fas fa-play"></i></button></div>
     </div>
     <% } else { %>
     <div style="display:flex;flex-direction:column;gap:20px;margin-bottom:28px;">
@@ -29,7 +29,7 @@
           <span style="font-weight:600;font-size:14px;"><%= video.title || ('الجزء ' + (vi + 1)) %></span>
         </div>
         <div class="video-container" style="margin-bottom:0;" oncontextmenu="return false;" data-video="<%= video.url %>">
-          <div class="yt-player-wrap"><div class="yt-player" id="yt<%= vi %>"></div><div class="yt-overlay"></div><button class="yt-play-btn"><i class="fas fa-play"></i></button></div>
+          <div class="yt-player-wrap"><div class="yt-player" id="yt<%= vi %>"></div><button class="yt-play-btn"><i class="fas fa-play"></i></button></div>
         </div>
       </div>
       <% }) %>
@@ -37,7 +37,7 @@
     <% } %>
   <% } else if (lesson.videoUrl) { %>
     <div class="video-container" oncontextmenu="return false;" data-video="<%= lesson.videoUrl %>">
-      <div class="yt-player-wrap"><div class="yt-player" id="yt0"></div><div class="yt-overlay"></div><button class="yt-play-btn"><i class="fas fa-play"></i></button></div>
+      <div class="yt-player-wrap"><div class="yt-player" id="yt0"></div><button class="yt-play-btn"><i class="fas fa-play"></i></button></div>
     </div>
   <% } else { %>
     <div style="text-align:center;padding:40px;background:var(--glass-bg);border-radius:var(--radius-xl);margin-bottom:28px;border:1px solid var(--border);">
@@ -177,10 +177,10 @@
 <style>
 .yt-player-wrap { position:relative; width:100%; aspect-ratio:16/9; background:#000; border-radius:12px; overflow:hidden; cursor:pointer; }
 .yt-player-wrap .yt-player { width:100%; height:100%; position:absolute; top:0; left:0; }
-.yt-player-wrap .yt-overlay {
-  position:absolute; top:0; left:0; width:100%; height:100%; z-index:5;
-  background:linear-gradient(to top, rgba(0,0,0,0.35) 60px, transparent 60px);
-  pointer-events:none;
+.yt-player-wrap iframe { pointer-events:none; }
+.yt-player-wrap::after {
+  content:''; position:absolute; bottom:0; right:0;
+  width:90px; height:22px; background:#000; z-index:6;
 }
 .yt-player-wrap .yt-play-btn {
   position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
@@ -192,7 +192,6 @@
 .yt-player-wrap .yt-play-btn:hover { background:rgba(200,0,0,0.9); transform:translate(-50%,-50%) scale(1.1); }
 .yt-player-wrap.playing .yt-play-btn { opacity:0; pointer-events:none; }
 .yt-player-wrap.paused .yt-play-btn { opacity:1; pointer-events:auto; }
-.yt-player-wrap.playing .yt-overlay { pointer-events:auto; }
 </style>
 
 <script>
@@ -213,7 +212,6 @@ function onYouTubeIframeAPIReady() {
     var wrap = container.querySelector('.yt-player-wrap');
     var playerDiv = container.querySelector('.yt-player');
     var playBtn = container.querySelector('.yt-play-btn');
-    var overlay = container.querySelector('.yt-overlay');
     var idx = playerIndex++;
 
     ytPlayers[idx] = new YT.Player(playerDiv, {
@@ -240,7 +238,7 @@ function onYouTubeIframeAPIReady() {
             }
           }
           playBtn.addEventListener('click', function(e) { e.stopPropagation(); togglePlay(); });
-          overlay.addEventListener('click', function(e) { e.stopPropagation(); togglePlay(); });
+          wrap.addEventListener('click', togglePlay);
         },
         onStateChange: function(e) {
           if (e.data === YT.PlayerState.PLAYING) {
