@@ -8,10 +8,26 @@
     </div>
     <button class="btn btn-primary" onclick="openReviewModal()"><i class="fas fa-plus"></i> مراجعة جديدة</button>
   </div>
+  <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+    <select id="filterStage" onchange="applyFilter()" style="padding:8px 14px;border:2px solid var(--border);border-radius:var(--radius);background:var(--card);color:var(--text);font-size:13px;">
+      <option value="">كل المراحل</option>
+      <option value="إعدادية" <%= stage === 'إعدادية' ? 'selected' : '' %>>إعدادية</option>
+      <option value="ثانوية" <%= stage === 'ثانوية' ? 'selected' : '' %>>ثانوية</option>
+    </select>
+    <select id="filterGrade" onchange="applyFilter()" style="padding:8px 14px;border:2px solid var(--border);border-radius:var(--radius);background:var(--card);color:var(--text);font-size:13px;">
+      <option value="">كل الصفوف</option>
+      <option value="الأول الإعدادي" <%= grade === 'الأول الإعدادي' ? 'selected' : '' %>>الأول الإعدادي</option>
+      <option value="الثاني الإعدادي" <%= grade === 'الثاني الإعدادي' ? 'selected' : '' %>>الثاني الإعدادي</option>
+      <option value="الثالث الإعدادي" <%= grade === 'الثالث الإعدادي' ? 'selected' : '' %>>الثالث الإعدادي</option>
+      <option value="الأول الثانوي" <%= grade === 'الأول الثانوي' ? 'selected' : '' %>>الأول الثانوي</option>
+      <option value="الثاني الثانوي" <%= grade === 'الثاني الثانوي' ? 'selected' : '' %>>الثاني الثانوي</option>
+      <option value="الثالث الثانوي" <%= grade === 'الثالث الثانوي' ? 'selected' : '' %>>الثالث الثانوي</option>
+    </select>
+  </div>
   <div class="admin-table">
     <table>
       <thead>
-        <tr><th>#</th><th>العنوان</th><th>المادة</th><th>التاريخ</th><th>اختبار</th><th>الإجراءات</th></tr>
+        <tr><th>#</th><th>العنوان</th><th>المادة</th><th>المرحلة</th><th>الصف</th><th>التاريخ</th><th>اختبار</th><th>الإجراءات</th></tr>
       </thead>
       <tbody>
         <% if (reviews.length > 0) { %>
@@ -20,6 +36,8 @@
             <td><%= i + 1 %></td>
             <td><strong><%= r.title %></strong></td>
             <td><%= r.course || '---' %></td>
+            <td><%= r.stage || 'الكل' %></td>
+            <td><%= r.grade || 'الكل' %></td>
             <td><%= r.date %></td>
             <td><% if (r.quiz) { %><span class="status-badge active"><%= r.quiz.questions.length %> سؤال</span><% } else { %><span class="status-badge pending">لا يوجد</span><% } %></td>
             <td>
@@ -32,7 +50,7 @@
           </tr>
           <% }) %>
         <% } else { %>
-          <tr><td colspan="6" style="text-align:center;color:var(--text-light);">لا توجد مراجعات</td></tr>
+          <tr><td colspan="8" style="text-align:center;color:var(--text-light);">لا توجد مراجعات</td></tr>
         <% } %>
       </tbody>
     </table>
@@ -54,6 +72,10 @@
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
         <div class="form-group"><label>أيقونة</label><input id="reviewIcon" value="fa-book-open"></div>
         <div class="form-group"><label>اللون</label><input type="color" id="reviewColor" value="#A07200"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="form-group"><label>المرحلة</label><select id="reviewStage"><option value="all">الكل</option><option value="إعدادية">إعدادية</option><option value="ثانوية">ثانوية</option></select></div>
+        <div class="form-group"><label>الصف</label><select id="reviewGrade"><option value="">الكل</option><option value="الأول الإعدادي">الأول الإعدادي</option><option value="الثاني الإعدادي">الثاني الإعدادي</option><option value="الثالث الإعدادي">الثالث الإعدادي</option><option value="الأول الثانوي">الأول الثانوي</option><option value="الثاني الثانوي">الثاني الثانوي</option><option value="الثالث الثانوي">الثالث الثانوي</option></select></div>
       </div>
       <div class="form-group"><label>رابط فيديو (YouTube Embed)</label><input id="reviewVideoUrl" placeholder="https://www.youtube.com/embed/..."></div>
       <div class="form-group"><label>رابط PDF</label><input id="reviewPdfUrl" placeholder="/files/review.pdf"></div>
@@ -94,6 +116,8 @@ function openReviewModal(r) {
   document.getElementById('reviewColor').value = r ? (r.color || '#A07200') : '#A07200';
   document.getElementById('reviewVideoUrl').value = r ? (r.videoUrl || '') : '';
   document.getElementById('reviewPdfUrl').value = r ? (r.pdfUrl || '') : '';
+  document.getElementById('reviewStage').value = r ? (r.stage || 'all') : 'all';
+  document.getElementById('reviewGrade').value = r ? (r.grade || '') : '';
   document.getElementById('reviewModal').classList.add('show');
 }
 function closeRM() { document.getElementById('reviewModal').classList.remove('show'); }
@@ -106,7 +130,9 @@ function saveReview() {
     icon: document.getElementById('reviewIcon').value,
     color: document.getElementById('reviewColor').value,
     videoUrl: document.getElementById('reviewVideoUrl').value,
-    pdfUrl: document.getElementById('reviewPdfUrl').value
+    pdfUrl: document.getElementById('reviewPdfUrl').value,
+    stage: document.getElementById('reviewStage').value,
+    grade: document.getElementById('reviewGrade').value
   };
   const url = id ? '/api/admin/reviews/' + id : '/api/admin/reviews';
   const method = id ? 'PUT' : 'POST';
@@ -119,6 +145,14 @@ function deleteReview(id) {
     .then(r => r.json()).then(d => { if (d.success) location.reload(); else alert(d.error); });
 }
 document.getElementById('reviewModal').addEventListener('click', function(e) { if (e.target === this) this.classList.remove('show'); });
+function applyFilter() {
+  var s = document.getElementById('filterStage').value;
+  var g = document.getElementById('filterGrade').value;
+  var params = [];
+  if (s) params.push('stage=' + encodeURIComponent(s));
+  if (g) params.push('grade=' + encodeURIComponent(g));
+  window.location.href = '/admin/reviews' + (params.length ? '?' + params.join('&') : '');
+}
 
 function openReviewQuizModal(r) {
   document.getElementById('reviewQuizModalTitle').textContent = 'اختبار - ' + r.title;

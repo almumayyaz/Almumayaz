@@ -378,7 +378,9 @@ app.get('/student/exam/:courseId', requireStudentOrGuest, async (req, res) => {
 app.get('/student/question-bank', requireStudentOrGuest, async (req, res) => {
   var courses = await readData('courses');
   var u = req.session.user;
+  var us = (u && u.stage) || '';
   var ug = (u && u.grade) || '';
+  if (us) courses = courses.filter(function(c) { return c.stage === us || c.stage === 'all' || !c.stage; });
   if (ug) courses = courses.filter(function(c) { return c.grade === ug || !c.grade; });
   res.render('student/question-bank', { courses, title: 'بنك الأسئلة - لغتي' });
 });
@@ -393,13 +395,20 @@ app.get('/student/question-bank/:courseId', requireStudentOrGuest, async (req, r
 app.get('/student/notes', requireStudentOrGuest, async (req, res) => {
   var courses = await readData('courses');
   var u = req.session.user;
+  var us = (u && u.stage) || '';
   var ug = (u && u.grade) || '';
+  if (us) courses = courses.filter(function(c) { return c.stage === us || c.stage === 'all' || !c.stage; });
   if (ug) courses = courses.filter(function(c) { return c.grade === ug || !c.grade; });
   res.render('student/notes', { courses, title: 'المذكرات - لغتي' });
 });
 
 app.get('/student/reviews', requireStudentOrGuest, async (req, res) => {
-  const reviews = await readData('reviews');
+  var reviews = await readData('reviews');
+  var u = req.session.user;
+  var us = (u && u.stage) || '';
+  var ug = (u && u.grade) || '';
+  if (us) reviews = reviews.filter(function(r) { return r.stage === us || r.stage === 'all' || !r.stage; });
+  if (ug) reviews = reviews.filter(function(r) { return r.grade === ug || !r.grade; });
   res.render('student/reviews', { reviews, title: 'المراجعات - لغتي' });
 });
 
@@ -701,8 +710,13 @@ app.get('/admin/announcements', requireAdmin, async (req, res) => {
 });
 
 app.get('/admin/reviews', requireAdmin, async (req, res) => {
-  const reviews = await readData('reviews');
-  res.render('admin/reviews', { reviews, title: 'المراجعات - الإدارة' });
+  var allReviews = await readData('reviews');
+  var stage = req.query.stage || '';
+  var grade = req.query.grade || '';
+  var reviews = allReviews;
+  if (stage) reviews = reviews.filter(function(r) { return r.stage === stage || r.stage === 'all' || !r.stage; });
+  if (grade) reviews = reviews.filter(function(r) { return r.grade === grade || !r.grade; });
+  res.render('admin/reviews', { reviews, allReviews, stage, grade, title: 'المراجعات - الإدارة' });
 });
 
 app.get('/admin/chat', requireAdmin, (req, res) => {
@@ -1241,7 +1255,7 @@ app.delete('/api/admin/charge-codes/:id', requireAdmin, async (req, res) => {
 app.post('/api/admin/reviews', requireAdmin, async (req, res) => {
   try {
     const reviews = await readData('reviews');
-    const { title, course, color, icon, desc, videoUrl, pdfUrl } = req.body;
+    const { title, course, color, icon, desc, videoUrl, pdfUrl, stage, grade } = req.body;
     const newReview = {
       id: Date.now().toString(),
       title: title || 'مراجعة جديدة',
@@ -1251,7 +1265,9 @@ app.post('/api/admin/reviews', requireAdmin, async (req, res) => {
       date: new Date().toISOString().split('T')[0],
       desc: desc || '',
       videoUrl: videoUrl || '',
-      pdfUrl: pdfUrl || ''
+      pdfUrl: pdfUrl || '',
+      stage: stage || 'all',
+      grade: grade || ''
     };
     reviews.push(newReview);
     await writeData('reviews', reviews);
@@ -1434,5 +1450,18 @@ app.get('/api/student/referral', requireAuth, async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
+
+/* ===================== MIGRATION: Attach stage/grade to existing reviews ===================== */
+(async function() {
+  try {
+    var reviews = await readData('reviews');
+    var changed = false;
+    reviews.forEach(function(r) {
+      if (!r.stage) { r.stage = 'ثانوية'; changed = true; }
+      if (!r.grade) { r.grade = 'الثالث الثانوي'; changed = true; }
+    });
+    if (changed) await writeData('reviews', reviews);
+  } catch (e) { /* silent */ }
+})();
 
 module.exports = app;
