@@ -248,7 +248,7 @@
             <tr><th>#</th><th>العنوان</th><th>الوصف</th><th>فيديو</th><th>PDF</th><th>اختبار</th><th>مجاني</th><th>الترتيب</th><th>الإجراءات</th></tr>
           </thead>
           <tbody id="reviews-tbody-<%= course.id %>">
-            <% var courseReviews = (allReviews||[]).filter(function(r){return r.courseId===course.id;}); %>
+            <% var courseReviews = (allReviews||[]).filter(function(r){return r.courseId===course.id || (!r.courseId && (r.stage===course.stage||r.stage==='all'||!r.stage) && r.grade===course.grade);}); %>
             <% if (courseReviews.length > 0) { %>
               <% courseReviews.sort(function(a,b){return (a.order||0)-(b.order||0);}); %>
               <% courseReviews.forEach(function(r, ri) { %>
