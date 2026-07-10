@@ -765,10 +765,7 @@ function saveLesson() {
     duration: document.getElementById('lessonDuration').value,
     isFree: document.getElementById('lessonIsFree').checked,
     guestVisible: document.getElementById('lessonGuestVisible').checked,
-    sectionId: document.getElementById('lessonSectionId').value,
-    quizTimer: null,
-    videoUrl: videos.length > 0 ? videos[0].url : '',
-    pdfUrl: pdfFiles.length > 0 ? pdfFiles[0].url : ''
+    sectionId: document.getElementById('lessonSectionId').value
   };
   var url = lessonId ? '/api/admin/courses/' + courseId + '/lessons/' + lessonId : '/api/admin/courses/' + courseId + '/lessons';
   var method = lessonId ? 'PUT' : 'POST';

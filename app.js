@@ -948,7 +948,7 @@ app.post('/api/admin/courses/:id/lessons', requireAdmin, async (req, res) => {
     const courses = await readData('courses');
     const course = courses.find(c => c.id === req.params.id);
     if (!course) return res.status(404).json({ error: 'المادة غير موجودة' });
-    const { title, description, videos, pdfFiles, duration, isFree, sectionId } = req.body;
+    const { title, description, videos, pdfFiles, duration, isFree, guestVisible, sectionId } = req.body;
     const newLesson = {
       id: Date.now().toString(),
       title: title || 'محاضرة جديدة',
@@ -957,6 +957,7 @@ app.post('/api/admin/courses/:id/lessons', requireAdmin, async (req, res) => {
       pdfFiles: pdfFiles || [],
       duration: duration || '00:00',
       isFree: isFree || false,
+      guestVisible: guestVisible || false,
       sectionId: sectionId || ''
     };
     if (!course.lessons) course.lessons = [];
@@ -973,9 +974,17 @@ app.put('/api/admin/courses/:id/lessons/:lessonId', requireAdmin, async (req, re
     const courses = await readData('courses');
     const course = courses.find(c => c.id === req.params.id);
     if (!course) return res.status(404).json({ error: 'المادة غير موجودة' });
-  const lesson = (course.lessons||[]).find(l => l.id === req.params.lessonId);
+    const lesson = (course.lessons||[]).find(l => l.id === req.params.lessonId);
     if (!lesson) return res.status(404).json({ error: 'المحاضرة غير موجودة' });
-    Object.assign(lesson, req.body);
+    const { title, description, videos, pdfFiles, duration, isFree, guestVisible, sectionId } = req.body;
+    if (title !== undefined) lesson.title = title;
+    if (description !== undefined) lesson.description = description;
+    if (videos !== undefined) lesson.videos = videos;
+    if (pdfFiles !== undefined) lesson.pdfFiles = pdfFiles;
+    if (duration !== undefined) lesson.duration = duration;
+    if (isFree !== undefined) lesson.isFree = isFree;
+    if (guestVisible !== undefined) lesson.guestVisible = guestVisible;
+    if (sectionId !== undefined) lesson.sectionId = sectionId;
     await writeData('courses', courses);
     res.json({ success: true, lesson });
   } catch (e) {
