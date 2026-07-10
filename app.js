@@ -132,6 +132,13 @@ app.use((req, res, next) => {
       if (r.isFree === undefined) { r.isFree = false; reviewsChanged = true; }
     });
     if (reviewsChanged) await writeData('reviews', reviews);
+    // Migrate users: add referralDiscount
+    var users = await readData('users');
+    var usersChanged = false;
+    users.forEach(function(u) {
+      if (u.referralDiscount === undefined) { u.referralDiscount = 0; usersChanged = true; }
+    });
+    if (usersChanged) await writeData('users', users);
     console.log('Auto-migration complete');
   } catch(e) {
     console.log('Auto-migration note:', e.message);
@@ -166,6 +173,7 @@ app.post('/api/auth/firebase-login', async (req, res) => {
         referralCode: '',
         referredBy: '',
         fcmToken: '',
+        referralDiscount: 0,
         createdAt: new Date().toISOString(),
         lastLogin: new Date().toISOString(),
         progress: {}
@@ -173,6 +181,8 @@ app.post('/api/auth/firebase-login', async (req, res) => {
       users.push(user);
       await writeData('users', users);
     } else {
+      // Ensure fields exist for existing users
+      if (user.referralDiscount === undefined) user.referralDiscount = 0;
       user.lastLogin = new Date().toISOString();
       const idx = users.findIndex(u => u.uid === uid);
       users[idx] = user;
@@ -312,8 +322,10 @@ app.post('/register', async (req, res) => {
     id: uuidv4(), name, email, phone: phone || '', parentPhone: parentPhone || '',
     grade, stage: stage || '', governorate: governorate || '', password, role: 'student',
     subscriptionStatus: 'inactive', subscriptionStart: null, subscriptionEnd: null,
-    referralCode: 'REF-' + Math.random().toString(36).substr(2, 8).toUpperCase(),
-    referredBy: '', fcmToken: '', createdAt: new Date().toISOString(), lastLogin: new Date().toISOString(), progress: {}
+      referralCode: 'REF-' + Math.random().toString(36).substr(2, 8).toUpperCase(),
+      referredBy: '',
+      referralDiscount: 0,
+      fcmToken: '', createdAt: new Date().toISOString(), lastLogin: new Date().toISOString(), progress: {}
   };
   users.push(newUser);
   await writeData('users', users);
@@ -535,6 +547,42 @@ app.put('/api/student/profile', requireAuth, async (req, res) => {
   }
 });
 
+/* ===================== STUDENT REFERRAL DISCOUNT ===================== */
+
+app.post('/api/student/apply-referral', requireAuth, async (req, res) => {
+  try {
+    const { code } = req.body;
+    if (!code || !code.startsWith('REF-')) return res.status(400).json({ error: 'كود الدعوة غير صالح' });
+
+    const users = await readData('users');
+    const referrer = users.find(u => u.referralCode === code);
+    if (!referrer) return res.status(404).json({ error: 'كود الدعوة غير موجود' });
+    if (referrer.id === req.session.user.id) return res.status(400).json({ error: 'لا يمكنك استخدام كود دعوتك الشخصي' });
+
+    const uidx = users.findIndex(u => u.id === req.session.user.id);
+    if (uidx === -1) return res.status(404).json({ error: 'المستخدم غير موجود' });
+
+    if (users[uidx].referralDiscount) return res.status(400).json({ error: 'لقد استخدمت كود دعوة من قبل' });
+
+    // Apply 25% discount
+    users[uidx].referralDiscount = 25;
+    users[uidx].referredBy = referrer.id;
+
+    // Track on referrer
+    if (!referrer.referrals) referrer.referrals = [];
+    referrer.referrals.push({ userId: req.session.user.id, discount: 25, date: new Date().toISOString() });
+    const ri = users.findIndex(u => u.id === referrer.id);
+    if (ri !== -1) users[ri] = referrer;
+
+    await writeData('users', users);
+    req.session.user = users[uidx];
+
+    res.json({ success: true, discount: 25, message: 'تم تطبيق خصم 25% على جميع خطط الاشتراك!' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 /* ===================== CHAT ===================== */
 
 app.get('/student/chat', requireStudentOrGuest, (req, res) => {
@@ -559,7 +607,8 @@ app.post('/api/student/subscribe', requireAuth, async (req, res) => {
       userPhone: req.session.user.phone || '',
       planName, price, transactionId, paymentMethod: paymentMethod || 'vodafone-cash',
       status: 'pending',
-      date: new Date().toISOString()
+      date: new Date().toISOString(),
+      discount: req.session.user.referralDiscount || 0
     };
     subRequests.push(request);
     await writeData('subRequests', subRequests);

@@ -61,6 +61,28 @@
     </div>
   </div>
 
+  <!-- Referral Code Section -->
+  <div style="background:var(--card);border-radius:var(--radius-lg);padding:20px 24px;margin-bottom:20px;box-shadow:var(--shadow);border:1px solid var(--border);border-right:4px solid var(--success);">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+      <i class="fas fa-user-friends" style="color:var(--success);font-size:18px;"></i>
+      <h3 style="font-size:15px;font-weight:700;margin:0;">كود الدعوة — خصم 25%</h3>
+    </div>
+    <% if (user.referralDiscount) { %>
+      <div style="background:rgba(22,163,74,0.1);border:1px solid rgba(22,163,74,0.2);border-radius:8px;padding:16px;text-align:center;">
+        <i class="fas fa-check-circle" style="color:var(--success);font-size:28px;display:block;margin-bottom:8px;"></i>
+        <div style="color:var(--success);font-weight:700;font-size:16px;">تم تطبيق خصم <%= user.referralDiscount %>% على جميع الخطط!</div>
+      </div>
+    <% } else { %>
+      <div id="referralSection">
+        <div id="referralMessage" style="display:none;padding:12px;border-radius:8px;margin-bottom:12px;text-align:center;font-size:13px;font-weight:600;"></div>
+        <div style="display:flex;gap:10px;">
+          <input type="text" id="referralCode" class="form-input" placeholder="أدخل كود دعوة صديق" style="flex:1;direction:rtl;text-align:center;font-family:monospace;font-size:16px;letter-spacing:2px;">
+          <button class="btn btn-sm" style="background:var(--success);color:#fff;white-space:nowrap;" onclick="applyReferral()" id="referralBtn"><i class="fas fa-percent"></i> تطبيق</button>
+        </div>
+      </div>
+    <% } %>
+  </div>
+
   <div class="subscription-plans">
     <% subscriptions.forEach(function(sub, idx) { %>
     <div class="sub-card <%= sub.popular ? 'popular' : '' %>">
@@ -68,8 +90,16 @@
       <div class="sub-header">
         <h3><%= sub.name %></h3>
         <div class="sub-price">
-          <span class="amount"><%= sub.price %></span>
-          <span class="currency"><%= sub.currency %></span>
+          <% var priceNum = parseInt(sub.price) || 0; %>
+          <% if (user.referralDiscount) { var discounted = priceNum - (priceNum * user.referralDiscount / 100); %>
+            <span style="text-decoration:line-through;opacity:0.5;font-size:16px;display:block;"><%= sub.price %></span>
+            <span class="amount" style="color:var(--success);"><%= discounted %></span>
+            <span class="currency"><%= sub.currency %></span>
+            <span style="display:block;font-size:11px;color:var(--success);">بعد خصم <%= user.referralDiscount %>%</span>
+          <% } else { %>
+            <span class="amount"><%= sub.price %></span>
+            <span class="currency"><%= sub.currency %></span>
+          <% } %>
         </div>
         <div class="sub-period"><%= sub.period %></div>
       </div>
@@ -97,6 +127,7 @@
     <div class="modal-body">
       <div style="background:var(--accent-glow);border:1px solid var(--accent);border-radius:var(--radius);padding:16px;margin-bottom:16px;text-align:center;">
         <div style="font-size:13px;font-weight:700;margin-bottom:8px;">المطلوب: <span id="popupPlanPrice" style="color:var(--accent);font-size:20px;"></span> جنيه</div>
+        <div id="popupDiscountInfo" style="display:none;font-size:12px;color:var(--success);font-weight:600;margin-top:4px;"><i class="fas fa-tag"></i> شامل خصم الدعوة</div>
       </div>
 
       <div style="background:var(--bg);border-radius:var(--radius);padding:16px;margin-bottom:16px;">
@@ -166,10 +197,19 @@ function toggleFeatures(idx) {
 }
 
 function openSubPopup(idx, name, price) {
+  var discount = <%= user.referralDiscount || 0 %>;
+  var priceNum = parseInt(price) || 0;
+  var finalPrice = discount > 0 ? Math.round(priceNum - (priceNum * discount / 100)) : priceNum;
   document.getElementById('popupPlanName').textContent = name;
-  document.getElementById('popupPlanPrice').textContent = price;
+  if (discount > 0) {
+    document.getElementById('popupPlanPrice').innerHTML = '<span style="text-decoration:line-through;opacity:0.5;margin-left:8px;font-size:14px;">' + price + '</span> <strong style="color:var(--success);font-size:22px;">' + finalPrice + '</strong>';
+    document.getElementById('popupDiscountInfo').style.display = 'block';
+  } else {
+    document.getElementById('popupPlanPrice').textContent = price;
+    document.getElementById('popupDiscountInfo').style.display = 'none';
+  }
   document.getElementById('subPlanName').value = name;
-  document.getElementById('subPlanPrice').value = price;
+  document.getElementById('subPlanPrice').value = finalPrice;
   document.getElementById('subFormError').style.display = 'none';
   document.getElementById('subTransactionId').value = '';
   document.getElementById('subPopup').classList.add('show');
@@ -224,6 +264,26 @@ function submitSubscription() {
     errDiv.style.display = 'block'; errText.textContent = 'حدث خطأ في الاتصال';
     btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> تأكيد الاشتراك';
   });
+}
+
+function applyReferral() {
+  var code = document.getElementById('referralCode').value.trim();
+  var msg = document.getElementById('referralMessage');
+  var btn = document.getElementById('referralBtn');
+  if (!code) { msg.style.display = 'block'; msg.style.background = 'rgba(220,38,38,0.1)'; msg.style.color = 'var(--danger)'; msg.textContent = 'يرجى إدخال كود الدعوة'; return; }
+  msg.style.display = 'none';
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+  fetch('/api/student/apply-referral', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code:code}) })
+  .then(function(r){return r.json()})
+  .then(function(d){
+    if(d.success){
+      location.reload();
+    } else {
+      msg.style.display='block'; msg.style.background='rgba(220,38,38,0.1)'; msg.style.color='var(--danger)'; msg.textContent = d.error || 'الكود غير صالح';
+    }
+    btn.disabled=false; btn.innerHTML='<i class="fas fa-percent"></i> تطبيق';
+  })
+  .catch(function(){ msg.style.display='block'; msg.style.background='rgba(220,38,38,0.1)'; msg.style.color='var(--danger)'; msg.textContent='حدث خطأ في الاتصال'; btn.disabled=false; btn.innerHTML='<i class="fas fa-percent"></i> تطبيق'; });
 }
 </script>
 </body>
