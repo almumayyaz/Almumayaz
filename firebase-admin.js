@@ -107,24 +107,12 @@ function restPost(path, data) {
 const localStore = require('./data-store');
 let useLocalFallback = !ready;
 
-function toArray(val) {
-  if (Array.isArray(val)) return val.map(toArray);
-  if (val && typeof val === 'object') {
-    const keys = Object.keys(val).filter(k => /^\d+$/.test(k)).sort((a, b) => parseInt(a) - parseInt(b));
-    if (keys.length === Object.keys(val).length) return keys.map(k => toArray(val[k]));
-    const obj = {};
-    for (const k of Object.keys(val)) obj[k] = toArray(val[k]);
-    return obj;
-  }
-  return val;
-}
-
 async function readData(key) {
   if (useLocalFallback) return localStore.readData(key);
   try {
     const val = await restGet(key);
     if (val === null || val === undefined) return key.endsWith('s') ? [] : {};
-    return key.endsWith('s') ? toArray(val) : val;
+    return val;
   } catch (e) {
     console.error('Firebase read error, falling back to local:', e.message);
     return localStore.readData(key);
@@ -156,9 +144,7 @@ async function fbRead(path) {
   if (!fbDb) return readData(path);
   try {
     const snap = await fbDb.ref(path).once('value');
-    const val = snap.val();
-    if (val === null || val === undefined) return path.endsWith('s') ? [] : {};
-    return path.endsWith('s') ? toArray(val) : val;
+    return snap.val();
   } catch (e) {
     console.error('Firebase Admin read error:', e.message);
     return readData(path);
