@@ -764,6 +764,7 @@ app.post('/api/admin/courses', requireAdmin, async (req, res) => {
       stage: stage || 'all',
       grade: grade || '',
       sections: [],
+      units: [],
       lessons: [],
       quiz: null
     };
@@ -849,6 +850,51 @@ app.delete('/api/admin/courses/:id/sections/:sectionId', requireAdmin, async (re
   }
 });
 
+/* ===================== ADMIN API: UNITS (Preparatory) ===================== */
+
+app.put('/api/admin/courses/:id/units/:unitId', requireAdmin, async (req, res) => {
+  try {
+    const courses = await readData('courses');
+    const course = courses.find(c => c.id === req.params.id);
+    if (!course) return res.status(404).json({ error: 'المادة غير موجودة' });
+    const unit = (course.units || []).find(u => u.id === req.params.unitId);
+    if (!unit) return res.status(404).json({ error: 'الوحدة غير موجودة' });
+    Object.assign(unit, req.body);
+    await writeData('courses', courses);
+    res.json({ success: true, unit: unit });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/admin/courses/:id/units/:unitId/delete', requireAdmin, async (req, res) => {
+  try {
+    const courses = await readData('courses');
+    const course = courses.find(c => c.id === req.params.id);
+    if (!course) return res.status(404).json({ error: 'المادة غير موجودة' });
+    course.units = (course.units || []).filter(u => u.id !== req.params.unitId);
+    // Remove lessons belonging to this unit
+    course.lessons = (course.lessons || []).filter(l => l.unitId !== req.params.unitId);
+    await writeData('courses', courses);
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/admin/courses/:id/units/:unitId/move', requireAdmin, async (req, res) => {
+  try {
+    const courses = await readData('courses');
+    const course = courses.find(c => c.id === req.params.id);
+    if (!course) return res.status(404).json({ error: 'المادة غير موجودة' });
+    var units = course.units || [];
+    var idx = units.findIndex(u => u.id === req.params.unitId);
+    if (idx === -1) return res.status(404).json({ error: 'الوحدة غير موجودة' });
+    var dir = req.body.direction;
+    if (dir === 'up' && idx > 0) { var t = units[idx]; units[idx] = units[idx-1]; units[idx-1] = t; }
+    if (dir === 'down' && idx < units.length - 1) { var t = units[idx]; units[idx] = units[idx+1]; units[idx+1] = t; }
+    units.forEach(function(u, i){ u.order = i + 1; });
+    await writeData('courses', courses);
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 /* ===================== ADMIN API: LESSONS ===================== */
 
 app.post('/api/admin/courses/:id/lessons', requireAdmin, async (req, res) => {
@@ -856,7 +902,7 @@ app.post('/api/admin/courses/:id/lessons', requireAdmin, async (req, res) => {
     const courses = await readData('courses');
     const course = courses.find(c => c.id === req.params.id);
     if (!course) return res.status(404).json({ error: 'المادة غير موجودة' });
-    const { title, description, videos, pdfFiles, duration, isFree, sectionId, quizTimer } = req.body;
+    const { title, description, videos, pdfFiles, duration, isFree, guestVisible, sectionId, unitId, order, quizTimer } = req.body;
     const newLesson = {
       id: Date.now().toString(),
       title: title || 'محاضرة جديدة',
@@ -865,7 +911,10 @@ app.post('/api/admin/courses/:id/lessons', requireAdmin, async (req, res) => {
       pdfFiles: pdfFiles || [],
       duration: duration || '00:00',
       isFree: isFree || false,
+      guestVisible: guestVisible || false,
       sectionId: sectionId || '',
+      unitId: unitId || '',
+      order: order || 0,
       quizTimer: quizTimer || null
     };
     if (!course.lessons) course.lessons = [];

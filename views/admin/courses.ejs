@@ -99,7 +99,7 @@
           <div>
             <h3 style="font-size:16px;font-weight:700;color:var(--primary);margin:0;"><%= course.title %></h3>
             <div style="display:flex;align-items:center;gap:8px;margin-top:2px;">
-              <span style="font-size:12px;color:var(--text-light);"><%= course.lessons.length %> درس</span>
+              <span style="font-size:12px;color:var(--text-light);"><%= (course.lessons || []).length %> درس</span>
               <% if (course.grade) { %>
               <span style="background:var(--accent-glow);color:var(--accent);font-size:11px;padding:2px 10px;border-radius:10px;font-weight:600;"><%= course.grade %></span>
               <% } %>
@@ -108,7 +108,9 @@
         </div>
         <div class="admin-actions" style="flex-wrap:wrap;">
           <button class="edit" onclick='openLessonModal(<%= JSON.stringify(course) %>)'><i class="fas fa-plus"></i> درس</button>
-          <% if (course.stage === 'ثانوية') { %>
+          <% if (course.stage === 'إعدادية') { %>
+          <button class="view" onclick='openUnitModal(<%= JSON.stringify(course) %>)'><i class="fas fa-layer-group"></i> وحدات</button>
+          <% } else if (course.stage === 'ثانوية') { %>
           <button class="view" onclick='openSectionModal(<%= JSON.stringify(course) %>)'><i class="fas fa-sitemap"></i> أبواب</button>
           <% } %>
           <button class="view" onclick='openCourseModal(<%= JSON.stringify(course) %>)'><i class="fas fa-edit"></i></button>
@@ -121,85 +123,161 @@
         </div>
       </div>
 
-      <% if (course.sections && course.sections.length > 0) { %>
-      <div style="padding:12px 20px;background:var(--accent-glow);border-bottom:1px solid var(--border);font-size:13px;font-weight:600;color:var(--accent);display:flex;align-items:center;gap:8px;">
-        <i class="fas fa-sitemap"></i> الأبواب
-      </div>
-      <div style="padding:8px 20px;display:flex;flex-wrap:wrap;gap:8px;">
-        <% course.sections.forEach(function(section) { %>
-        <span style="background:var(--bg);padding:4px 12px;border-radius:6px;font-size:12px;display:flex;align-items:center;gap:6px;">
-          <%= section.name %>
-          <span style="color:var(--text-light);font-size:10px;">(<%= section.lessons.length %>)</span>
-        </span>
-        <% }) %>
-      </div>
-      <% } %>
-
-      <table>
-        <thead>
-          <tr><th>#</th><th>عنوان الدرس</th><th>المدة</th><th>الفيديو</th><th>PDF</th><th>مجاني</th><th>الباب</th><th>الإجراءات</th></tr>
-        </thead>
-        <tbody>
-          <% course.lessons.forEach(function(l, li) { %>
-          <tr>
-            <td><%= li + 1 %></td>
-            <td><%= l.title %></td>
-            <td><%= l.duration %></td>
-            <td>
-              <% if (l.videos && l.videos.length > 0) { %>
-                <% l.videos.forEach(function(v, vi) { %>
-                <div style="display:flex;align-items:center;gap:4px;margin-bottom:2px;font-size:11px;">
-                  <i class="fas fa-video" style="color:var(--accent);font-size:10px;flex-shrink:0;"></i>
-                  <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px;"><%= v.title %></span>
-                  <a href="<%= v.url %>" target="_blank" style="color:var(--accent);font-size:10px;flex-shrink:0;"><i class="fas fa-external-link-alt"></i></a>
-                </div>
+      <% if (course.stage === 'إعدادية') { %>
+        <%# PREP: Units view %>
+        <% if (course.units && course.units.length > 0) { %>
+        <div style="padding:12px 20px;background:var(--accent-glow);border-bottom:1px solid var(--border);font-size:13px;font-weight:600;color:var(--accent);display:flex;align-items:center;gap:8px;">
+          <i class="fas fa-layer-group"></i> الوحدات
+        </div>
+        <div style="padding:12px 20px;display:flex;flex-direction:column;gap:16px;">
+          <% course.units.sort(function(a,b){ return (a.order||0) - (b.order||0); }).forEach(function(unit, ui) { 
+            var unitLessons = (course.lessons || []).filter(function(l){ return l.unitId === unit.id; }).sort(function(a,b){ return (a.order||0) - (b.order||0); });
+          %>
+          <div style="background:var(--bg);border-radius:10px;border:1px solid var(--border);overflow:hidden;">
+            <div style="padding:10px 16px;display:flex;align-items:center;gap:10px;background:var(--card);border-bottom:1px solid var(--border);">
+              <span style="font-weight:700;color:var(--accent);font-size:13px;"><%= unit.order || (ui+1) %></span>
+              <span style="font-weight:600;color:var(--primary);flex:1;font-size:14px;"><%= unit.name %></span>
+              <span style="font-size:11px;color:var(--text-light);"><%= unitLessons.length %> درس</span>
+              <button class="btn btn-sm" style="background:var(--accent);color:#fff;padding:3px 10px;font-size:11px;" onclick="editUnitName('<%= course.id %>','<%= unit.id %>','<%= unit.name.replace(/'/g,"\\'") %>')"><i class="fas fa-edit"></i></button>
+              <button class="btn btn-sm" style="background:#ef4444;color:#fff;padding:3px 10px;font-size:11px;" onclick="deleteUnit('<%= course.id %>','<%= unit.id %>')"><i class="fas fa-trash"></i></button>
+              <% if (ui > 0) { %><button class="btn btn-sm" style="background:var(--text-muted);color:#fff;padding:3px 8px;font-size:11px;" onclick="moveUnit('<%= course.id %>','<%= unit.id %>','up')"><i class="fas fa-chevron-up"></i></button><% } %>
+              <% if (ui < course.units.length - 1) { %><button class="btn btn-sm" style="background:var(--text-muted);color:#fff;padding:3px 8px;font-size:11px;" onclick="moveUnit('<%= course.id %>','<%= unit.id %>','down')"><i class="fas fa-chevron-down"></i></button><% } %>
+            </div>
+            <% if (unitLessons.length > 0) { %>
+            <table>
+              <thead><tr><th>#</th><th>عنوان الدرس</th><th>المدة</th><th>الفيديو</th><th>PDF</th><th>مجاني</th><th>الإجراءات</th></tr></thead>
+              <tbody>
+                <% unitLessons.forEach(function(l, li) { %>
+                <tr>
+                  <td><%= l.order || (li+1) %></td>
+                  <td><%= l.title %></td>
+                  <td><%= l.duration %></td>
+                  <td>
+                    <% if (l.videos && l.videos.length > 0) { %>
+                      <% l.videos.forEach(function(v) { %>
+                      <div style="display:flex;align-items:center;gap:4px;font-size:11px;">
+                        <i class="fas fa-video" style="color:var(--accent);font-size:10px;"></i>
+                        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px;"><%= v.title %></span>
+                        <a href="<%= v.url %>" target="_blank" style="color:var(--accent);font-size:10px;"><i class="fas fa-external-link-alt"></i></a>
+                      </div>
+                      <% }) %>
+                    <% } else { %><span style="color:var(--text-muted);font-size:11px;">---</span><% } %>
+                  </td>
+                  <td>
+                    <% if (l.pdfFiles && l.pdfFiles.length > 0) { %>
+                      <% l.pdfFiles.forEach(function(p) { %>
+                      <div style="display:flex;align-items:center;gap:4px;font-size:11px;">
+                        <i class="fas fa-file-pdf" style="color:var(--danger);font-size:10px;"></i>
+                        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px;"><%= p.title %></span>
+                        <a href="<%= p.url %>" target="_blank" style="color:var(--danger);font-size:10px;"><i class="fas fa-external-link-alt"></i></a>
+                      </div>
+                      <% }) %>
+                    <% } else { %><span style="color:var(--text-muted);font-size:11px;">---</span><% } %>
+                  </td>
+                  <td style="font-size:12px;"><%- l.isFree ? '<span style="color:var(--success);font-weight:600;">مجاني</span>' : '---' %></td>
+                  <td>
+                    <div class="admin-actions">
+                      <button class="edit" onclick='openLessonModal(<%= JSON.stringify(course) %>, <%= JSON.stringify(l) %>)'><i class="fas fa-edit"></i></button>
+                      <button class="delete" onclick="deleteLesson('<%= course.id %>','<%= l.id %>')"><i class="fas fa-trash"></i></button>
+                    </div>
+                  </td>
+                </tr>
                 <% }) %>
-              <% } else if (l.videoUrl) { %>
-                <div style="display:flex;align-items:center;gap:4px;font-size:11px;">
-                  <i class="fas fa-video" style="color:var(--accent);font-size:10px;flex-shrink:0;"></i>
-                  <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px;">فيديو</span>
-                  <a href="<%= l.videoUrl %>" target="_blank" style="color:var(--accent);font-size:10px;flex-shrink:0;"><i class="fas fa-external-link-alt"></i></a>
-                </div>
-              <% } else { %>
-                <span style="color:var(--text-muted);font-size:11px;">---</span>
-              <% } %>
-            </td>
-            <td>
-              <% if (l.pdfFiles && l.pdfFiles.length > 0) { %>
-                <% l.pdfFiles.forEach(function(p, pi) { %>
-                <div style="display:flex;align-items:center;gap:4px;margin-bottom:2px;font-size:11px;">
-                  <i class="fas fa-file-pdf" style="color:var(--danger);font-size:10px;flex-shrink:0;"></i>
-                  <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px;"><%= p.title %></span>
-                  <a href="<%= p.url %>" target="_blank" style="color:var(--danger);font-size:10px;flex-shrink:0;"><i class="fas fa-external-link-alt"></i></a>
-                </div>
-                <% }) %>
-              <% } else if (l.pdfUrl) { %>
-                <div style="display:flex;align-items:center;gap:4px;font-size:11px;">
-                  <i class="fas fa-file-pdf" style="color:var(--danger);font-size:10px;flex-shrink:0;"></i>
-                  <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px;">مذكرة</span>
-                  <a href="<%= l.pdfUrl %>" target="_blank" style="color:var(--danger);font-size:10px;flex-shrink:0;"><i class="fas fa-external-link-alt"></i></a>
-                </div>
-              <% } else { %>
-                <span style="color:var(--text-muted);font-size:11px;">---</span>
-              <% } %>
-            </td>
-            <td style="font-size:12px;"><%= l.isFree ? '<span style="color:var(--success);font-weight:600;">مجاني</span>' : '---' %> <% if (l.guestVisible) { %><span style="color:var(--accent);font-weight:600;font-size:11px;"><br>زائر</span><% } %></td>
-            <td style="font-size:12px;"><%= l.sectionId ? (function(){ var s = (course.sections || []).find(function(s){ return s.id === l.sectionId; }); return s ? s.name : '---'; })() : '---' %></td>
-            <td>
-              <div class="admin-actions">
-                <button class="edit" onclick='openLessonModal(<%= JSON.stringify(course) %>, <%= JSON.stringify(l) %>)'><i class="fas fa-edit"></i></button>
-                <button class="delete" onclick="deleteLesson('<%= course.id %>','<%= l.id %>')"><i class="fas fa-trash"></i></button>
-              </div>
-            </td>
-          </tr>
+              </tbody>
+            </table>
+            <% } else { %>
+            <div style="padding:16px 20px;text-align:center;color:var(--text-muted);font-size:13px;">لا توجد دروس في هذه الوحدة</div>
+            <% } %>
+          </div>
           <% }) %>
-          <% if (course.lessons.length === 0) { %>
-          <tr><td colspan="8" style="text-align:center;color:var(--text-light);">لا توجد دروس بعد</td></tr>
-          <% } %>
+        </div>
+        <% } else { %>
+        <div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px;">
+          لا توجد وحدات بعد. <button class="btn btn-sm" style="background:var(--accent);color:#fff;" onclick='openUnitModal(<%= JSON.stringify(course) %>)'><i class="fas fa-plus"></i> إضافة وحدة</button>
+        </div>
+        <% } %>
+
+      <% } else { %>
+        <%# SECONDARY: Sections + Table (unchanged) %>
+        <% if (course.sections && course.sections.length > 0) { %>
+        <div style="padding:12px 20px;background:var(--accent-glow);border-bottom:1px solid var(--border);font-size:13px;font-weight:600;color:var(--accent);display:flex;align-items:center;gap:8px;">
+          <i class="fas fa-sitemap"></i> الأبواب
+        </div>
+        <div style="padding:8px 20px;display:flex;flex-wrap:wrap;gap:8px;">
+          <% course.sections.forEach(function(section) { %>
+          <span style="background:var(--bg);padding:4px 12px;border-radius:6px;font-size:12px;display:flex;align-items:center;gap:6px;">
+            <%= section.name %>
+            <span style="color:var(--text-light);font-size:10px;">(<%= section.lessons.length %>)</span>
+          </span>
+          <% }) %>
+        </div>
+        <% } %>
+
+        <table>
+          <thead>
+            <tr><th>#</th><th>عنوان الدرس</th><th>المدة</th><th>الفيديو</th><th>PDF</th><th>مجاني</th><th>الباب</th><th>الإجراءات</th></tr>
+          </thead>
+          <tbody>
+            <% (course.lessons || []).forEach(function(l, li) { %>
+            <tr>
+              <td><%= li + 1 %></td>
+              <td><%= l.title %></td>
+              <td><%= l.duration %></td>
+              <td>
+                <% if (l.videos && l.videos.length > 0) { %>
+                  <% l.videos.forEach(function(v, vi) { %>
+                  <div style="display:flex;align-items:center;gap:4px;margin-bottom:2px;font-size:11px;">
+                    <i class="fas fa-video" style="color:var(--accent);font-size:10px;flex-shrink:0;"></i>
+                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px;"><%= v.title %></span>
+                    <a href="<%= v.url %>" target="_blank" style="color:var(--accent);font-size:10px;flex-shrink:0;"><i class="fas fa-external-link-alt"></i></a>
+                  </div>
+                  <% }) %>
+                <% } else if (l.videoUrl) { %>
+                  <div style="display:flex;align-items:center;gap:4px;font-size:11px;">
+                    <i class="fas fa-video" style="color:var(--accent);font-size:10px;flex-shrink:0;"></i>
+                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px;">فيديو</span>
+                    <a href="<%= l.videoUrl %>" target="_blank" style="color:var(--accent);font-size:10px;flex-shrink:0;"><i class="fas fa-external-link-alt"></i></a>
+                  </div>
+                <% } else { %>
+                  <span style="color:var(--text-muted);font-size:11px;">---</span>
+                <% } %>
+              </td>
+              <td>
+                <% if (l.pdfFiles && l.pdfFiles.length > 0) { %>
+                  <% l.pdfFiles.forEach(function(p, pi) { %>
+                  <div style="display:flex;align-items:center;gap:4px;margin-bottom:2px;font-size:11px;">
+                    <i class="fas fa-file-pdf" style="color:var(--danger);font-size:10px;flex-shrink:0;"></i>
+                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px;"><%= p.title %></span>
+                    <a href="<%= p.url %>" target="_blank" style="color:var(--danger);font-size:10px;flex-shrink:0;"><i class="fas fa-external-link-alt"></i></a>
+                  </div>
+                  <% }) %>
+                <% } else if (l.pdfUrl) { %>
+                  <div style="display:flex;align-items:center;gap:4px;font-size:11px;">
+                    <i class="fas fa-file-pdf" style="color:var(--danger);font-size:10px;flex-shrink:0;"></i>
+                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px;">مذكرة</span>
+                    <a href="<%= l.pdfUrl %>" target="_blank" style="color:var(--danger);font-size:10px;flex-shrink:0;"><i class="fas fa-external-link-alt"></i></a>
+                  </div>
+                <% } else { %>
+                  <span style="color:var(--text-muted);font-size:11px;">---</span>
+                <% } %>
+              </td>
+              <td style="font-size:12px;"><%- l.isFree ? '<span style="color:var(--success);font-weight:600;">مجاني</span>' : '---' %> <% if (l.guestVisible) { %><span style="color:var(--accent);font-weight:600;font-size:11px;"><br>زائر</span><% } %></td>
+              <td style="font-size:12px;"><%= l.sectionId ? (function(){ var s = (course.sections || []).find(function(s){ return s.id === l.sectionId; }); return s ? s.name : '---'; })() : '---' %></td>
+              <td>
+                <div class="admin-actions">
+                  <button class="edit" onclick='openLessonModal(<%= JSON.stringify(course) %>, <%= JSON.stringify(l) %>)'><i class="fas fa-edit"></i></button>
+                  <button class="delete" onclick="deleteLesson('<%= course.id %>','<%= l.id %>')"><i class="fas fa-trash"></i></button>
+                </div>
+              </td>
+            </tr>
+            <% }) %>
+            <% if (!course.lessons || course.lessons.length === 0) { %>
+            <tr><td colspan="8" style="text-align:center;color:var(--text-light);">لا توجد دروس بعد</td></tr>
+            <% } %>
         </tbody>
       </table>
     </div>
-    <% }) %>
+    <% } }) %>
   </div>
 <% } %>
 </main>
@@ -245,6 +323,26 @@
   </div>
 </div>
 
+<!-- Unit Modal (for preparatory) -->
+<div class="modal-overlay" id="unitModal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3 id="unitModalTitle">إدارة الوحدات</h3>
+      <button class="modal-close" onclick="closeModal('unitModal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="unitCourseId">
+      <div id="unitsContainer">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <label>وحدات المادة</label>
+          <button class="btn btn-sm" style="background:var(--accent);color:#fff;" onclick="addUnit()"><i class="fas fa-plus"></i> إضافة وحدة</button>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="saveUnits()" style="width:100%;margin-top:16px;"><i class="fas fa-save"></i> حفظ الوحدات</button>
+    </div>
+  </div>
+</div>
+
 <!-- Lesson Modal -->
 <div class="modal-overlay" id="lessonModal">
   <div class="modal modal-lg">
@@ -285,9 +383,17 @@
         <label>المدة</label>
         <input id="lessonDuration" placeholder="مثال: 45:30">
       </div>
-      <div class="form-group">
+      <div id="lessonUnitGroup" class="form-group">
+        <label>الوحدة</label>
+        <select id="lessonUnitId"><option value="">بدون وحدة</option></select>
+      </div>
+      <div id="lessonSectionGroup" class="form-group">
         <label>الباب</label>
         <select id="lessonSectionId"><option value="">بدون باب</option></select>
+      </div>
+      <div class="form-group">
+        <label>ترتيب الدرس</label>
+        <input id="lessonOrder" type="number" min="1" placeholder="1">
       </div>
       <div class="form-group">
         <label>مؤقت الاختبار (بالدقائق)</label>
@@ -371,7 +477,7 @@ function deleteCourse(id) {
     .then(function(r){ return r.json(); }).then(function(d){ if (d.success) location.reload(); else alert(d.error); });
 }
 
-// ===== SECTION (باب) MANAGEMENT =====
+// ===== SECTION (باب) MANAGEMENT (Secondary only) =====
 var currentSections = [];
 function openSectionModal(course) {
   document.getElementById('sectionModalTitle').textContent = 'إدارة الأبواب - ' + course.title;
@@ -412,6 +518,90 @@ function saveSections() {
   }).then(function(r){ return r.json(); }).then(function(d){ if (d.success) location.reload(); else alert(d.error); });
 }
 
+// ===== UNIT MANAGEMENT (Preparatory only) =====
+var currentUnits = [];
+function openUnitModal(course) {
+  document.getElementById('unitModalTitle').textContent = 'إدارة الوحدات - ' + course.title;
+  document.getElementById('unitCourseId').value = course.id;
+  currentUnits = (course.units || []).map(function(u) { return { id: u.id, name: u.name, order: u.order || 0 }; });
+  renderUnits();
+  document.getElementById('unitModal').classList.add('show');
+}
+function renderUnits() {
+  var container = document.getElementById('unitsContainer');
+  var existing = container.querySelectorAll('.unit-block');
+  existing.forEach(function(el) { el.remove(); });
+  currentUnits.sort(function(a,b){ return (a.order||0) - (b.order||0); });
+  currentUnits.forEach(function(u, i) {
+    var div = document.createElement('div');
+    div.className = 'unit-block';
+    div.style.cssText = 'background:var(--bg);border-radius:10px;padding:12px 16px;margin-bottom:8px;border:1px solid var(--border);display:flex;align-items:center;gap:10px;';
+    div.innerHTML = '<span style="font-weight:700;color:var(--accent);font-size:13px;">' + (u.order || (i+1)) + '</span><span style="font-weight:600;color:var(--primary);flex:1;">' + u.name + '</span><button class="btn btn-sm" style="background:var(--accent);color:#fff;font-size:10px;padding:3px 8px;" onclick="editUnit(' + i + ')"><i class="fas fa-edit"></i></button><button class="btn btn-sm" style="background:#ef4444;color:#fff;font-size:10px;padding:3px 8px;" onclick="removeUnit(' + i + ')"><i class="fas fa-times"></i></button>';
+    if (i > 0) div.innerHTML += '<button class="btn btn-sm" style="background:var(--text-muted);color:#fff;font-size:10px;padding:3px 6px;" onclick="moveUnitUp(' + i + ')"><i class="fas fa-chevron-up"></i></button>';
+    if (i < currentUnits.length - 1) div.innerHTML += '<button class="btn btn-sm" style="background:var(--text-muted);color:#fff;font-size:10px;padding:3px 6px;" onclick="moveUnitDown(' + i + ')"><i class="fas fa-chevron-down"></i></button>';
+    container.appendChild(div);
+  });
+}
+function addUnit() {
+  var name = prompt('اسم الوحدة الجديدة:');
+  if (!name || !name.trim()) return;
+  var maxOrder = currentUnits.reduce(function(m, u){ return Math.max(m, u.order || 0); }, 0);
+  currentUnits.push({ id: 'u-' + Date.now() + '-' + Math.random().toString(36).substr(2,4), name: name.trim(), order: maxOrder + 1 });
+  renderUnits();
+}
+function editUnit(idx) {
+  var newName = prompt('تعديل اسم الوحدة:', currentUnits[idx].name);
+  if (newName && newName.trim()) { currentUnits[idx].name = newName.trim(); renderUnits(); }
+}
+function removeUnit(idx) {
+  if (!confirm('حذف الوحدة "' + currentUnits[idx].name + '"؟')) return;
+  currentUnits.splice(idx, 1);
+  renderUnits();
+}
+function moveUnitUp(idx) {
+  if (idx <= 0) return;
+  var tmp = currentUnits[idx]; currentUnits[idx] = currentUnits[idx-1]; currentUnits[idx-1] = tmp;
+  currentUnits.forEach(function(u, i){ u.order = i + 1; });
+  renderUnits();
+}
+function moveUnitDown(idx) {
+  if (idx >= currentUnits.length - 1) return;
+  var tmp = currentUnits[idx]; currentUnits[idx] = currentUnits[idx+1]; currentUnits[idx+1] = tmp;
+  currentUnits.forEach(function(u, i){ u.order = i + 1; });
+  renderUnits();
+}
+function saveUnits() {
+  var courseId = document.getElementById('unitCourseId').value;
+  currentUnits.forEach(function(u, i){ u.order = i + 1; });
+  fetch('/api/admin/courses/' + courseId, {
+    method: 'PUT',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ units: currentUnits })
+  }).then(function(r){ return r.json(); }).then(function(d){ if (d.success) location.reload(); else alert(d.error); });
+}
+// Inline unit actions from course view
+function editUnitName(courseId, unitId, currentName) {
+  var newName = prompt('تعديل اسم الوحدة:', currentName);
+  if (!newName || !newName.trim()) return;
+  fetch('/api/admin/courses/' + courseId + '/units/' + unitId, {
+    method: 'PUT',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ name: newName.trim() })
+  }).then(function(r){ return r.json(); }).then(function(d){ if (d.success) location.reload(); else alert(d.error); });
+}
+function deleteUnit(courseId, unitId) {
+  if (!confirm('حذف هذه الوحدة وجميع دروسها؟')) return;
+  fetch('/api/admin/courses/' + courseId + '/units/' + unitId + '/delete', { method: 'DELETE' })
+    .then(function(r){ return r.json(); }).then(function(d){ if (d.success) location.reload(); else alert(d.error); });
+}
+function moveUnit(courseId, unitId, dir) {
+  fetch('/api/admin/courses/' + courseId + '/units/' + unitId + '/move', {
+    method: 'PUT',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ direction: dir })
+  }).then(function(r){ return r.json(); }).then(function(d){ if (d.success) location.reload(); else alert(d.error); });
+}
+
 // ===== LESSON CRUD =====
 function openLessonModal(course, lesson) {
   document.getElementById('lessonModalTitle').textContent = lesson ? 'تعديل الدرس' : 'إضافة درس - ' + course.title;
@@ -423,18 +613,40 @@ function openLessonModal(course, lesson) {
   document.getElementById('lessonGuestVisible').checked = lesson ? !!lesson.guestVisible : false;
   document.getElementById('lessonDuration').value = lesson ? (lesson.duration || '') : '';
   document.getElementById('lessonQuizTimer').value = lesson ? (lesson.quizTimer || '') : '';
-  var sel = document.getElementById('lessonSectionId');
-  sel.innerHTML = '<option value="">بدون باب</option>';
-  if (course.sections) {
-    course.sections.forEach(function(s) {
+  document.getElementById('lessonOrder').value = lesson ? (lesson.order || '') : '';
+
+  var isPrep = course.stage === 'إعدادية';
+  document.getElementById('lessonUnitGroup').style.display = isPrep ? '' : 'none';
+  document.getElementById('lessonSectionGroup').style.display = isPrep ? 'none' : '';
+
+  if (isPrep) {
+    // Populate unit selector
+    var uSel = document.getElementById('lessonUnitId');
+    uSel.innerHTML = '<option value="">اختر الوحدة</option>';
+    (course.units || []).sort(function(a,b){ return (a.order||0) - (b.order||0); }).forEach(function(u) {
       var opt = document.createElement('option');
-      opt.value = s.id;
-      opt.textContent = s.name;
-      if (lesson && lesson.sectionId === s.id) opt.selected = true;
-      sel.appendChild(opt);
+      opt.value = u.id;
+      opt.textContent = u.name;
+      if (lesson && lesson.unitId === u.id) opt.selected = true;
+      uSel.appendChild(opt);
     });
+    document.getElementById('lessonUnitId').value = lesson ? (lesson.unitId || '') : '';
+  } else {
+    // Populate section selector
+    var sSel = document.getElementById('lessonSectionId');
+    sSel.innerHTML = '<option value="">بدون باب</option>';
+    if (course.sections) {
+      course.sections.forEach(function(s) {
+        var opt = document.createElement('option');
+        opt.value = s.id;
+        opt.textContent = s.name;
+        if (lesson && lesson.sectionId === s.id) opt.selected = true;
+        sSel.appendChild(opt);
+      });
+    }
+    document.getElementById('lessonSectionId').value = lesson ? (lesson.sectionId || '') : '';
   }
-  document.getElementById('lessonSectionId').value = lesson ? (lesson.sectionId || '') : '';
+
   var vc = document.getElementById('videosContainer');
   vc.innerHTML = '';
   var videos = (lesson && lesson.videos) || [];
@@ -480,6 +692,7 @@ function saveLesson() {
     var url = p.querySelector('.pdf-url').value;
     if (url) pdfFiles.push({ title: title || 'ملف', url: url });
   });
+  var isPrep = document.getElementById('lessonUnitGroup').style.display !== 'none';
   var data = {
     title: document.getElementById('lessonTitle').value,
     description: document.getElementById('lessonDescription').value,
@@ -488,7 +701,9 @@ function saveLesson() {
     duration: document.getElementById('lessonDuration').value,
     isFree: document.getElementById('lessonIsFree').checked,
     guestVisible: document.getElementById('lessonGuestVisible').checked,
-    sectionId: document.getElementById('lessonSectionId').value,
+    sectionId: isPrep ? '' : document.getElementById('lessonSectionId').value,
+    unitId: isPrep ? document.getElementById('lessonUnitId').value : '',
+    order: parseInt(document.getElementById('lessonOrder').value) || 0,
     quizTimer: document.getElementById('lessonQuizTimer').value || null,
     videoUrl: videos.length > 0 ? videos[0].url : '',
     pdfUrl: pdfFiles.length > 0 ? pdfFiles[0].url : ''
