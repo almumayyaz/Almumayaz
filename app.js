@@ -1609,6 +1609,26 @@ app.post('/api/admin/upload-questions', requireAdmin, async (req, res) => {
       return res.json({ success: true, questions: questions });
     }
 
+    // Try Word table format (mammoth extracts table cells as consecutive lines)
+    if (lines.length >= 12 && lines.length % 6 === 0) {
+      var firstRowCols = lines.slice(0, 6);
+      var hasTableHeader = firstRowCols.some(function(c) { return /السؤال|الاجابة|الصحيحة/.test(c); });
+      if (hasTableHeader) {
+        for (var i = 6; i < lines.length; i += 6) {
+          var qText = (lines[i] || '').trim();
+          if (!qText) continue;
+          var opts = [lines[i+1]||'', lines[i+2]||'', lines[i+3]||'', lines[i+4]||''].map(function(o) {
+            return (o||'').replace(/^[أ-دأ-د\s]*[\.\-\)]\s*/, '').trim();
+          });
+          var correctLetter = (lines[i+5]||'').trim().charAt(0);
+          var correctMap = { 'أ': 0, 'ا': 0, 'ب': 1, 'ج': 2, 'د': 3 };
+          var correct = correctMap[correctLetter] !== undefined ? correctMap[correctLetter] : 0;
+          questions.push({ question: qText, options: opts, correct: correct });
+        }
+        return res.json({ success: true, questions: questions });
+      }
+    }
+
     // Legacy format support
     let currentQ = null;
     for (const line of lines) {
@@ -1665,6 +1685,26 @@ app.post('/api/admin/upload-word-file', requireAdmin, upload.single('file'), asy
         questions.push({ question: qText, options: opts, correct: correct });
       }
       return res.json({ success: true, questions: questions });
+    }
+
+    // Try Word table format (mammoth extracts table cells as consecutive lines)
+    if (lines.length >= 12 && lines.length % 6 === 0) {
+      var firstRowCols = lines.slice(0, 6);
+      var hasTableHeader = firstRowCols.some(function(c) { return /السؤال|الاجابة|الصحيحة/.test(c); });
+      if (hasTableHeader) {
+        for (var i = 6; i < lines.length; i += 6) {
+          var qText = (lines[i] || '').trim();
+          if (!qText) continue;
+          var opts = [lines[i+1]||'', lines[i+2]||'', lines[i+3]||'', lines[i+4]||''].map(function(o) {
+            return (o||'').replace(/^[أ-دأ-د\s]*[\.\-\)]\s*/, '').trim();
+          });
+          var correctLetter = (lines[i+5]||'').trim().charAt(0);
+          var correctMap = { 'أ': 0, 'ا': 0, 'ب': 1, 'ج': 2, 'د': 3 };
+          var correct = correctMap[correctLetter] !== undefined ? correctMap[correctLetter] : 0;
+          questions.push({ question: qText, options: opts, correct: correct });
+        }
+        return res.json({ success: true, questions: questions });
+      }
     }
 
     // Legacy format support
