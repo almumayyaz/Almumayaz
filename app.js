@@ -716,14 +716,19 @@ app.get('/api/student/progress/:courseId', requireAuth, async (req, res) => {
 /* ===================== ADMIN ROUTES ===================== */
 
 app.get('/admin', requireAdmin, async (req, res) => {
-  const users = await readData('users');
-  const courses = await readData('courses');
-  const students = users.filter(u => u.role === 'student');
-  const announcements = await readData('announcements');
-  const subscriptions = await readData('subscriptions');
-  const reviews = await readData('reviews');
-  const payments = await readData('payments') || [];
-  res.render('admin/dashboard', { students, courses, announcements, subscriptions, reviews, payments, title: 'لوحة الإدارة - المُميز' });
+  try {
+    const users = await readData('users');
+    const courses = await readData('courses');
+    const students = users.filter(u => u.role === 'student');
+    const announcements = await readData('announcements');
+    const subscriptions = await readData('subscriptions');
+    const reviews = await readData('reviews');
+    const payments = await readData('payments') || [];
+    res.render('admin/dashboard', { students, courses, announcements, subscriptions, reviews, payments, title: 'لوحة الإدارة - المُميز' });
+  } catch(e) {
+    console.error('Admin dashboard error:', e);
+    res.status(500).send('خطأ في تحميل لوحة التحكم: ' + e.message);
+  }
 });
 
 app.get('/admin/students', requireAdmin, async (req, res) => {

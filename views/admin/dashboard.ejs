@@ -18,14 +18,14 @@
     </div>
     <div class="admin-stat-card">
       <h3>المحاضرات</h3>
-      <div class="value"><%= courses.reduce(function(a, c) { return a + c.lessons.length; }, 0) %></div>
+      <div class="value"><%= courses.reduce(function(a, c) { return a + (c.lessons||[]).length; }, 0) %></div>
       <div style="font-size:12px;color:var(--text-light);margin-top:4px;">
         <a href="/admin/courses" style="color:var(--accent);"><i class="fas fa-arrow-left"></i> إدارة المحاضرات</a>
       </div>
     </div>
     <div class="admin-stat-card">
       <h3>بنك الأسئلة</h3>
-      <div class="value"><%= courses.reduce(function(a, c) { return a + (c.quiz ? c.quiz.questions.length : 0); }, 0) %></div>
+      <div class="value"><%= courses.reduce(function(a, c) { return a + (c.quiz ? (c.quiz.questions||[]).length : 0); }, 0) %></div>
       <div style="font-size:12px;color:var(--text-light);margin-top:4px;"><%= courses.filter(function(c) { return c.quiz; }).length %> مواد لديها اختبارات</div>
     </div>
     <div class="admin-stat-card">
@@ -101,11 +101,11 @@
         <a href="/admin/courses" style="font-size:12px;color:var(--accent);">إدارة <i class="fas fa-arrow-left"></i></a>
       </h3>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
-        <% courses.forEach(function(c) { %>
+        <% (courses||[]).forEach(function(c) { %>
         <div style="background:var(--bg);border-radius:10px;padding:16px;text-align:center;border:1px solid var(--border);">
           <div style="font-size:24px;color:<%= c.color %>;margin-bottom:6px;"><i class="fas <%= c.icon %>"></i></div>
           <div style="font-size:13px;font-weight:700;color:var(--primary);"><%= c.title %></div>
-          <div style="font-size:11px;color:var(--text-light);"><%= c.lessons.length %> محاضرة</div>
+          <div style="font-size:11px;color:var(--text-light);"><%= (c.lessons||[]).length %> محاضرة</div>
         </div>
         <% }) %>
       </div>
