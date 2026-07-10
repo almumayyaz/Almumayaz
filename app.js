@@ -940,7 +940,7 @@ app.post('/api/admin/courses/:id/lessons', requireAdmin, async (req, res) => {
     const courses = await readData('courses');
     const course = courses.find(c => c.id === req.params.id);
     if (!course) return res.status(404).json({ error: 'المادة غير موجودة' });
-    const { title, description, videos, pdfFiles, duration, isFree, sectionId, quizTimer } = req.body;
+    const { title, description, videos, pdfFiles, duration, isFree, sectionId } = req.body;
     const newLesson = {
       id: Date.now().toString(),
       title: title || 'محاضرة جديدة',
@@ -949,8 +949,7 @@ app.post('/api/admin/courses/:id/lessons', requireAdmin, async (req, res) => {
       pdfFiles: pdfFiles || [],
       duration: duration || '00:00',
       isFree: isFree || false,
-      sectionId: sectionId || '',
-      quizTimer: quizTimer || null
+      sectionId: sectionId || ''
     };
     if (!course.lessons) course.lessons = [];
     course.lessons.push(newLesson);

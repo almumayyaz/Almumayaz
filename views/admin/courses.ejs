@@ -432,12 +432,6 @@
         <label>الباب</label>
         <select id="lessonSectionId"><option value="">بدون باب</option></select>
       </div>
-      <div class="form-group">
-        <label style="display:flex;align-items:center;gap:8px;">
-          <input id="lessonQuizTimerEnabled" type="checkbox" onchange="document.getElementById('lessonQuizTimer').style.display=this.checked?'':'none'"> تفعيل المؤقت
-        </label>
-        <input id="lessonQuizTimer" type="number" min="0" placeholder="مثال: 15" style="display:none;">
-      </div>
       <button class="btn btn-primary" onclick="saveLesson()" style="width:100%;margin-top:8px;"><i class="fas fa-save"></i> حفظ</button>
     </div>
   </div>
@@ -700,10 +694,6 @@ function openLessonModal(course, lesson) {
   document.getElementById('lessonIsFree').checked = lesson ? !!lesson.isFree : false;
   document.getElementById('lessonGuestVisible').checked = lesson ? !!lesson.guestVisible : false;
   document.getElementById('lessonDuration').value = lesson ? (lesson.duration || '') : '';
-  document.getElementById('lessonQuizTimer').value = lesson ? (lesson.quizTimer || '') : '';
-  var hasTimer = lesson && lesson.quizTimer;
-  document.getElementById('lessonQuizTimerEnabled').checked = !!hasTimer;
-  document.getElementById('lessonQuizTimer').style.display = hasTimer ? '' : 'none';
   var sel = document.getElementById('lessonSectionId');
   sel.innerHTML = '<option value="">بدون باب</option>';
   if (course.sections) {
@@ -766,7 +756,7 @@ function saveLesson() {
     isFree: document.getElementById('lessonIsFree').checked,
     guestVisible: document.getElementById('lessonGuestVisible').checked,
     sectionId: document.getElementById('lessonSectionId').value,
-    quizTimer: document.getElementById('lessonQuizTimerEnabled').checked ? (document.getElementById('lessonQuizTimer').value || null) : null,
+    quizTimer: null,
     videoUrl: videos.length > 0 ? videos[0].url : '',
     pdfUrl: pdfFiles.length > 0 ? pdfFiles[0].url : ''
   };
