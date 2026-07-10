@@ -17,7 +17,7 @@
     </div>
     <% } %>
     <% courses.forEach(function(course) { %>
-    <div class="course-card">
+    <a href="/student/course/<%= course.id %>" class="course-card">
       <div class="course-card-header">
         <div class="icon"><i class="fas <%= course.icon %>"></i></div>
         <h3><%= course.title %></h3>
@@ -26,10 +26,7 @@
         <span style="display:inline-block;background:var(--accent-glow);color:var(--accent);font-size:11px;padding:2px 10px;border-radius:10px;font-weight:600;margin-top:4px;"><%= course.grade %></span>
         <% } %>
       </div>
-      <div class="course-card-body">
-        <a href="/student/course/<%= course.id %>" class="btn btn-primary">الدخول إلى المحاضرات</a>
-      </div>
-    </div>
+    </a>
     <% }) %>
   </div>
 </main>
