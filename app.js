@@ -715,12 +715,12 @@ app.get('/admin/content', requireAdmin, async (req, res) => {
   if (stage && stages[stage]) {
     if (grade && stages[stage][grade]) {
       var activeData = stages[stage][grade];
-      res.render('admin/content', { stages, activeStage: stage, activeGrade: grade, activeData, title: 'إدارة المحتوى - الإدارة' });
+      res.render('admin/content', { stages, activeStage: stage, activeGrade: grade, grade, activeData, title: 'إدارة المحتوى - الإدارة' });
     } else {
-      res.render('admin/content', { stages, activeStage: stage, activeGrade: '', activeData: null, title: 'إدارة المحتوى - الإدارة' });
+      res.render('admin/content', { stages, activeStage: stage, activeGrade: '', grade: '', activeData: null, title: 'إدارة المحتوى - الإدارة' });
     }
   } else {
-    res.render('admin/content', { stages, activeStage: '', activeGrade: '', activeData: null, title: 'إدارة المحتوى - الإدارة' });
+    res.render('admin/content', { stages, activeStage: '', activeGrade: '', grade: '', activeData: null, title: 'إدارة المحتوى - الإدارة' });
   }
 });
 
