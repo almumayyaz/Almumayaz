@@ -1,7 +1,7 @@
 {
   "name": "lughati-platform",
   "version": "1.0.0",
-  "description": "لغتي - منصة مصطفى فرغلي التعليمية",
+  "description": "المُميز - منصة محمد عفيفي التعليمية",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

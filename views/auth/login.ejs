@@ -2,9 +2,9 @@
 
 <section class="auth-section">
   <div class="auth-card">
-    <a href="/" class="nav-logo">لغتي</a>
+    <a href="/" class="nav-logo">المُميز</a>
     <h2><%= typeof parentLogin !== 'undefined' && parentLogin ? 'تسجيل دخول ولي الأمر' : 'تسجيل الدخول' %></h2>
-    <p><%= typeof parentLogin !== 'undefined' && parentLogin ? 'لمتابعة أداء ابنك في المنصة' : 'أهلاً بك مرة أخرى في منصة لغتي' %></p>
+    <p><%= typeof parentLogin !== 'undefined' && parentLogin ? 'لمتابعة أداء ابنك في المنصة' : 'أهلاً بك مرة أخرى في منصة المُميز' %></p>
     <% if (error) { %><div class="auth-error"><i class="fas fa-exclamation-circle"></i> <%= error %></div><% } %>
 
     <% if (typeof firebaseConfig !== 'undefined' && firebaseConfig.apiKey) { %>

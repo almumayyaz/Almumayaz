@@ -215,7 +215,7 @@ function submitSubscription() {
     body: JSON.stringify({ planName: planName, price: Number(price), transactionId: transactionId, paymentMethod: paymentMethod })
   }).then(function(r) { return r.json(); }).then(function(d) {
     if (d.success) {
-      document.getElementById('subPopup').innerHTML = '<div style="padding:60px 24px;text-align:center;"><i class="fas fa-check-circle" style="font-size:56px;color:var(--success);display:block;margin-bottom:16px;"></i><h2 style="font-family:\'Aref Ruqaa\',serif;font-size:22px;font-weight:700;margin-bottom:8px;">✅ تم إرسال طلب الاشتراك</h2><p style="font-size:14px;color:var(--text-light);margin-bottom:20px;">في انتظار موافقة الأستاذ مصطفى فرغلي. سيتم تفعيل اشتراكك فور الموافقة.</p><button class="btn btn-primary" onclick="location.reload()"><i class="fas fa-home"></i> العودة</button></div>';
+      document.getElementById('subPopup').innerHTML = '<div style="padding:60px 24px;text-align:center;"><i class="fas fa-check-circle" style="font-size:56px;color:var(--success);display:block;margin-bottom:16px;"></i><h2 style="font-family:\'Aref Ruqaa\',serif;font-size:22px;font-weight:700;margin-bottom:8px;">✅ تم إرسال طلب الاشتراك</h2><p style="font-size:14px;color:var(--text-light);margin-bottom:20px;">في انتظار موافقة الأستاذ محمد عفيفي. سيتم تفعيل اشتراكك فور الموافقة.</p><button class="btn btn-primary" onclick="location.reload()"><i class="fas fa-home"></i> العودة</button></div>';
     } else {
       errDiv.style.display = 'block'; errText.textContent = d.error || 'حدث خطأ';
       btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> تأكيد الاشتراك';

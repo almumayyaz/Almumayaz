@@ -4,7 +4,7 @@
   <div class="page-header">
     <div>
       <h1>المذكرات</h1>
-      <p>جميع المذكرات بصيغة PDF للتحميل والطباعة - من إعداد الأستاذ مصطفى فرغلي</p>
+      <p>جميع المذكرات بصيغة PDF للتحميل والطباعة - من إعداد الأستاذ محمد عفيفي</p>
     </div>
     <span style="font-size:13px;color:var(--text-light);background:var(--card);padding:8px 16px;border-radius:8px;border:1px solid var(--border);">
       <i class="fas fa-file-pdf" style="color:var(--accent);"></i> <%= courses.reduce((a, c) => a + c.lessons.length, 0) %> مذكرة
@@ -21,8 +21,14 @@
           <h3 style="margin-bottom:0;">مذكرة <%= course.title %></h3>
         </div>
       </div>
+      <% var courseExtraNotes = (allNotes||[]).filter(function(n){return n.courseId===course.id;}); %>
       <div style="margin-top:16px;">
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;">
+          <% if (courseExtraNotes.length > 0) { courseExtraNotes.forEach(function(n) { %>
+          <span style="font-size:11px;background:var(--card);padding:4px 10px;border-radius:4px;color:var(--text-light);border:1px solid var(--border);">
+            <i class="fas fa-sticky-note" style="color:var(--accent);"></i> <%= n.title.substring(0, 20) %>
+          </span>
+          <% }); } %>
           <% course.lessons.slice(0, 3).forEach(function(l) { %>
           <span style="font-size:11px;background:var(--bg);padding:4px 10px;border-radius:4px;color:var(--text-light);">
             <i class="fas fa-file-pdf" style="color:var(--accent);"></i> <%= l.title.substring(0, 20) %>

@@ -62,7 +62,7 @@ function checkSubscription(req, res, next) {
 
 app.get('/parent-login', (req, res) => {
   if (req.session.user) return req.session.user.role === 'admin' ? res.redirect('/admin') : res.redirect('/student');
-  res.render('auth/login', { title: 'تسجيل دخول ولي الأمر - لغتي', error: null, parentLogin: true });
+  res.render('auth/login', { title: 'تسجيل دخول ولي الأمر - المُميز', error: null, parentLogin: true });
 });
 
 app.use((req, res, next) => {
@@ -257,7 +257,7 @@ app.get('/', async (req, res) => {
   if (req.session.user) return req.session.user.role === 'admin' ? res.redirect('/admin') : res.redirect('/student');
   const courses = await readData('courses');
   const subscriptions = await readData('subscriptions');
-  res.render('public/index', { courses, subscriptions, title: 'لغتي - منصة مصطفى فرغلي التعليمية' });
+  res.render('public/index', { courses, subscriptions, title: 'المُميز - منصة محمد عفيفي التعليمية' });
 });
 
 app.get('/demo', (req, res) => {
@@ -268,28 +268,28 @@ app.get('/demo', (req, res) => {
 
 app.get('/courses', async (req, res) => {
   const courses = await readData('courses');
-  res.render('public/courses', { courses, title: 'المحاضرات - لغتي' });
+  res.render('public/courses', { courses, title: 'المحاضرات - المُميز' });
 });
 
 app.get('/subscriptions', async (req, res) => {
   const subscriptions = await readData('subscriptions');
-  res.render('public/subscriptions', { subscriptions, title: 'الاشتراكات - لغتي' });
+  res.render('public/subscriptions', { subscriptions, title: 'الاشتراكات - المُميز' });
 });
 
 app.get('/contact', (req, res) => {
-  res.render('public/contact', { title: 'تواصل معنا - لغتي' });
+  res.render('public/contact', { title: 'تواصل معنا - المُميز' });
 });
 
 app.get('/login', (req, res) => {
   if (req.session.user) return req.session.user.role === 'admin' ? res.redirect('/admin') : res.redirect('/student');
-  res.render('auth/login', { title: 'تسجيل الدخول - لغتي', error: null });
+  res.render('auth/login', { title: 'تسجيل الدخول - المُميز', error: null });
 });
 
 app.post('/login', async (req, res) => {
   const { email, password } = req.body;
   const users = await readData('users');
   const user = users.find(u => u.email === email && u.password === password);
-  if (!user) return res.render('auth/login', { title: 'تسجيل الدخول - لغتي', error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة' });
+  if (!user) return res.render('auth/login', { title: 'تسجيل الدخول - المُميز', error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة' });
   req.session.user = user;
   if (user.role === 'admin') return res.redirect('/admin');
   res.redirect('/student');
@@ -297,13 +297,13 @@ app.post('/login', async (req, res) => {
 
 app.get('/register', (req, res) => {
   if (req.session.user && !req.session.demoMode) return req.session.user.role === 'admin' ? res.redirect('/admin') : res.redirect('/student');
-  res.render('auth/register', { title: 'إنشاء حساب - لغتي', error: null });
+  res.render('auth/register', { title: 'إنشاء حساب - المُميز', error: null });
 });
 
 app.post('/register', async (req, res) => {
   const { name, email, phone, parentPhone, grade, stage, governorate, password } = req.body;
   const users = await readData('users');
-  if (users.find(u => u.email === email)) return res.render('auth/register', { title: 'إنشاء حساب - لغتي', error: 'البريد الإلكتروني مسجل بالفعل' });
+  if (users.find(u => u.email === email)) return res.render('auth/register', { title: 'إنشاء حساب - المُميز', error: 'البريد الإلكتروني مسجل بالفعل' });
   const newUser = {
     id: uuidv4(), name, email, phone: phone || '', parentPhone: parentPhone || '',
     grade, stage: stage || '', governorate: governorate || '', password, role: 'student',
@@ -352,7 +352,7 @@ app.get('/student', requireStudentOrGuest, async (req, res) => {
     const u = userData && userData[req.session.user.uid];
     progress = (u && u.progress) || {};
   }
-  res.render('student/dashboard', { courses, announcements, progress, isGuest, title: 'لوحة التحكم - لغتي' });
+  res.render('student/dashboard', { courses, announcements, progress, isGuest, title: 'لوحة التحكم - المُميز' });
 });
 
 app.get('/student/courses', requireStudentOrGuest, async (req, res) => {
@@ -363,7 +363,7 @@ app.get('/student/courses', requireStudentOrGuest, async (req, res) => {
   // Filter by student's stage and grade
   if (userStage) courses = courses.filter(function(c) { return c.stage === userStage || c.stage === 'all'; });
   if (userGrade) courses = courses.filter(function(c) { return c.grade === userGrade || !c.grade; });
-  res.render('student/courses', { courses, userStage, userGrade, title: 'المحاضرات - لغتي' });
+  res.render('student/courses', { courses, userStage, userGrade, title: 'المحاضرات - المُميز' });
 });
 
 app.get('/student/course/:id', requireStudentOrGuest, async (req, res) => {
@@ -377,7 +377,7 @@ app.get('/student/course/:id', requireStudentOrGuest, async (req, res) => {
 
   res.render('student/course-detail', {
     course, user, isGuest, isSubscribed,
-    title: `${course.title} - لغتي`
+    title: `${course.title} - المُميز`
   });
 });
 
@@ -394,12 +394,12 @@ app.get('/student/lesson/:courseId/:lessonId', requireStudentOrGuest, async (req
   const isFree = lesson.isFree === true;
 
   if (!isFree && !isSubscribed && !(isGuest && lesson.guestVisible)) {
-    return res.render('student/subscription-locked', { title: 'الاشتراك مطلوب - لغتي', isGuest });
+    return res.render('student/subscription-locked', { title: 'الاشتراك مطلوب - المُميز', isGuest });
   }
 
   res.render('student/lesson', {
     course, lesson, user, isGuest, isSubscribed, isFree,
-    title: `${lesson.title} - لغتي`
+    title: `${lesson.title} - المُميز`
   });
 });
 
@@ -414,7 +414,7 @@ app.get('/student/view-pdf/:courseId/:lessonId/:pdfIdx', requireStudentOrGuest, 
 
   res.render('student/pdf-viewer', {
     course, lesson, pdfUrl: lesson.pdfFiles[idx].url, pdfTitle: lesson.pdfFiles[idx].title,
-    title: `${lesson.pdfFiles[idx].title} - لغتي`
+    title: `${lesson.pdfFiles[idx].title} - المُميز`
   });
 });
 
@@ -422,7 +422,7 @@ app.get('/student/exam/:courseId', requireStudentOrGuest, async (req, res) => {
   const courses = await readData('courses');
   const course = courses.find(c => c.id === req.params.courseId);
   if (!course || !course.quiz) return res.redirect('/student/courses');
-  res.render('student/exam', { course, title: `الاختبار - ${course.title} - لغتي` });
+  res.render('student/exam', { course, title: `الاختبار - ${course.title} - المُميز` });
 });
 
 app.get('/student/question-bank', requireStudentOrGuest, async (req, res) => {
@@ -432,24 +432,25 @@ app.get('/student/question-bank', requireStudentOrGuest, async (req, res) => {
   var ug = (u && u.grade) || '';
   if (us) courses = courses.filter(function(c) { return c.stage === us || c.stage === 'all' || !c.stage; });
   if (ug) courses = courses.filter(function(c) { return c.grade === ug || !c.grade; });
-  res.render('student/question-bank', { courses, title: 'بنك الأسئلة - لغتي' });
+  res.render('student/question-bank', { courses, title: 'بنك الأسئلة - المُميز' });
 });
 
 app.get('/student/question-bank/:courseId', requireStudentOrGuest, async (req, res) => {
   const courses = await readData('courses');
   const course = courses.find(c => c.id === req.params.courseId);
   if (!course || !course.quiz) return res.redirect('/student/question-bank');
-  res.render('student/question-bank-course', { course, title: `بنك أسئلة ${course.title} - لغتي` });
+  res.render('student/question-bank-course', { course, title: `بنك أسئلة ${course.title} - المُميز` });
 });
 
 app.get('/student/notes', requireStudentOrGuest, async (req, res) => {
   var courses = await readData('courses');
+  var allNotes = await readData('notes');
   var u = req.session.user;
   var us = (u && u.stage) || '';
   var ug = (u && u.grade) || '';
   if (us) courses = courses.filter(function(c) { return c.stage === us || c.stage === 'all' || !c.stage; });
   if (ug) courses = courses.filter(function(c) { return c.grade === ug || !c.grade; });
-  res.render('student/notes', { courses, title: 'المذكرات - لغتي' });
+  res.render('student/notes', { courses, allNotes, title: 'المذكرات - المُميز' });
 });
 
 app.get('/student/reviews', requireStudentOrGuest, async (req, res) => {
@@ -463,26 +464,26 @@ app.get('/student/reviews', requireStudentOrGuest, async (req, res) => {
   var courseIdFilter = req.query.courseId;
   if (courseIdFilter) reviews = reviews.filter(function(r) { return r.courseId === courseIdFilter; });
   var filteredCourses = courses.filter(function(c) { return (!us || c.stage === us) && (!ug || c.grade === ug); });
-  res.render('student/reviews', { reviews, courses: filteredCourses, currentCourseId: courseIdFilter || '', title: 'المراجعات - لغتي' });
+  res.render('student/reviews', { reviews, courses: filteredCourses, currentCourseId: courseIdFilter || '', title: 'المراجعات - المُميز' });
 });
 
 app.get('/student/review/:id', requireStudentOrGuest, async (req, res) => {
   const reviews = await readData('reviews');
   const review = reviews.find(r => r.id === req.params.id);
   if (!review) return res.redirect('/student/reviews');
-  res.render('student/review-detail', { review, title: `${review.title} - لغتي` });
+  res.render('student/review-detail', { review, title: `${review.title} - المُميز` });
 });
 
 app.get('/student/subscription', requireAuth, async (req, res) => {
   const subscriptions = await readData('subscriptions');
   const user = req.session.user;
   const isGuest = req.session.demoMode;
-  res.render('student/subscription', { subscriptions, user, isGuest, title: 'الاشتراك - لغتي' });
+  res.render('student/subscription', { subscriptions, user, isGuest, title: 'الاشتراك - المُميز' });
 });
 
 app.get('/student/payment', requireAuth, async (req, res) => {
   const isGuest = req.session.demoMode;
-  res.render('student/payment', { isGuest, title: 'طلب اشتراك - لغتي' });
+  res.render('student/payment', { isGuest, title: 'طلب اشتراك - المُميز' });
 });
 
 app.post('/api/student/submit-payment', requireAuth, async (req, res) => {
@@ -508,7 +509,7 @@ app.post('/api/student/submit-payment', requireAuth, async (req, res) => {
 });
 
 app.get('/student/profile', requireStudentOrGuest, (req, res) => {
-  res.render('student/profile', { title: 'حسابي - لغتي' });
+  res.render('student/profile', { title: 'حسابي - المُميز' });
 });
 
 app.put('/api/student/profile', requireAuth, async (req, res) => {
@@ -531,7 +532,7 @@ app.put('/api/student/profile', requireAuth, async (req, res) => {
 app.get('/student/chat', requireStudentOrGuest, (req, res) => {
   const user = req.session.user;
   const isGuest = !!req.session.demoMode;
-  res.render('student/chat', { user, isGuest, title: 'اسأل عفيفي - لغتي' });
+  res.render('student/chat', { user, isGuest, title: 'اسأل عفيفي - المُميز' });
 });
 
 /* ===================== STUDENT SUBSCRIPTION API ===================== */
@@ -631,7 +632,7 @@ app.post('/api/admin/chat/:studentId/send', requireAdmin, async (req, res) => {
     const chatId = 'student-' + req.params.studentId;
     const { text, image } = req.body;
     if (!text && !image) return res.status(400).json({ error: 'لا يمكن إرسال رسالة فارغة' });
-    const msg = { senderId: 'teacher', senderName: 'مصطفى فرغلي', timestamp: Date.now(), read: false, text: text || '', image: image || '' };
+    const msg = { senderId: 'teacher', senderName: 'محمد عفيفي', timestamp: Date.now(), read: false, text: text || '', image: image || '' };
     const key = await fbPush('chats/' + chatId + '/messages', msg);
     res.json({ success: true, key: key, message: msg });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -640,7 +641,7 @@ app.post('/api/admin/chat/:studentId/send', requireAdmin, async (req, res) => {
 app.delete('/api/admin/chat/:studentId', requireAdmin, async (req, res) => {
   try {
     const chatId = 'student-' + req.params.studentId;
-    // Protect the main "لغة عربية - لغتي" chat from deletion
+    // Protect the main "لغة عربية - المُميز" chat from deletion
     if (req.params.studentId === 'lughati-chat') {
       return res.status(403).json({ error: 'لا يمكن حذف محادثة الدعم الرئيسية' });
     }
@@ -722,7 +723,7 @@ app.get('/admin', requireAdmin, async (req, res) => {
   const subscriptions = await readData('subscriptions');
   const reviews = await readData('reviews');
   const payments = await readData('payments') || [];
-  res.render('admin/dashboard', { students, courses, announcements, subscriptions, reviews, payments, title: 'لوحة الإدارة - لغتي' });
+  res.render('admin/dashboard', { students, courses, announcements, subscriptions, reviews, payments, title: 'لوحة الإدارة - المُميز' });
 });
 
 app.get('/admin/students', requireAdmin, async (req, res) => {
