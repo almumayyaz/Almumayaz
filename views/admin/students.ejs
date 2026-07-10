@@ -245,11 +245,19 @@ function manageSubscription() {
   var action = document.getElementById('subAction').value;
   var days = parseInt(document.getElementById('subDays').value) || 30;
   if (!confirm('تأكيد الإجراء للطالب؟')) return;
+  var btn = document.querySelector('#subModal .btn-primary');
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري التنفيذ...';
   fetch('/api/admin/students/' + id + '/subscription', {
     method: 'PUT',
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify({ action: action, durationDays: days })
-  }).then(function(r) { return r.json(); }).then(function(d) { if (d.success) location.reload(); else alert(d.error); });
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.success) location.reload();
+    else { alert(d.error); btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> تنفيذ'; }
+  }).catch(function() {
+    alert('فشل الاتصال بالخادم');
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> تنفيذ';
+  });
 }
 document.getElementById('subModal').addEventListener('click', function(e) { if (e.target === this) this.classList.remove('show'); });
 </script>
