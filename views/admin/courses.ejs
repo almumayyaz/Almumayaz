@@ -594,8 +594,18 @@
       <div id="qbQuestionsContainer">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;margin-top:12px;">
           <label>الأسئلة</label>
-          <button class="btn btn-sm" style="background:var(--accent);color:#fff;" onclick="addQbQuestion()"><i class="fas fa-plus"></i> إضافة سؤال</button>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-sm" style="background:var(--accent);color:#fff;" onclick="addQbQuestion()"><i class="fas fa-plus"></i> إضافة سؤال</button>
+            <button class="btn btn-sm" style="background:var(--primary);color:#fff;" onclick="toggleQbWordUpload()"><i class="fas fa-file-word"></i> رفع Word</button>
+          </div>
         </div>
+      </div>
+      <div id="qbuWordUploadArea" style="display:none;margin-bottom:16px;">
+        <div class="form-group">
+          <label>لصق محتوى الأسئلة من Word</label>
+          <textarea id="qbuWordContent" rows="8" placeholder="الصق محتوى الأسئلة من ملف Word هنا (يدعم جدول Word)"></textarea>
+        </div>
+        <button class="btn btn-sm" style="background:var(--success);color:#fff;" onclick="extractQbQuestions()"><i class="fas fa-magic"></i> استخراج</button>
       </div>
       <button class="btn btn-primary" onclick="saveQuestionBank()" style="width:100%;margin-top:16px;"><i class="fas fa-save"></i> حفظ</button>
     </div>
@@ -1020,6 +1030,8 @@ function openQuestionBankModal(courseId, bank) {
   if (bank && bank.questions) {
     bank.questions.forEach(function(q, i){ addQbQuestion(q, i); });
   }
+  document.getElementById('qbuWordUploadArea').style.display = 'none';
+  document.getElementById('qbuWordContent').value = '';
   document.getElementById('questionBankModal').classList.add('show');
 }
 function addQbQuestion(q, idx) {
@@ -1059,6 +1071,26 @@ function deleteQuestionBank(id) {
   if (!confirm('هل أنت متأكد من حذف بنك الأسئلة هذا؟')) return;
   fetch('/api/admin/question-banks/' + id, { method: 'DELETE' })
     .then(function(r){ return r.json(); }).then(function(d){ if (d.success) location.reload(); else alert(d.error); });
+}
+function toggleQbWordUpload() {
+  var area = document.getElementById('qbuWordUploadArea');
+  area.style.display = area.style.display === 'none' ? 'block' : 'none';
+}
+function extractQbQuestions() {
+  var content = document.getElementById('qbuWordContent').value;
+  if (!content.trim()) { alert('يرجى لصق محتوى الأسئلة أولاً'); return; }
+  fetch('/api/admin/upload-questions', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ fileContent: content })
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if (d.success && d.questions) {
+      d.questions.forEach(function(q){ addQbQuestion(q); });
+      document.getElementById('qbuWordUploadArea').style.display = 'none';
+      document.getElementById('qbuWordContent').value = '';
+      alert('تم استخراج ' + d.questions.length + ' سؤال');
+    } else alert('فشل استخراج الأسئلة');
+  });
 }
 
 document.querySelectorAll('.modal-overlay').forEach(function(m) {
