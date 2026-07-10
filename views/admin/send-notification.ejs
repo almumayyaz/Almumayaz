@@ -1,0 +1,91 @@
+<%- include('../partials/header', { title: title, bodyClass: 'admin-body' }) %>
+<%- include('../partials/admin-sidebar') %>
+<main class="admin-content">
+  <div class="page-header">
+    <div>
+      <h1><i class="fas fa-bell"></i> إرسال إشعار</h1>
+      <p>إرسال إشعار فوري للطلاب</p>
+    </div>
+  </div>
+  <div style="background:var(--card);border-radius:var(--radius-lg);padding:24px;box-shadow:var(--shadow);border:1px solid var(--border);max-width:600px;">
+    <div class="form-group">
+      <label>العنوان</label>
+      <input id="notifTitle" class="form-input" placeholder="عنوان الإشعار">
+    </div>
+    <div class="form-group">
+      <label>النص</label>
+      <textarea id="notifBody" class="form-input" rows="4" placeholder="نص الإشعار"></textarea>
+    </div>
+    <div class="form-group">
+      <label>إلى</label>
+      <select id="notifTarget" class="form-input" onchange="toggleTargetValue()">
+        <option value="all">جميع الطلاب</option>
+        <option value="stage">مرحلة دراسية</option>
+        <option value="grade">صف دراسي</option>
+        <option value="student">طالب محدد</option>
+      </select>
+    </div>
+    <div class="form-group" id="targetValueGroup" style="display:none;">
+      <label id="targetValueLabel">القيمة</label>
+      <input id="notifTargetValue" class="form-input" placeholder="...">
+    </div>
+    <button class="btn btn-primary" onclick="sendPush()" id="sendBtn" style="width:100%;"><i class="fas fa-paper-plane"></i> إرسال الإشعار</button>
+    <div id="notifResult" style="display:none;margin-top:16px;padding:12px;border-radius:8px;text-align:center;font-weight:600;"></div>
+  </div>
+</main>
+
+<script>
+function toggleTargetValue() {
+  var t = document.getElementById('notifTarget').value;
+  var g = document.getElementById('targetValueGroup');
+  var l = document.getElementById('targetValueLabel');
+  var v = document.getElementById('notifTargetValue');
+  if (t === 'all') { g.style.display = 'none'; return; }
+  g.style.display = 'block';
+  if (t === 'stage') { l.textContent = 'المرحلة (إعدادية / ثانوية)'; v.placeholder = 'إعدادية'; }
+  else if (t === 'grade') { l.textContent = 'الصف الدراسي'; v.placeholder = 'الأول الثانوي'; }
+  else if (t === 'student') { l.textContent = 'معرف الطالب'; v.placeholder = 'معرف المستخدم'; }
+}
+
+function sendPush() {
+  var btn = document.getElementById('sendBtn');
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الإرسال...';
+  var target = document.getElementById('notifTarget').value;
+  var data = {
+    title: document.getElementById('notifTitle').value,
+    body: document.getElementById('notifBody').value,
+    target: target,
+    targetValue: target === 'all' ? '' : document.getElementById('notifTargetValue').value
+  };
+  fetch('/api/admin/send-notification', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var result = document.getElementById('notifResult');
+      if (d.success) {
+        result.style.display = 'block';
+        result.style.background = 'rgba(22,163,74,0.1)';
+        result.style.color = 'var(--success)';
+        result.style.border = '1px solid rgba(22,163,74,0.2)';
+        result.innerHTML = '<i class="fas fa-check-circle"></i> تم إرسال الإشعار بنجاح إلى ' + (d.sentCount || d.recipientCount || 0) + ' طالب';
+      } else {
+        result.style.display = 'block';
+        result.style.background = 'rgba(239,68,68,0.1)';
+        result.style.color = 'var(--danger)';
+        result.style.border = '1px solid rgba(239,68,68,0.2)';
+        result.innerHTML = '<i class="fas fa-exclamation-circle"></i> ' + (d.error || 'فشل الإرسال');
+      }
+      btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> إرسال الإشعار';
+    })
+    .catch(function() {
+      var result = document.getElementById('notifResult');
+      result.style.display = 'block';
+      result.style.background = 'rgba(239,68,68,0.1)';
+      result.style.color = 'var(--danger)';
+      result.style.border = '1px solid rgba(239,68,68,0.2)';
+      result.innerHTML = '<i class="fas fa-exclamation-circle"></i> فشل الاتصال بالخادم';
+      btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> إرسال الإشعار';
+    });
+}
+</script>
+</body>
+</html>

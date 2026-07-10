@@ -5,7 +5,7 @@ const session = require('cookie-session');
 const bodyParser = require('body-parser');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
-const { readData, writeData, fbAuth } = require('./firebase-admin');
+const { readData, writeData, fbAuth, sendFCM, sendFCMToRole, admin } = require('./firebase-admin');
 
 const app = express();
 
@@ -58,6 +58,7 @@ function checkSubscription(req, res, next) {
       readData('users').then(users => {
         const idx = users.findIndex(u => u.id === user.id);
         if (idx !== -1) { users[idx].subscriptionStatus = 'expired'; writeData('users', users); }
+        sendFCM(user.id, 'انتهى اشتراكك في المُميز', 'لقد انتهت صلاحية اشتراكك. قم بتجديد الاشتراك للاستمرار في مشاهدة المحاضرات.', '/student/subscription');
       }).catch(() => {});
     }
   }
@@ -636,6 +637,12 @@ app.put('/api/admin/sub-requests/:id', requireAdmin, async (req, res) => {
     if (idx === -1) return res.status(404).json({ error: 'الطلب غير موجود' });
     subRequests[idx].status = status;
     await writeData('subRequests', subRequests);
+    // Send push notification to student
+    if (status === 'approved') {
+      sendFCM(subRequests[idx].userId, 'تم تفعيل الاشتراك 🎉', 'مرحباً ' + (subRequests[idx].userName || '') + '! تم تفعيل اشتراكك في منصة المُميز. يمكنك الآن مشاهدة جميع المحاضرات.', '/student/subscription');
+    } else if (status === 'rejected') {
+      sendFCM(subRequests[idx].userId, 'لم يتم الموافقة على طلب الاشتراك', 'عذراً ' + (subRequests[idx].userName || '') + '، لم تتم الموافقة على طلب الاشتراك الخاص بك. يرجى التواصل مع الدعم الفني.', '/student/subscription');
+    }
     res.json({ success: true, request: subRequests[idx] });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -835,6 +842,10 @@ app.get('/admin/announcements', requireAdmin, async (req, res) => {
   res.render('admin/announcements', { announcements, title: 'الإعلانات - الإدارة' });
 });
 
+app.get('/admin/send-notification', requireAdmin, (req, res) => {
+  res.render('admin/send-notification', { title: 'إرسال إشعار - الإدارة' });
+});
+
 app.get('/admin/reviews', requireAdmin, async (req, res) => {
   var allReviews = await readData('reviews');
   var allCourses = await readData('courses');
@@ -911,6 +922,7 @@ app.post('/api/admin/courses', requireAdmin, async (req, res) => {
     };
     courses.push(newCourse);
     await writeData('courses', courses);
+    sendFCMToRole('student', 'مادة جديدة تمت إضافتها 📚', 'تم إضافة مادة "' + (title || 'جديدة') + '" إلى المنصة. تفضل بزيارتها الآن!', '/courses');
     res.json({ success: true, course: newCourse });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -1013,6 +1025,7 @@ app.post('/api/admin/courses/:id/lessons', requireAdmin, async (req, res) => {
     if (!course.lessons) course.lessons = [];
     course.lessons.push(newLesson);
     await writeData('courses', courses);
+    sendFCMToRole('student', 'محاضرة جديدة تمت إضافتها 🎬', 'تم إضافة محاضرة "' + (title || 'جديدة') + '" في مادة ' + (course.title || '') + '.', '/student/course/' + course.id);
     res.json({ success: true, lesson: newLesson });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -1249,7 +1262,7 @@ app.delete('/api/admin/subscriptions/:id', requireAdmin, async (req, res) => {
 app.post('/api/admin/announcements', requireAdmin, async (req, res) => {
   try {
     const announcements = await readData('announcements');
-    const { title, content, important } = req.body;
+    const { title, content, important, sendPush } = req.body;
     const newAnn = {
       id: Date.now().toString(),
       title: title || 'إعلان جديد',
@@ -1259,6 +1272,9 @@ app.post('/api/admin/announcements', requireAdmin, async (req, res) => {
     };
     announcements.push(newAnn);
     await writeData('announcements', announcements);
+    if (sendPush) {
+      sendFCMToRole('student', title || 'إعلان جديد من المُميز 📢', content || '', '/');
+    }
     res.json({ success: true, announcement: newAnn });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -1356,6 +1372,14 @@ app.put('/api/admin/students/:id/subscription', requireAdmin, async (req, res) =
     }
 
     await writeData('users', users);
+    // Send push notification to student
+    if (action === 'activate' || action === 'extend') {
+      sendFCM(users[idx].id, 'تم تفعيل اشتراكك 🎉', 'مرحباً ' + (users[idx].name || '') + '! تم تفعيل اشتراكك في منصة المُميز.', '/student/subscription');
+    } else if (action === 'cancel' || action === 'stop') {
+      sendFCM(users[idx].id, 'تم إيقاف اشتراكك', 'عذراً ' + (users[idx].name || '') + '، تم إيقاف اشتراكك في منصة المُميز.', '/student/subscription');
+    } else if (action === 'deactivate') {
+      sendFCM(users[idx].id, 'تم إلغاء تنشيط اشتراكك', 'عذراً ' + (users[idx].name || '') + '، تم إلغاء تنشيط اشتراكك.', '/student/subscription');
+    }
     res.json({ success: true, student: users[idx] });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -1381,6 +1405,7 @@ app.put('/api/admin/payments/:id', requireAdmin, async (req, res) => {
         users[uidx].subscriptionStart = new Date().toISOString();
         users[uidx].subscriptionEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
         await writeData('users', users);
+        sendFCM(payments[idx].userId, 'تم تأكيد الدفعة 💳', 'مرحباً! تم تأكيد دفعتك وتفعيل اشتراكك في منصة المُميز. يمكنك الآن مشاهدة جميع المحاضرات.', '/student/subscription');
       }
     }
 
@@ -1515,6 +1540,7 @@ app.post('/api/admin/reviews', requireAdmin, async (req, res) => {
     };
     reviews.push(newReview);
     await writeData('reviews', reviews);
+    sendFCMToRole('student', 'مراجعة جديدة تمت إضافتها 📝', 'تم إضافة مراجعة "' + (title || 'جديدة') + '". تفضل بمراجعتها الآن!', '/student/reviews');
     res.json({ success: true, review: newReview });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -1624,7 +1650,27 @@ app.post('/api/admin/send-notification', requireAdmin, async (req, res) => {
     notifications.push(notif);
     await writeData('notifications', notifications);
 
-    res.json({ success: true, recipientCount: recipients.length, notification: notif });
+    // Send actual FCM push notifications
+    let sent = 0;
+    for (const u of recipients) {
+      try {
+        const message = {
+          token: u.fcmToken,
+          notification: { title, body },
+          data: { url: '/' }
+        };
+        await admin.messaging().send(message);
+        sent++;
+      } catch (e) {
+        if (e.code === 'messaging/invalid-registration-token' || e.code === 'messaging/registration-token-not-registered') {
+          const idx = users.findIndex(x => x.id === u.id);
+          if (idx !== -1) { users[idx].fcmToken = ''; }
+        }
+      }
+    }
+    if (recipients.some(u => !u.fcmToken)) await writeData('users', users);
+
+    res.json({ success: true, recipientCount: recipients.length, sentCount: sent, notification: notif });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

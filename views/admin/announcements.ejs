@@ -54,6 +54,11 @@
           <input type="checkbox" id="annImportant"> إعلان مهم
         </label>
       </div>
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:8px;color:var(--accent);">
+          <input type="checkbox" id="annPush" checked> إرسال إشعار للطلاب
+        </label>
+      </div>
       <button class="btn btn-primary" onclick="saveAnn()" style="width:100%;"><i class="fas fa-save"></i> حفظ</button>
     </div>
   </div>
@@ -74,7 +79,8 @@ function saveAnn() {
   const data = {
     title: document.getElementById('annTitle').value,
     content: document.getElementById('annContent').value,
-    important: document.getElementById('annImportant').checked
+    important: document.getElementById('annImportant').checked,
+    sendPush: document.getElementById('annPush').checked
   };
   const url = id ? '/api/admin/announcements/' + id : '/api/admin/announcements';
   const method = id ? 'PUT' : 'POST';

@@ -184,4 +184,54 @@ async function fbRemove(path) {
   }
 }
 
-module.exports = { db: fbDb, fbAuth, readData, writeData, pushData, fbRead, fbSet, fbPush, fbRemove, restGet, restPut };
+async function sendFCM(userId, title, body, url) {
+  try {
+    const users = await readData('users');
+    const user = users.find(u => u.id === userId);
+    if (!user || !user.fcmToken) return false;
+    const message = {
+      token: user.fcmToken,
+      notification: { title, body },
+      data: { url: url || '/' }
+    };
+    await admin.messaging().send(message);
+    return true;
+  } catch (e) {
+    if (e.code === 'messaging/invalid-registration-token' || e.code === 'messaging/registration-token-not-registered') {
+      const users = await readData('users');
+      const idx = users.findIndex(u => u.id === userId);
+      if (idx !== -1) { users[idx].fcmToken = ''; await writeData('users', users); }
+    }
+    return false;
+  }
+}
+
+async function sendFCMToRole(role, title, body, url) {
+  try {
+    const users = await readData('users');
+    const recipients = users.filter(u => u.role === role && u.fcmToken);
+    let sent = 0;
+    for (const u of recipients) {
+      try {
+        const message = {
+          token: u.fcmToken,
+          notification: { title, body },
+          data: { url: url || '/' }
+        };
+        await admin.messaging().send(message);
+        sent++;
+      } catch (e) {
+        if (e.code === 'messaging/invalid-registration-token' || e.code === 'messaging/registration-token-not-registered') {
+          const idx = users.findIndex(x => x.id === u.id);
+          if (idx !== -1) { users[idx].fcmToken = ''; }
+        }
+      }
+    }
+    if (recipients.some(u => !u.fcmToken)) await writeData('users', users);
+    return sent;
+  } catch (e) {
+    return 0;
+  }
+}
+
+module.exports = { db: fbDb, fbAuth, readData, writeData, pushData, fbRead, fbSet, fbPush, fbRemove, restGet, restPut, sendFCM, sendFCMToRole, admin };

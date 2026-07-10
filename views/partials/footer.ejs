@@ -60,6 +60,35 @@
         // Track Firebase auth state if needed
       });
     }
+    // Firebase Cloud Messaging - push notifications
+    (function() {
+      if (typeof firebase === 'undefined' || !firebase.messaging) return;
+      if (!Notification || Notification.permission === 'denied') return;
+      if (Notification.permission === 'granted') {
+        initFCM();
+      } else {
+        Notification.requestPermission().then(function(p) {
+          if (p === 'granted') initFCM();
+        });
+      }
+      function initFCM() {
+        var messaging = firebase.messaging();
+        messaging.getToken({vapidKey: 'BMapVTAGPz2vEreBXxCVBxUYRZq0rBkC4rFd7KRFVF5EOJ3JMM6S4EBsRXX0ED6MTuCEqBpm2kRp_-qMq0Yf7eo'})
+          .then(function(token) {
+            if (token) {
+              fetch('/api/fcm/register', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({fcmToken: token}) });
+            }
+          }).catch(function() {});
+        messaging.onMessage(function(payload) {
+          var title = payload.notification?.title || payload.data?.title || 'المُميز';
+          var body = payload.notification?.body || payload.data?.body || '';
+          var icon = payload.notification?.icon || '/icon-192.png';
+          if (Notification.permission === 'granted') {
+            new Notification(title, { body: body, icon: icon, badge: '/icon-192.png' });
+          }
+        });
+      }
+    })();
   </script>
 </body>
 </html>
