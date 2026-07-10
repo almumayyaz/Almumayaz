@@ -1,0 +1,167 @@
+<%- include('../partials/header', { title: title, navPageTitle: review.title, bodyClass: 'student-body' }) %>
+<%- include('../partials/student-sidebar') %>
+<main class="main-content">
+  <div class="page-header">
+    <div>
+      <a href="/student/reviews" style="color:var(--accent);font-size:14px;font-weight:600;display:flex;align-items:center;gap:6px;margin-bottom:8px;transition:all 0.3s;">
+        <i class="fas fa-chevron-right"></i> العودة إلى المراجعات
+      </a>
+      <h1><%= review.title %></h1>
+      <p style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <span><i class="fas fa-book" style="color:var(--accent);"></i> <%= review.course %></span>
+        <span><i class="fas fa-calendar-alt" style="color:var(--accent);"></i> <%= review.date %></span>
+      </p>
+    </div>
+  </div>
+
+  <% if (review.videoUrl) { %>
+  <div class="video-container" oncontextmenu="return false;">
+    <iframe src="<%= review.videoUrl %>" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+  </div>
+  <% } else { %>
+  <div class="welcome-banner" style="text-align:center;padding:60px 40px;">
+    <div style="font-size:64px;margin-bottom:16px;color:var(--accent);"><i class="fas <%= review.icon %>"></i></div>
+    <h2 style="font-family:'Aref Ruqaa',serif;font-size:24px;color:var(--accent);margin-bottom:8px;"><%= review.title %></h2>
+    <p style="font-size:16px;color:var(--text-light);"><%= review.desc %></p>
+    <div style="margin-top:16px;font-size:14px;color:var(--text-muted);"><i class="fas fa-video"></i> سيتم إضافة فيديو المراجعة قريباً</div>
+  </div>
+  <% } %>
+
+  <div class="lesson-content">
+    <h1><%= review.title %></h1>
+    <p><%= review.desc %></p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px;padding:16px;background:var(--bg);border-radius:8px;">
+      <div><span style="font-weight:600;color:var(--primary);">المادة:</span> <span style="color:var(--text-light);"><%= review.course %></span></div>
+      <div><span style="font-weight:600;color:var(--primary);">التاريخ:</span> <span style="color:var(--text-light);"><%= review.date %></span></div>
+      <% if (review.quiz) { %><div><span style="font-weight:600;color:var(--primary);">عدد الأسئلة:</span> <span style="color:var(--text-light);"><%= review.quiz.questions.length %> سؤال</span></div><% } %>
+    </div>
+    <% if (review.pdfUrl) { %>
+    <div class="lesson-actions">
+      <a href="<%= review.pdfUrl %>" class="btn" target="_blank"><i class="fas fa-file-pdf" style="color:var(--accent);"></i> تحميل المذكرة PDF</a>
+    </div>
+    <% } %>
+  </div>
+
+  <% if (review.quiz) { %>
+  <div class="quiz-section">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;margin-bottom:24px;">
+      <h2 style="margin-bottom:0;"><i class="fas fa-question-circle" style="color:var(--accent);"></i> <%= review.quiz.title %></h2>
+      <span style="background:var(--primary);color:#fff;padding:6px 16px;border-radius:6px;font-size:14px;font-weight:600;">
+        <i class="fas fa-clock"></i> <span id="timerDisplay">15:00</span>
+      </span>
+    </div>
+    <p style="color:var(--text-light);font-size:14px;margin-bottom:24px;"><%= review.quiz.questions.length %> أسئلة - أجب عن جميع الأسئلة ثم اضغط على تقييم</p>
+
+    <% review.quiz.questions.forEach(function(q, qi) { %>
+    <div class="quiz-question" data-correct="<%= q.correct %>">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <span style="background:var(--accent);color:var(--primary);width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;"><%= qi + 1 %></span>
+        <h3 style="margin-bottom:0;font-size:16px;"><%= q.question %></h3>
+      </div>
+      <div class="quiz-options">
+        <% q.options.forEach(function(o, oi) { %>
+        <label class="quiz-option">
+          <input type="radio" name="rev_q_<%= qi %>" value="<%= oi %>">
+          <span><%= o %></span>
+        </label>
+        <% }) %>
+      </div>
+    </div>
+    <% }) %>
+
+    <div style="margin-top:28px;display:flex;gap:16px;flex-wrap:wrap;">
+      <button class="btn btn-primary btn-sm btn-submit-review" style="width:100%;">
+        <i class="fas fa-check-circle"></i> تقييم الإجابات
+      </button>
+      <button class="btn btn-sm" style="background:var(--bg);color:var(--text);border:2px solid var(--border);width:100%;" onclick="resetReviewQuiz()">
+        <i class="fas fa-redo"></i> إعادة الاختبار
+      </button>
+    </div>
+  </div>
+  <% } %>
+</main>
+
+<script>
+let seconds = 900;
+let timerInterval;
+
+function startReviewTimer() {
+  const display = document.getElementById('timerDisplay');
+  if (!display) return;
+  timerInterval = setInterval(() => {
+    seconds--;
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    display.textContent = m.toString().padStart(2, '0') + ':' + s.toString().padStart(2, '0');
+    if (seconds <= 0) {
+      clearInterval(timerInterval);
+      alert('انتهى الوقت!');
+      document.querySelector('.btn-submit-review')?.click();
+    }
+  }, 1000);
+}
+
+function resetReviewQuiz() {
+  if (!confirm('هل تريد إعادة الاختبار؟ سيتم مسح جميع الإجابات.')) return;
+  clearInterval(timerInterval);
+  seconds = 900;
+  const display = document.getElementById('timerDisplay');
+  if (display) display.textContent = '15:00';
+  document.querySelectorAll('.quiz-option').forEach(o => {
+    o.style.borderColor = '';
+    o.style.background = '';
+  });
+  document.querySelectorAll('.quiz-question input[type="radio"]').forEach(r => r.checked = false);
+  document.querySelectorAll('.quiz-results').forEach(r => r.remove());
+  document.querySelectorAll('.btn-submit-review').forEach(b => b.style.display = '');
+  startReviewTimer();
+}
+
+startReviewTimer();
+
+document.querySelector('.btn-submit-review')?.addEventListener('click', function() {
+  clearInterval(timerInterval);
+});
+
+document.querySelectorAll('.btn-submit-review').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const quiz = this.closest('.quiz-section');
+    if (!quiz) return;
+    const questions = quiz.querySelectorAll('.quiz-question');
+    let score = 0, total = questions.length, allAnswered = true;
+
+    questions.forEach((q) => {
+      const selected = q.querySelector('input[type="radio"]:checked');
+      const options = q.querySelectorAll('.quiz-option');
+      const correct = parseInt(q.dataset.correct);
+      if (!selected) { allAnswered = false; return; }
+      const selIdx = parseInt(selected.value);
+      options.forEach((o, oi) => {
+        o.style.borderColor = oi === correct ? '#059669' : '';
+        o.style.background = oi === correct ? 'rgba(5,150,105,0.08)' : '';
+      });
+      if (selIdx === correct) score++;
+      else selected.closest('.quiz-option').style.borderColor = '#DC2626';
+    });
+
+    if (!allAnswered) { alert('يرجى الإجابة على جميع الأسئلة أولاً'); return; }
+
+    const pct = Math.round((score / total) * 100);
+    let grade = 'ضعيف';
+    if (pct >= 90) grade = 'ممتاز';
+    else if (pct >= 75) grade = 'جيد جداً';
+    else if (pct >= 60) grade = 'جيد';
+    else if (pct >= 45) grade = 'مقبول';
+
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const resTextColor = isDark ? '#111' : '#fff';
+    const results = '<div class="quiz-results" style="margin-top:20px;padding:24px;background:var(--card);border-radius:12px;border:1px solid var(--border);"><div style="text-align:center;padding:24px;background:var(--gold-gradient);border-radius:12px;color:' + resTextColor + ';margin-bottom:16px;"><div style="font-size:48px;font-weight:900;line-height:1;">' + score + '/' + total + '</div><div style="font-size:20px;opacity:0.85;">' + pct + '%</div><div style="font-size:26px;font-weight:700;margin-top:8px;">' + grade + '</div></div></div>';
+
+    this.style.display = 'none';
+    quiz.querySelector('.quiz-results')?.remove();
+    quiz.insertAdjacentHTML('beforeend', results);
+  });
+});
+</script>
+</body>
+</html>

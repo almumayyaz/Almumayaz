@@ -1,0 +1,32 @@
+<%- include('../partials/header', { title: title, navPageTitle: 'بنك الأسئلة', bodyClass: 'student-body' }) %>
+<%- include('../partials/student-sidebar') %>
+<main class="main-content">
+  <div class="page-header">
+    <div>
+      <h1>بنك الأسئلة</h1>
+      <p>اختبر نفسك في جميع فروع اللغة العربية مع التقييم الفوري</p>
+    </div>
+    <span style="font-size:13px;color:var(--text-light);background:var(--card);padding:8px 16px;border-radius:8px;border:1px solid var(--border);">
+      <i class="fas fa-question-circle" style="color:var(--accent);"></i> 
+      <%= courses.reduce((a, c) => a + (c.quiz ? c.quiz.questions.length : 0), 0) %> سؤال
+    </span>
+  </div>
+
+  <div style="margin-bottom:24px;">
+    <p style="font-size:14px;color:var(--text-light);margin-bottom:12px;">اختر المادة:</p>
+    <div class="qb-categories">
+      <% courses.forEach(function(course) { %>
+      <% if (course.quiz) { %>
+      <a href="/student/question-bank/<%= course.id %>" class="qb-cat">
+        <div class="icon" style="color:<%= course.color %>;"><i class="fas <%= course.icon %>"></i></div>
+        <h3><%= course.title %></h3>
+        <div style="font-size:12px;color:var(--text-light);"><%= course.quiz.questions.length %> سؤال</div>
+      </a>
+      <% } %>
+      <% }) %>
+    </div>
+  </div>
+
+</main>
+</body>
+</html>

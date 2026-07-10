@@ -1,0 +1,81 @@
+<%- include('../partials/header', { title: title }) %>
+
+<section class="auth-section">
+  <div class="auth-card">
+    <a href="/" class="nav-logo">لغتي</a>
+    <h2><%= typeof parentLogin !== 'undefined' && parentLogin ? 'تسجيل دخول ولي الأمر' : 'تسجيل الدخول' %></h2>
+    <p><%= typeof parentLogin !== 'undefined' && parentLogin ? 'لمتابعة أداء ابنك في المنصة' : 'أهلاً بك مرة أخرى في منصة لغتي' %></p>
+    <% if (error) { %><div class="auth-error"><i class="fas fa-exclamation-circle"></i> <%= error %></div><% } %>
+
+    <% if (typeof firebaseConfig !== 'undefined' && firebaseConfig.apiKey) { %>
+    <div id="firebaseAuthSection">
+      <div class="form-group">
+        <label>البريد الإلكتروني</label>
+        <input type="email" id="firebaseEmail" placeholder="أدخل البريد الإلكتروني" class="form-input" dir="ltr">
+      </div>
+      <div class="form-group">
+        <label>كلمة المرور</label>
+        <input type="password" id="firebasePassword" placeholder="أدخل كلمة المرور" class="form-input" dir="ltr">
+      </div>
+      <button class="btn btn-primary" onclick="firebaseLogin()" style="width:100%;margin-bottom:12px;">
+        <i class="fas fa-sign-in-alt"></i> <%= typeof parentLogin !== 'undefined' && parentLogin ? 'دخول ولي الأمر' : 'تسجيل الدخول' %>
+      </button>
+      <div id="firebaseLoginError" class="auth-error" style="display:none;"></div>
+    </div>
+    <% } %>
+    <div class="auth-footer">
+      <% if (typeof parentLogin !== 'undefined' && parentLogin) { %>
+        طالب؟ <a href="/login">تسجيل دخول الطالب</a>
+      <% } else { %>
+        ليس لديك حساب؟ <a href="/register">إنشاء حساب جديد</a>
+        <br>
+        <span style="font-size:13px;">ولي أمر؟ <a href="/parent-login">دخول ولي الأمر</a></span>
+      <% } %>
+    </div>
+  </div>
+</section>
+
+<% if (typeof firebaseConfig !== 'undefined' && firebaseConfig.apiKey) { %>
+<script>
+function firebaseLogin() {
+  const email = document.getElementById('firebaseEmail').value.trim();
+  const password = document.getElementById('firebasePassword').value;
+  const errorDiv = document.getElementById('firebaseLoginError');
+
+  if (!email || !password) { errorDiv.style.display = 'block'; errorDiv.textContent = 'يرجى إدخال البريد الإلكتروني وكلمة المرور'; return; }
+
+  const btn = document.querySelector('#firebaseAuthSection .btn-primary');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري تسجيل الدخول...';
+
+  firebase.auth().signInWithEmailAndPassword(email, password)
+    .then(function(result) {
+      return result.user.getIdToken().then(function(idToken) {
+        return fetch('/api/auth/firebase-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idToken })
+        });
+      });
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data.success) { window.location.href = data.redirect; }
+      else { errorDiv.style.display = 'block'; errorDiv.textContent = 'فشل تسجيل الدخول'; btn.disabled = false; btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> تسجيل الدخول'; }
+    })
+    .catch(function(error) {
+      console.error(error);
+      errorDiv.style.display = 'block';
+      if (error.code === 'auth/user-not-found') errorDiv.textContent = 'لا يوجد حساب بهذا البريد الإلكتروني';
+      else if (error.code === 'auth/wrong-password') errorDiv.textContent = 'كلمة المرور غير صحيحة';
+      else if (error.code === 'auth/invalid-email') errorDiv.textContent = 'البريد الإلكتروني غير صحيح';
+      else if (error.code === 'auth/too-many-requests') errorDiv.textContent = 'تم حظر تسجيل الدخول مؤقتاً، حاول لاحقاً';
+      else errorDiv.textContent = 'فشل تسجيل الدخول: ' + error.message;
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> تسجيل الدخول';
+    });
+}
+</script>
+<% } %>
+
+<%- include('../partials/footer') %>

@@ -1,0 +1,106 @@
+<%- include('../partials/header', { title: title, navPageTitle: 'بنك أسئلة ' + course.title, bodyClass: 'student-body' }) %>
+<%- include('../partials/student-sidebar') %>
+<main class="main-content">
+  <div class="page-header">
+    <div>
+      <a href="/student/question-bank" style="color:var(--accent);font-size:14px;font-weight:600;display:flex;align-items:center;gap:6px;margin-bottom:8px;transition:all 0.3s;">
+        <i class="fas fa-chevron-right"></i> العودة إلى بنك الأسئلة
+      </a>
+      <h1>بنك أسئلة <%= course.title %></h1>
+      <p><%= course.quiz.questions.length %> سؤال تدريبي مع التصحيح الفوري</p>
+    </div>
+  </div>
+
+  <div class="quiz-section">
+    <h2 style="margin-bottom:20px;"><i class="fas <%= course.icon %>" style="color:<%= course.color %>;"></i> <%= course.quiz.title %></h2>
+
+    <% course.quiz.questions.forEach(function(q, qi) { %>
+    <div class="quiz-question" data-correct="<%= q.correct %>">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <span style="background:var(--gold-gradient);color:var(--primary);width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;"><%= qi + 1 %></span>
+        <h3 style="margin-bottom:0;font-size:16px;"><%= q.question %></h3>
+      </div>
+      <div class="quiz-options">
+        <% q.options.forEach(function(o, oi) { %>
+        <label class="quiz-option">
+          <input type="radio" name="qb_q_<%= qi %>" value="<%= oi %>">
+          <span><%= o %></span>
+        </label>
+        <% }) %>
+      </div>
+    </div>
+    <% }) %>
+
+    <div style="margin-top:28px;display:flex;gap:16px;flex-wrap:wrap;">
+      <button class="btn btn-primary btn-sm btn-submit-quiz" style="width:100%;">
+        <i class="fas fa-check-circle"></i> تقييم الإجابات
+      </button>
+      <button class="btn btn-sm" style="background:var(--bg);color:var(--text);border:2px solid var(--border);width:100%;" onclick="resetBank()">
+        <i class="fas fa-redo"></i> إعادة المحاولة
+      </button>
+    </div>
+  </div>
+</main>
+
+<script>
+/* ===== QUIZ SUBMIT ===== */
+document.querySelector('.btn-submit-quiz')?.addEventListener('click', function() {
+  const quiz = this.closest('.quiz-section');
+  if (!quiz) return;
+  const questions = quiz.querySelectorAll('.quiz-question');
+  let score = 0, total = questions.length, allAnswered = true;
+
+  questions.forEach((q) => {
+    const selected = q.querySelector('input[type="radio"]:checked');
+    const options = q.querySelectorAll('.quiz-option');
+    const correct = parseInt(q.dataset.correct);
+
+    if (!selected) { allAnswered = false; return; }
+
+    const selIdx = parseInt(selected.value);
+    options.forEach((o, oi) => {
+      o.style.borderColor = oi === correct ? '#059669' : '';
+      o.style.background = oi === correct ? 'rgba(5,150,105,0.08)' : '';
+    });
+    if (selIdx === correct) { score++; }
+    else { selected.closest('.quiz-option').style.borderColor = '#DC2626'; }
+  });
+
+  if (!allAnswered) { alert('يرجى الإجابة على جميع الأسئلة أولاً'); return; }
+
+  const pct = Math.round((score / total) * 100);
+  let grade = 'ضعيف';
+  if (pct >= 90) { grade = 'ممتاز'; }
+  else if (pct >= 75) { grade = 'جيد جداً'; }
+  else if (pct >= 60) { grade = 'جيد'; }
+  else if (pct >= 45) { grade = 'مقبول'; }
+
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const resTextColor = isDark ? '#111' : '#fff';
+  const results = `
+    <div class="quiz-results" style="margin-top:20px;padding:24px;background:var(--card);border-radius:12px;border:1px solid var(--border);">
+      <div style="text-align:center;padding:24px;background:var(--gold-gradient);border-radius:12px;color:${resTextColor};margin-bottom:16px;">
+        <div style="font-size:48px;font-weight:900;line-height:1;">${score}/${total}</div>
+        <div style="font-size:20px;opacity:0.85;">${pct}%</div>
+        <div style="font-size:26px;font-weight:700;margin-top:8px;">${grade}</div>
+      </div>
+    </div>`;
+
+  this.style.display = 'none';
+  quiz.querySelector('.quiz-results')?.remove();
+  quiz.insertAdjacentHTML('beforeend', results);
+});
+
+function resetBank() {
+  if (!confirm('هل تريد إعادة المحاولة؟ سيتم مسح جميع الإجابات.')) return;
+  document.querySelectorAll('.quiz-option').forEach(o => {
+    o.style.borderColor = 'var(--border)';
+    o.style.background = '';
+  });
+  document.querySelectorAll('.quiz-question input[type="radio"]').forEach(r => r.checked = false);
+  document.querySelectorAll('.quiz-results').forEach(r => r.remove());
+  document.querySelectorAll('.btn-submit-quiz').forEach(b => b.style.display = '');
+}
+</script>
+</body>
+</html>

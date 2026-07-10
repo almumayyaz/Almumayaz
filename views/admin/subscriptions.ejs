@@ -1,0 +1,105 @@
+<%- include('../partials/header', { title: title, bodyClass: 'admin-body' }) %>
+<%- include('../partials/admin-sidebar') %>
+<main class="admin-content">
+  <div class="page-header">
+    <div>
+      <h1>الاشتراكات</h1>
+      <p>إدارة خطط الاشتراك والباقات</p>
+    </div>
+    <button class="btn btn-primary" onclick="openSubModal()"><i class="fas fa-plus"></i> باقة جديدة</button>
+  </div>
+  <div class="admin-table">
+    <table>
+      <thead>
+        <tr><th>#</th><th>اسم الباقة</th><th>السعر</th><th>المدة</th><th>المميزات</th><th>الحالة</th><th>الإجراءات</th></tr>
+      </thead>
+      <tbody>
+        <% subscriptions.forEach(function(s, i) { %>
+        <tr>
+          <td><%= i + 1 %></td>
+          <td><strong><%= s.name %></strong></td>
+          <td><%= s.price %> <%= s.currency %></td>
+          <td><%= s.period %></td>
+          <td><%= s.features.length %> ميزة</td>
+          <td><span class="status-badge <%= s.popular ? 'active' : 'pending' %>"><%= s.popular ? 'الأكثر طلباً' : 'متاح' %></span></td>
+          <td>
+            <div class="admin-actions">
+              <button class="edit" onclick='openSubModal(<%= JSON.stringify(s) %>)'><i class="fas fa-edit"></i></button>
+              <button class="delete" onclick="deleteSub('<%= s.id %>')"><i class="fas fa-trash"></i></button>
+            </div>
+          </td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<!-- Subscription Modal -->
+<div class="modal-overlay" id="subModal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3 id="subModalTitle">إضافة باقة</h3>
+      <button class="modal-close" onclick="closeSubModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="subId">
+      <div class="form-group"><label>اسم الباقة</label><input id="subName" placeholder="مثال: اشتراك شهري"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="form-group"><label>السعر</label><input id="subPrice" placeholder="200"></div>
+        <div class="form-group"><label>العملة</label><input id="subCurrency" value="جنيه"></div>
+      </div>
+      <div class="form-group"><label>المدة</label><input id="subPeriod" placeholder="شهرياً"></div>
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:8px;">
+          <input type="checkbox" id="subPopular"> الباقة الأكثر طلباً
+        </label>
+      </div>
+      <div class="form-group">
+        <label>المميزات (واحدة في كل سطر)</label>
+        <textarea id="subFeatures" rows="5" placeholder="جميع محاضرات النحو&#10;جميع محاضرات البلاغة&#10;الوصول إلى بنك الأسئلة"></textarea>
+      </div>
+      <button class="btn btn-primary" onclick="saveSub()" style="width:100%;"><i class="fas fa-save"></i> حفظ</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function openSubModal(sub) {
+  document.getElementById('subModalTitle').textContent = sub ? 'تعديل الباقة' : 'إضافة باقة جديدة';
+  document.getElementById('subId').value = sub ? sub.id : '';
+  document.getElementById('subName').value = sub ? sub.name : '';
+  document.getElementById('subPrice').value = sub ? sub.price : '';
+  document.getElementById('subCurrency').value = sub ? (sub.currency || 'جنيه') : 'جنيه';
+  document.getElementById('subPeriod').value = sub ? sub.period : '';
+  document.getElementById('subPopular').checked = sub ? !!sub.popular : false;
+  document.getElementById('subFeatures').value = sub ? (sub.features ? sub.features.join('\n') : '') : '';
+  document.getElementById('subModal').classList.add('show');
+}
+function closeSubModal() { document.getElementById('subModal').classList.remove('show'); }
+function saveSub() {
+  const id = document.getElementById('subId').value;
+  const featuresRaw = document.getElementById('subFeatures').value;
+  const features = featuresRaw.split('\n').map(f => f.trim()).filter(f => f);
+  const data = {
+    name: document.getElementById('subName').value,
+    price: document.getElementById('subPrice').value,
+    currency: document.getElementById('subCurrency').value,
+    period: document.getElementById('subPeriod').value,
+    popular: document.getElementById('subPopular').checked,
+    features
+  };
+  const url = id ? '/api/admin/subscriptions/' + id : '/api/admin/subscriptions';
+  const method = id ? 'PUT' : 'POST';
+  fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) })
+    .then(r => r.json()).then(d => { if (d.success) location.reload(); else alert(d.error); });
+}
+function deleteSub(id) {
+  if (!confirm('هل أنت متأكد من حذف هذه الباقة؟')) return;
+  fetch('/api/admin/subscriptions/' + id, { method: 'DELETE' })
+    .then(r => r.json()).then(d => { if (d.success) location.reload(); else alert(d.error); });
+}
+document.getElementById('subModal').addEventListener('click', function(e) { if (e.target === this) this.classList.remove('show'); });
+</script>
+</body>
+</html>

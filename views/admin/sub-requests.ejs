@@ -1,0 +1,83 @@
+<%- include('../partials/header', { title: title, bodyClass: 'admin-body' }) %>
+<%- include('../partials/admin-sidebar') %>
+<main class="admin-content">
+  <div class="page-header">
+    <div>
+      <h1><i class="fas fa-file-invoice"></i> طلبات الاشتراك</h1>
+      <p>إدارة طلبات الاشتراك الجديدة من الطلاب</p>
+    </div>
+  </div>
+  <div class="admin-table" id="requestsContainer">
+    <div style="text-align:center;padding:60px 20px;color:var(--text-muted);">
+      <i class="fas fa-spinner fa-spin" style="font-size:32px;display:block;margin-bottom:12px;"></i>
+      جاري تحميل الطلبات...
+    </div>
+  </div>
+</main>
+
+<script>
+(function(){
+  var container = document.getElementById('requestsContainer');
+
+  function loadRequests() {
+    container.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--text-muted);"><i class="fas fa-spinner fa-spin" style="font-size:28px;display:block;margin-bottom:10px;"></i>جاري التحميل...</div>';
+    fetch('/api/admin/sub-requests')
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (!d.success) { container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--danger);">' + d.error + '</div>'; return; }
+        var requests = d.requests;
+        if (requests.length === 0) {
+          container.innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--text-muted);"><i class="fas fa-inbox" style="font-size:40px;display:block;margin-bottom:12px;opacity:0.4;"></i>لا توجد طلبات اشتراك</div>';
+          return;
+        }
+        var html = '<table><thead><tr><th>#</th><th>الطالب</th><th>الهاتف</th><th>الخطة</th><th>المبلغ</th><th>كود العملية</th><th>طريقة الدفع</th><th>التاريخ</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody>';
+        requests.forEach(function(r, i) {
+          var statusHtml = '';
+          if (r.status === 'pending') statusHtml = '<span class="status-badge pending">قيد المراجعة</span>';
+          else if (r.status === 'approved') statusHtml = '<span class="status-badge active">تم التفعيل</span>';
+          else statusHtml = '<span class="status-badge inactive">مرفوض</span>';
+          var isPending = r.status === 'pending';
+          html += '<tr>' +
+            '<td>' + (i + 1) + '</td>' +
+            '<td><strong>' + (r.userName || '---') + '</strong></td>' +
+            '<td>' + (r.userPhone || '---') + '</td>' +
+            '<td>' + (r.planName || '---') + '</td>' +
+            '<td><strong>' + (r.price || '---') + ' جنيه</strong></td>' +
+            '<td dir="ltr" style="font-size:12px;">' + (r.transactionId || '---') + '</td>' +
+            '<td>' + (r.paymentMethod === 'instapay' ? 'إنستا باي' : 'فودافون كاش') + '</td>' +
+            '<td style="font-size:11px;">' + (r.date ? new Date(r.date).toLocaleDateString('ar-EG') : '---') + '</td>' +
+            '<td>' + statusHtml + '</td>' +
+            '<td>' +
+              (isPending
+                ? '<div class="admin-actions"><button class="edit" onclick="approveRequest(\'' + r.id + '\')" title="موافقة"><i class="fas fa-check"></i></button><button class="delete" onclick="rejectRequest(\'' + r.id + '\')" title="رفض"><i class="fas fa-times"></i></button></div>'
+                : '<span style="font-size:11px;color:var(--text-muted);">' + (r.status === 'approved' ? 'مفعل' : 'مرفوض') + '</span>'
+              ) +
+            '</td>' +
+          '</tr>';
+        });
+        html += '</tbody></table>';
+        container.innerHTML = html;
+      })
+      .catch(function() { container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--danger);">حدث خطأ في تحميل الطلبات</div>'; });
+  }
+
+  window.approveRequest = function(id) {
+    if (!confirm('تأكيد الموافقة على طلب الاشتراك؟')) return;
+    fetch('/api/admin/sub-requests/' + id, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ status: 'approved' }) })
+      .then(function(r) { return r.json(); })
+      .then(function(d) { if (d.success) loadRequests(); else alert(d.error); });
+  };
+
+  window.rejectRequest = function(id) {
+    if (!confirm('تأكيد رفض طلب الاشتراك؟')) return;
+    fetch('/api/admin/sub-requests/' + id, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ status: 'rejected' }) })
+      .then(function(r) { return r.json(); })
+      .then(function(d) { if (d.success) loadRequests(); else alert(d.error); });
+  };
+
+  loadRequests();
+  setInterval(loadRequests, 7000);
+})();
+</script>
+</body>
+</html>

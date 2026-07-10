@@ -1,0 +1,32 @@
+[
+  {
+    "id": "admin-1",
+    "uid": "admin-1",
+    "name": "مصطفى فرغلي",
+    "email": "admin@lughati.com",
+    "phone": "01000000000",
+    "password": "admin123",
+    "role": "admin",
+    "grade": ""
+  },
+  {
+    "id": "aaefc504-d99f-4ae8-9be4-463926ae2737",
+    "name": "dghadh",
+    "email": "student0111111111@lughati.com",
+    "phone": "0111111111",
+    "parentPhone": "01111111111",
+    "grade": "الثالث الثانوي",
+    "password": "ghdthshhsrhr",
+    "role": "student"
+  },
+  {
+    "id": "516ae2d3-a44a-4973-9cc1-c22b539cea53",
+    "name": "Abdulrahman",
+    "email": "student01211275526@lughati.com",
+    "phone": "01211275526",
+    "parentPhone": "01211275526",
+    "grade": "الثالث الثانوي",
+    "password": "A111111",
+    "role": "student"
+  }
+]

@@ -1,0 +1,109 @@
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <a href="/student" class="sidebar-logo">لغتي</a>
+    <button class="sidebar-close-btn" id="sidebarClose"><i class="fas fa-times"></i></button>
+    <button class="sidebar-toggle-btn" id="sidebarToggle"><i class="fas fa-bars"></i></button>
+  </div>
+  <div class="sidebar-user">
+    <div class="sidebar-avatar"><%= (user ? user.name : 'ز') ? (user ? user.name.charAt(0) : 'ز') : 'ز' %></div>
+    <div class="sidebar-user-info">
+      <h4><%= user ? user.name : 'زائر' %></h4>
+      <span><%= user ? (user.grade || '') : 'ضيف' %></span>
+    </div>
+  </div>
+  <nav class="sidebar-nav">
+    <a href="/student" class="<%= currentPath === '/student' ? 'active' : '' %>">
+      <i class="fas fa-home"></i> الرئيسية
+    </a>
+    <a href="/student/courses" class="<%= currentPath.startsWith('/student/course') || currentPath === '/student/courses' ? 'active' : '' %>">
+      <i class="fas fa-video"></i> المحاضرات
+    </a>
+    <a href="/student/question-bank" class="<%= currentPath.startsWith('/student/question-bank') ? 'active' : '' %>">
+      <i class="fas fa-question-circle"></i> بنك الأسئلة
+    </a>
+    <a href="/student/notes" class="<%= currentPath === '/student/notes' ? 'active' : '' %>">
+      <i class="fas fa-file-pdf"></i> المذكرات
+    </a>
+    <a href="/student/reviews" class="<%= currentPath.startsWith('/student/review') ? 'active' : '' %>">
+      <i class="fas fa-sync-alt"></i> المراجعات
+    </a>
+    <% if (user && !isGuest) { %>
+    <a href="/student/chat" class="<%= currentPath === '/student/chat' ? 'active' : '' %>">
+      <i class="fas fa-comments"></i> اسأل عفيفي
+    </a>
+    <% } %>
+    <% if (isGuest) { %>
+    <a href="/register" class="<%= currentPath === '/register' ? 'active' : '' %>">
+      <i class="fas fa-user-plus"></i> إنشاء حساب
+    </a>
+    <% } else { %>
+    <a href="/student/subscription" class="<%= currentPath === '/student/subscription' ? 'active' : '' %>">
+      <i class="fas fa-credit-card"></i> الاشتراك
+    </a>
+    <% } %>
+    <a href="/student/profile" class="<%= currentPath === '/student/profile' ? 'active' : '' %>">
+      <i class="fas fa-user"></i> حسابي
+    </a>
+    <div class="sidebar-theme-toggle" onclick="spinTheme(this.querySelector('i'));toggleTheme();">
+      <i class="fas <%= darkMode ? 'fa-sun' : 'fa-moon' %>" style="font-size:14px;"></i>
+      <%= darkMode ? 'الوضع النهاري' : 'الوضع الليلي' %>
+    </div>
+    <a href="/logout" class="btn-logout">
+      <i class="fas fa-sign-out-alt"></i> تسجيل الخروج
+    </a>
+  </nav>
+</aside>
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+<script>
+(function(){
+  var sidebar = document.getElementById('sidebar');
+  var overlay = document.getElementById('sidebarOverlay');
+  var closeBtn = document.getElementById('sidebarClose');
+  var toggleBtn = document.getElementById('sidebarToggle');
+
+  function openSidebar() {
+    sidebar.classList.add('open');
+    if (overlay) overlay.classList.add('show');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeSidebar() {
+    sidebar.classList.remove('open');
+    if (overlay) overlay.classList.remove('show');
+    document.body.style.overflow = '';
+  }
+
+  var toggleState = localStorage.getItem('sidebar-toggle');
+  if (toggleState === 'collapsed' && window.innerWidth > 768) {
+    sidebar.classList.add('collapsed');
+  }
+
+  if (toggleBtn) toggleBtn.addEventListener('click', function(e) {
+    if (sidebar.classList.contains('open')) closeSidebar();
+    else {
+      if (window.innerWidth > 768) {
+        sidebar.classList.toggle('collapsed');
+        localStorage.setItem('sidebar-toggle', sidebar.classList.contains('collapsed') ? 'collapsed' : '');
+      } else {
+        openSidebar();
+      }
+    }
+    e.stopPropagation();
+  });
+
+  if (closeBtn) closeBtn.addEventListener('click', function() {
+    if (window.innerWidth <= 768) closeSidebar();
+  });
+
+  if (overlay) overlay.addEventListener('click', closeSidebar);
+
+  sidebar.querySelectorAll('.sidebar-nav a').forEach(function(link) {
+    link.addEventListener('click', function() {
+      if (window.innerWidth <= 768) closeSidebar();
+    });
+  });
+
+  window.addEventListener('resize', function() {
+    if (window.innerWidth > 768) closeSidebar();
+  });
+})();
+</script>

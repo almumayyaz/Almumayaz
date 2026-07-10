@@ -1,0 +1,69 @@
+<%- include('../partials/header', { title: title, navPageTitle: 'حسابي', bodyClass: 'student-body' }) %>
+<%- include('../partials/student-sidebar') %>
+<main class="main-content">
+  <div class="page-header">
+    <div>
+      <h1>حسابي</h1>
+      <p>معلومات الحساب الشخصية</p>
+    </div>
+  </div>
+  <div class="profile-card">
+    <div class="profile-header">
+      <div class="profile-avatar"><%= user.name.charAt(0) %></div>
+      <h2><%= user.name %></h2>
+    </div>
+    <div class="info-row">
+      <span class="label">اسم الطالب</span>
+      <span class="value"><%= user.name %></span>
+    </div>
+    <div class="info-row">
+      <span class="label">البريد الإلكتروني</span>
+      <span class="value" dir="ltr"><%= user.email || '---' %></span>
+    </div>
+    <div class="info-row">
+      <span class="label">رقم الهاتف</span>
+      <span class="value"><%= user.phone || '---' %></span>
+    </div>
+    <div class="info-row">
+      <span class="label">رقم ولي الأمر</span>
+      <span class="value"><%= user.parentPhone || '---' %></span>
+    </div>
+    <div class="info-row">
+      <span class="label">المرحلة</span>
+      <span class="value"><%= user.stage || '---' %></span>
+    </div>
+    <div class="info-row">
+      <span class="label">الصف الدراسي</span>
+      <span class="value"><%= user.grade || '---' %></span>
+    </div>
+    <div class="info-row">
+      <span class="label">المحافظة</span>
+      <span class="value"><%= user.governorate || '---' %></span>
+    </div>
+    <div class="info-row">
+      <span class="label">حالة الاشتراك</span>
+      <% var subStatus = user.subscriptionStatus; %>
+      <% if (subStatus === 'active') { %>
+      <span class="value" style="color:var(--success);font-weight:700;">نشط <span style="font-size:12px;font-weight:400;color:var(--text-light);">(حتى <%= new Date(user.subscriptionEnd).toLocaleDateString('ar-EG') %>)</span></span>
+      <% } else if (subStatus === 'expired') { %>
+      <span class="value" style="color:var(--danger);font-weight:700;">منتهي</span>
+      <% } else if (subStatus === 'cancelled') { %>
+      <span class="value" style="color:var(--warning);font-weight:700;">ملغي</span>
+      <% } else { %>
+      <span class="value" style="color:var(--text-light);">غير مشترك</span>
+      <% } %>
+    </div>
+    <% if (user.referralCode) { %>
+    <div class="info-row">
+      <span class="label">كود الإحالة</span>
+      <span class="value" dir="ltr" style="font-family:monospace;background:var(--bg);padding:2px 10px;border-radius:4px;font-weight:700;letter-spacing:1px;"><%= user.referralCode %></span>
+      <button class="btn btn-sm" onclick="navigator.clipboard.writeText('<%= user.referralCode %>');this.innerHTML='<i class=\\'fas fa-check\\'></i>';setTimeout(()=>this.innerHTML='<i class=\\'fas fa-copy\\'></i>',1500)" style="font-size:12px;padding:4px 10px;"><i class="fas fa-copy"></i></button>
+    </div>
+    <% } %>
+    <div style="margin-top:24px;display:flex;gap:12px;flex-wrap:wrap;">
+      <button class="btn btn-primary" onclick="alert('جاري تحديث البيانات')"><i class="fas fa-edit"></i> تعديل البيانات</button>
+      <a href="/student/subscription" class="btn" style="background:var(--accent);color:#fff;"><i class="fas fa-credit-card"></i> إدارة الاشتراك</a>
+    </div>
+  </div>
+</main>
+<%- include('../partials/footer') %>

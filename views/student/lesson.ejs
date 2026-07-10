@@ -1,0 +1,178 @@
+<%- include('../partials/header', { title: title, navPageTitle: lesson.title, bodyClass: 'student-body' }) %>
+<%- include('../partials/student-sidebar') %>
+<main class="main-content">
+  <div class="page-header">
+    <div>
+      <a href="/student/course/<%= course.id %>" style="color:var(--accent);font-size:14px;font-weight:600;display:flex;align-items:center;gap:6px;margin-bottom:8px;transition:all 0.3s;">
+        <i class="fas fa-chevron-right"></i> العودة إلى <%= course.title %>
+      </a>
+      <h1><%= lesson.title %></h1>
+      <p style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <span><i class="fas fa-book" style="color:var(--accent);"></i> <%= course.title %></span>
+        <span><i class="fas fa-clock" style="color:var(--accent);"></i> <%= lesson.duration %></span>
+        <% if (lesson.isFree) { %><span class="bab-free-badge">درس مجاني</span><% } %>
+      </p>
+    </div>
+  </div>
+
+  <% if (lesson.videos && lesson.videos.length > 0) { %>
+    <% if (lesson.videos.length === 1) { %>
+    <div class="video-container" oncontextmenu="return false;">
+      <iframe src="<%= lesson.videos[0].url %>" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+    </div>
+    <% } else { %>
+    <div style="display:flex;flex-direction:column;gap:20px;margin-bottom:28px;">
+      <% lesson.videos.forEach(function(video, vi) { %>
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+          <span style="background:var(--accent);color:#fff;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;"><%= vi + 1 %></span>
+          <span style="font-weight:600;font-size:14px;"><%= video.title || ('الجزء ' + (vi + 1)) %></span>
+        </div>
+        <div class="video-container" style="margin-bottom:0;" oncontextmenu="return false;">
+          <iframe src="<%= video.url %>" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+        </div>
+      </div>
+      <% }) %>
+    </div>
+    <% } %>
+  <% } else if (lesson.videoUrl) { %>
+    <!-- Legacy single video support -->
+    <div class="video-container" oncontextmenu="return false;">
+      <iframe src="<%= lesson.videoUrl %>" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+    </div>
+  <% } else { %>
+    <div style="text-align:center;padding:40px;background:var(--glass-bg);border-radius:var(--radius-xl);margin-bottom:28px;border:1px solid var(--border);">
+      <i class="fas fa-video-slash" style="font-size:36px;color:var(--border);display:block;margin-bottom:12px;"></i>
+      <p style="color:var(--text-muted);">لا يوجد فيديو لهذا الدرس بعد</p>
+    </div>
+  <% } %>
+
+  <div class="lesson-content">
+    <h1><%= lesson.title %></h1>
+    <p><%= lesson.description %></p>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px;padding:16px;background:var(--bg);border-radius:8px;">
+      <div><span style="font-weight:600;color:var(--primary);">المادة:</span> <span style="color:var(--text-light);"><%= course.title %></span></div>
+      <div><span style="font-weight:600;color:var(--primary);">المدة:</span> <span style="color:var(--text-light);"><%= lesson.duration %></span></div>
+      <div><span style="font-weight:600;color:var(--primary);">عدد الدروس:</span> <span style="color:var(--text-light);"><%= course.lessons.length %></span></div>
+      <div><span style="font-weight:600;color:var(--primary);">مشاهدة:</span> <span style="color:var(--text-light);">HD عالية الجودة</span></div>
+      <% if (lesson.videos) { %><div><span style="font-weight:600;color:var(--primary);">عدد المقاطع:</span> <span style="color:var(--text-light);"><%= lesson.videos.length %></span></div><% } %>
+    </div>
+
+    <!-- PDF Files -->
+    <% if (lesson.pdfFiles && lesson.pdfFiles.length > 0) { %>
+    <div style="margin-bottom:24px;">
+      <h3 style="font-size:16px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+        <i class="fas fa-file-pdf" style="color:var(--accent);"></i> المذكرات
+      </h3>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <% lesson.pdfFiles.forEach(function(pdf, pi) { %>
+        <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--bg);border-radius:var(--radius-sm);border:1px solid var(--border);">
+          <i class="fas fa-file-pdf" style="color:var(--danger);font-size:20px;"></i>
+          <span style="flex:1;font-size:14px;font-weight:500;"><%= pdf.title || ('ملف ' + (pi + 1)) %></span>
+          <a href="/student/view-pdf/<%= course.id %>/<%= lesson.id %>/<%= pi %>" class="btn btn-sm" style="background:var(--primary);color:#fff;">
+            <i class="fas fa-eye"></i> عرض
+          </a>
+        </div>
+        <% }) %>
+      </div>
+    </div>
+    <% } %>
+
+    <% if (lesson.pdfUrl) { %>
+    <!-- Legacy single PDF support -->
+    <div style="margin-bottom:24px;">
+      <h3 style="font-size:16px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+        <i class="fas fa-file-pdf" style="color:var(--accent);"></i> المذكرة
+      </h3>
+      <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--bg);border-radius:var(--radius-sm);border:1px solid var(--border);">
+        <i class="fas fa-file-pdf" style="color:var(--danger);font-size:20px;"></i>
+        <span style="flex:1;font-size:14px;font-weight:500;">مذكرة <%= lesson.title %></span>
+        <a href="#" class="btn btn-sm" style="background:var(--primary);color:#fff;" onclick="window.open('/student/view-pdf/<%= course.id %>/<%= lesson.id %>/0','_blank')">
+          <i class="fas fa-eye"></i> عرض
+        </a>
+      </div>
+    </div>
+    <% } %>
+
+    <!-- Progress Tracking -->
+    <div style="margin-bottom:20px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <span style="font-size:13px;font-weight:600;">التقدم</span>
+        <span style="font-size:13px;color:var(--text-light);" id="progressPct">0%</span>
+      </div>
+      <div style="width:100%;height:8px;background:var(--bg);border-radius:4px;overflow:hidden;">
+        <div id="progressBar" style="width:0%;height:100%;background:var(--gold-gradient);border-radius:4px;transition:width 0.5s ease;"></div>
+      </div>
+    </div>
+
+    <div class="lesson-actions">
+      <button class="btn btn-primary" id="markCompleteBtn" onclick="markLessonComplete()">
+        <i class="fas fa-check-circle"></i> <span id="completeBtnText">إنهاء الدرس</span>
+      </button>
+    </div>
+  </div>
+
+  <% if (course.quiz) { %>
+  <div class="welcome-banner" style="padding:12px 16px;margin-top:20px;">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+      <i class="fas fa-question-circle" style="color:var(--accent);font-size:14px;"></i>
+      <span style="font-size:13px;font-weight:700;color:var(--accent);">اختبر نفسك</span>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+      <p style="font-size:13px;color:var(--text-light);margin:0;">اختبر فهمك لهذه المادة بعد سماع المحاضرة</p>
+      <a href="/student/exam/<%= course.id %>" class="btn btn-primary btn-sm" style="cursor:pointer;z-index:999;position:relative;">
+        <i class="fas fa-pen"></i> ابدأ الاختبار
+      </a>
+    </div>
+  </div>
+  <% } %>
+
+</main>
+
+<script>
+(function() {
+  var courseId = '<%= course.id %>';
+  var lessonId = '<%= lesson.id %>';
+  loadProgress();
+
+  function loadProgress() {
+    fetch('/api/student/progress/' + courseId)
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.success && d.progress) {
+          var pct = d.progress.percentage || 0;
+          var completed = (d.progress.completedLessons || []).includes(lessonId);
+          updateUI(pct, completed);
+        }
+      });
+  }
+
+  window.markLessonComplete = function() {
+    fetch('/api/student/progress', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ courseId: courseId, lessonId: lessonId, completed: true, percentage: 100 })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.success) {
+        updateUI(100, true);
+        var btn = document.getElementById('completeBtnText');
+        if (btn) btn.textContent = '✅ تم الإنهاء';
+      }
+    });
+  };
+
+  function updateUI(pct, completed) {
+    var bar = document.getElementById('progressBar');
+    var label = document.getElementById('progressPct');
+    var btn = document.getElementById('completeBtnText');
+    if (bar) bar.style.width = pct + '%';
+    if (label) label.textContent = pct + '%';
+    if (btn && completed) btn.textContent = '✅ تم الإنهاء';
+  }
+})();
+</script>
+</body>
+</html>

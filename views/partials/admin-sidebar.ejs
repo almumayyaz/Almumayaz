@@ -1,0 +1,88 @@
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-user">
+      <div class="sidebar-avatar">م</div>
+      <div class="sidebar-user-info">
+        <h4>مصطفى فرغلي</h4>
+        <span>المدير</span>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="/admin" class="<%= currentPath === '/admin' ? 'active' : '' %>">
+        <i class="fas fa-tachometer-alt"></i> لوحة التحكم
+      </a>
+      <a href="/admin/students" class="<%= currentPath === '/admin/students' ? 'active' : '' %>">
+        <i class="fas fa-users"></i> الطلاب
+      </a>
+      <a href="/admin/courses" class="<%= currentPath === '/admin/courses' ? 'active' : '' %>">
+        <i class="fas fa-book"></i> المحاضرات
+      </a>
+      <a href="/admin/sub-requests" class="<%= currentPath === '/admin/sub-requests' ? 'active' : '' %>">
+        <i class="fas fa-file-invoice"></i> طلبات الاشتراك
+      </a>
+      <a href="/admin/charge-codes" class="<%= currentPath === '/admin/charge-codes' ? 'active' : '' %>">
+        <i class="fas fa-barcode"></i> أكواد الشحن
+      </a>
+      <a href="/admin/subscriptions" class="<%= currentPath === '/admin/subscriptions' ? 'active' : '' %>">
+        <i class="fas fa-credit-card"></i> الاشتراكات
+      </a>
+      <a href="/admin/payments" class="<%= currentPath === '/admin/payments' ? 'active' : '' %>">
+        <i class="fas fa-money-bill"></i> المدفوعات
+      </a>
+      <a href="/admin/announcements" class="<%= currentPath === '/admin/announcements' ? 'active' : '' %>">
+        <i class="fas fa-bullhorn"></i> الإعلانات
+      </a>
+      <a href="/admin/reviews" class="<%= currentPath === '/admin/reviews' ? 'active' : '' %>">
+        <i class="fas fa-star"></i> المراجعات
+      </a>
+      <a href="/admin/chat" class="<%= currentPath.startsWith('/admin/chat') ? 'active' : '' %>">
+        <i class="fas fa-comments"></i> تواصل مع الطلاب
+      </a>
+      <a href="/">
+        <i class="fas fa-globe"></i> الموقع العام
+      </a>
+      <a href="/logout" class="btn-logout">
+        <i class="fas fa-sign-out-alt"></i> تسجيل الخروج
+      </a>
+    </nav>
+  </aside>
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <button class="sidebar-mobile-toggle" id="sidebarMobileToggle">
+    <i class="fas fa-bars"></i>
+  </button>
+  <script>
+    (function() {
+      var sidebar = document.getElementById('sidebar');
+      var mobileToggle = document.getElementById('sidebarMobileToggle');
+      var overlay = document.getElementById('sidebarOverlay');
+      if (!sidebar) return;
+
+      function openSidebar() {
+        sidebar.classList.add('open');
+        if (overlay) overlay.classList.add('show');
+        document.body.style.overflow = 'hidden';
+      }
+      function closeSidebar() {
+        sidebar.classList.remove('open');
+        if (overlay) overlay.classList.remove('show');
+        document.body.style.overflow = '';
+      }
+
+      if (mobileToggle) mobileToggle.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (sidebar.classList.contains('open')) closeSidebar();
+        else openSidebar();
+      });
+
+      if (overlay) overlay.addEventListener('click', closeSidebar);
+
+      sidebar.querySelectorAll('.sidebar-nav a').forEach(function(link) {
+        link.addEventListener('click', function() {
+          if (window.innerWidth <= 768) closeSidebar();
+        });
+      });
+
+      window.addEventListener('resize', function() {
+        if (window.innerWidth > 768) closeSidebar();
+      });
+    })();
+  </script>

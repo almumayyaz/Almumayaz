@@ -1,0 +1,152 @@
+<%- include('../partials/header', { title: title, navPageTitle: 'طلب اشتراك', bodyClass: 'student-body' }) %>
+<%- include('../partials/student-sidebar') %>
+<main class="main-content">
+  <div class="page-header">
+    <div>
+      <h1>طلب اشتراك</h1>
+      <p>أرسل طلب اشتراكك وسيتم مراجعته وتفعيله في أقرب وقت</p>
+    </div>
+  </div>
+
+  <div id="successMessage" style="display:none;background:rgba(22,163,74,0.1);border:1px solid rgba(22,163,74,0.2);border-radius:var(--radius-lg);padding:32px;text-align:center;margin-bottom:24px;">
+    <div style="font-size:56px;color:var(--success);margin-bottom:16px;">
+      <i class="fas fa-check-circle"></i>
+    </div>
+    <h2 style="font-family:'Aref Ruqaa',serif;font-size:24px;font-weight:700;color:var(--success);margin-bottom:8px;">تم إرسال الطلب بنجاح</h2>
+    <p style="font-size:15px;color:var(--text-light);margin-bottom:20px;">سيتم مراجعة طلب الاشتراك الخاص بك وتفعيله في أقرب وقت ممكن. سنتواصل معك عبر الهاتف لتأكيد عملية الدفع.</p>
+    <a href="/student" class="btn btn-primary" style="display:inline-flex;">
+      <i class="fas fa-home"></i> العودة إلى الرئيسية
+    </a>
+  </div>
+
+  <div id="paymentForm" style="background:var(--card);border-radius:var(--radius-xl);padding:36px;box-shadow:var(--shadow);border:1px solid var(--border);max-width:600px;">
+    <div style="text-align:center;margin-bottom:28px;">
+      <div style="width:72px;height:72px;background:var(--accent-glow);border-radius:20px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:30px;color:var(--accent);">
+        <i class="fas fa-credit-card"></i>
+      </div>
+      <h2 style="font-family:'Aref Ruqaa',serif;font-size:22px;font-weight:700;margin-bottom:4px;">تقديم طلب اشتراك</h2>
+      <p style="font-size:14px;color:var(--text-light);">يرجى إدخال بيانات الدفع لإتمام طلب الاشتراك</p>
+    </div>
+
+    <div id="formError" class="auth-error" style="display:none;margin-bottom:20px;">
+      <i class="fas fa-exclamation-circle"></i> <span id="formErrorText"></span>
+    </div>
+
+    <div class="form-group">
+      <label>رقم المعاملة</label>
+      <input type="text" id="transactionId" placeholder="أدخل رقم العملية أو الإيصال" class="form-input" style="direction:rtl;">
+    </div>
+
+    <div class="form-group">
+      <label>المبلغ</label>
+      <input type="number" id="amount" placeholder="أدخل المبلغ المدفوع" class="form-input" style="direction:rtl;">
+    </div>
+
+    <div class="form-group">
+      <label>طريقة الدفع</label>
+      <select id="paymentMethod" class="form-input">
+        <option value="">اختر طريقة الدفع</option>
+        <option value="vodafone-cash">فودافون كاش</option>
+        <option value="bank">بنك</option>
+        <option value="wallet">محفظة إلكترونية</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>صورة الإيصال</label>
+      <div style="position:relative;">
+        <input type="file" id="receiptImage" accept="image/*" style="display:none;" onchange="handleReceiptUpload(event)">
+        <div id="receiptUploadArea" style="border:2px dashed var(--border);border-radius:var(--radius);padding:28px 20px;text-align:center;cursor:pointer;transition:var(--transition);" onclick="document.getElementById('receiptImage').click()">
+          <i class="fas fa-cloud-upload-alt" style="font-size:36px;color:var(--accent);margin-bottom:8px;display:block;"></i>
+          <span style="font-size:14px;font-weight:600;color:var(--text);">اضغط لرفع صورة الإيصال</span>
+          <span style="display:block;font-size:12px;color:var(--text-muted);margin-top:4px;">PNG, JPG - الحد الأقصى 5 ميجابايت</span>
+        </div>
+      </div>
+      <div id="receiptPreview" style="display:none;margin-top:12px;position:relative;border-radius:var(--radius-sm);overflow:hidden;border:1px solid var(--border);">
+        <img id="receiptPreviewImg" style="width:100%;max-height:200px;object-fit:contain;background:var(--bg);">
+        <button type="button" onclick="removeReceipt()" style="position:absolute;top:8px;left:8px;background:rgba(220,38,38,0.9);color:#fff;border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    </div>
+
+    <button class="btn btn-primary btn-lg" onclick="submitPayment()" id="submitBtn" style="width:100%;margin-top:8px;">
+      <i class="fas fa-paper-plane"></i> إرسال طلب الاشتراك
+    </button>
+  </div>
+</main>
+
+<script>
+var receiptBase64 = null;
+
+function handleReceiptUpload(e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) { alert('حجم الصورة يجب أن يكون أقل من 5 ميجابايت'); return; }
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    receiptBase64 = ev.target.result;
+    document.getElementById('receiptPreviewImg').src = receiptBase64;
+    document.getElementById('receiptPreview').style.display = 'block';
+    document.getElementById('receiptUploadArea').style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeReceipt() {
+  receiptBase64 = null;
+  document.getElementById('receiptPreview').style.display = 'none';
+  document.getElementById('receiptUploadArea').style.display = 'block';
+  document.getElementById('receiptImage').value = '';
+}
+
+function submitPayment() {
+  var transactionId = document.getElementById('transactionId').value.trim();
+  var amount = document.getElementById('amount').value.trim();
+  var paymentMethod = document.getElementById('paymentMethod').value;
+  var errorDiv = document.getElementById('formError');
+  var errorText = document.getElementById('formErrorText');
+
+  errorDiv.style.display = 'none';
+
+  if (!transactionId) { errorDiv.style.display = 'flex'; errorText.textContent = 'يرجى إدخال رقم المعاملة'; return; }
+  if (!amount || isNaN(amount) || Number(amount) <= 0) { errorDiv.style.display = 'flex'; errorText.textContent = 'يرجى إدخال مبلغ صحيح'; return; }
+  if (!paymentMethod) { errorDiv.style.display = 'flex'; errorText.textContent = 'يرجى اختيار طريقة الدفع'; return; }
+  if (!receiptBase64) { errorDiv.style.display = 'flex'; errorText.textContent = 'يرجى رفع صورة الإيصال'; return; }
+
+  var btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الإرسال...';
+
+  fetch('/api/student/submit-payment', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      transactionId: transactionId,
+      amount: Number(amount),
+      paymentMethod: paymentMethod,
+      receiptImage: receiptBase64
+    })
+  })
+  .then(function(res) { return res.json(); })
+  .then(function(data) {
+    if (data.success) {
+      document.getElementById('paymentForm').style.display = 'none';
+      document.getElementById('successMessage').style.display = 'block';
+    } else {
+      errorDiv.style.display = 'flex';
+      errorText.textContent = data.error || 'حدث خطأ أثناء إرسال الطلب، حاول مرة أخرى';
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-paper-plane"></i> إرسال طلب الاشتراك';
+    }
+  })
+  .catch(function(err) {
+    errorDiv.style.display = 'flex';
+    errorText.textContent = 'حدث خطأ في الاتصال، حاول مرة أخرى';
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-paper-plane"></i> إرسال طلب الاشتراك';
+  });
+}
+</script>
+</body>
+</html>

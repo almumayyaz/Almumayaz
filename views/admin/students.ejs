@@ -1,0 +1,233 @@
+<%- include('../partials/header', { title: title, bodyClass: 'admin-body' }) %>
+<%- include('../partials/admin-sidebar') %>
+<main class="admin-content">
+  <div class="page-header">
+    <div>
+      <h1>الطلاب</h1>
+      <p>إدارة الطلاب المسجلين في المنصة (<%= students.length %> طالب)</p>
+    </div>
+  </div>
+
+  <div class="admin-stats" style="margin-bottom:24px;">
+    <div class="admin-stat-card">
+      <h3>نشط</h3>
+      <div class="value" style="color:var(--success);"><%= students.filter(function(s) { return s.subscriptionStatus === 'active'; }).length %></div>
+    </div>
+    <div class="admin-stat-card">
+      <h3>غير مشترك</h3>
+      <div class="value" style="color:var(--text-muted);"><%= students.filter(function(s) { return !s.subscriptionStatus || s.subscriptionStatus === 'inactive'; }).length %></div>
+    </div>
+    <div class="admin-stat-card">
+      <h3>منتهي</h3>
+      <div class="value" style="color:#ca8a04;"><%= students.filter(function(s) { return s.subscriptionStatus === 'expired'; }).length %></div>
+    </div>
+    <div class="admin-stat-card">
+      <h3>موقوف</h3>
+      <div class="value" style="color:var(--danger);"><%= students.filter(function(s) { return s.subscriptionStatus === 'stopped' || s.subscriptionStatus === 'cancelled'; }).length %></div>
+    </div>
+  </div>
+
+  <div class="admin-table">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>الاسم</th>
+          <th>البريد الإلكتروني</th>
+          <th>الهاتف</th>
+          <th>ولي الأمر</th>
+          <th>المرحلة</th>
+          <th>الصف</th>
+          <th>المحافظة</th>
+          <th>حالة الاشتراك</th>
+          <th>تاريخ البداية</th>
+          <th>تاريخ النهاية</th>
+          <th>آخر دخول</th>
+          <th>الإجراءات</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (students.length > 0) { %>
+          <% students.forEach(function(s, i) { %>
+          <tr>
+            <td><%= i + 1 %></td>
+            <td><strong><%= s.name %></strong></td>
+            <td dir="ltr" style="font-size:12px;"><%= s.email || '---' %></td>
+            <td><%= s.phone || '---' %></td>
+            <td><%= s.parentPhone || '---' %></td>
+            <td><%= s.stage || '---' %></td>
+            <td><%= s.grade || '---' %></td>
+            <td><%= s.governorate || '---' %></td>
+            <td>
+              <% if (s.subscriptionStatus === 'active') { %>
+                <span class="status-badge active">نشط</span>
+              <% } else if (s.subscriptionStatus === 'expired') { %>
+                <span class="status-badge inactive">منتهي</span>
+              <% } else if (s.subscriptionStatus === 'stopped') { %>
+                <span class="status-badge inactive">موقوف</span>
+              <% } else { %>
+                <span class="status-badge pending">غير مشترك</span>
+              <% } %>
+            </td>
+            <td style="font-size:11px;"><%= s.subscriptionStart ? new Date(s.subscriptionStart).toLocaleDateString('ar-EG') : '---' %></td>
+            <td style="font-size:11px;"><%= s.subscriptionEnd ? new Date(s.subscriptionEnd).toLocaleDateString('ar-EG') : '---' %></td>
+            <td style="font-size:11px;"><%= s.lastLogin ? new Date(s.lastLogin).toLocaleDateString('ar-EG') : '---' %></td>
+            <td>
+              <div class="admin-actions">
+                <button class="edit" onclick='openStudentModal(<%= JSON.stringify(s) %>)' title="تعديل"><i class="fas fa-edit"></i></button>
+                <button class="view" onclick='openSubModal(<%= JSON.stringify(s) %>)' title="إدارة الاشتراك"><i class="fas fa-credit-card"></i></button>
+                <button class="delete" onclick="deleteStudent('<%= s.id %>')" title="حذف"><i class="fas fa-trash"></i></button>
+              </div>
+            </td>
+          </tr>
+          <% }) %>
+        <% } else { %>
+          <tr><td colspan="13" style="text-align:center;color:var(--text-light);">لا يوجد طلاب مسجلين</td></tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<!-- Student Edit Modal -->
+<div class="modal-overlay" id="studentModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>تعديل بيانات الطالب</h3>
+      <button class="modal-close" onclick="closeSM()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="studentId">
+      <div class="form-group"><label>الاسم</label><input id="studentName"></div>
+      <div class="form-group"><label>البريد الإلكتروني</label><input id="studentEmail" dir="ltr"></div>
+      <div class="form-group"><label>رقم الهاتف</label><input id="studentPhone"></div>
+      <div class="form-group"><label>هاتف ولي الأمر</label><input id="studentParentPhone"></div>
+      <div class="form-group"><label>المرحلة</label>
+        <select id="studentStage">
+          <option value="">اختر المرحلة</option>
+          <option value="إعدادية">إعدادية</option>
+          <option value="ثانوية">ثانوية</option>
+        </select>
+      </div>
+      <div class="form-group"><label>الصف الدراسي</label>
+        <select id="studentGrade">
+          <option value="">اختر الصف</option>
+          <option value="الأول الإعدادي">الأول الإعدادي</option>
+          <option value="الثاني الإعدادي">الثاني الإعدادي</option>
+          <option value="الثالث الإعدادي">الثالث الإعدادي</option>
+          <option value="الأول الثانوي">الأول الثانوي</option>
+          <option value="الثاني الثانوي">الثاني الثانوي</option>
+          <option value="الثالث الثانوي">الثالث الثانوي</option>
+        </select>
+      </div>
+      <div class="form-group"><label>المحافظة</label>
+        <select id="studentGovernorate">
+          <option value="">اختر المحافظة</option>
+          <% ['القاهرة','الجيزة','الإسكندرية','الدقهلية','الشرقية','القليوبية','الغربية','المنوفية','كفر الشيخ','البحيرة','دمياط','بورسعيد','السويس','الإسماعيلية','الفيوم','بني سويف','المنيا','أسيوط','سوهاج','قنا','الأقصر','أسوان'].forEach(function(g) { %>
+          <option value="<%= g %>"><%= g %></option>
+          <% }) %>
+        </select>
+      </div>
+      <button class="btn btn-primary" onclick="saveStudent()" style="width:100%;"><i class="fas fa-save"></i> حفظ التغييرات</button>
+    </div>
+  </div>
+</div>
+
+<!-- Subscription Modal -->
+<div class="modal-overlay" id="subModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>إدارة اشتراك الطالب</h3>
+      <button class="modal-close" onclick="closeSubModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="subStudentId">
+      <div id="subStudentInfo" style="margin-bottom:16px;padding:12px;background:var(--bg);border-radius:8px;">
+        <div style="font-weight:700;font-size:16px;" id="subStudentName"></div>
+        <div style="font-size:13px;color:var(--text-light);" id="subStudentStatus"></div>
+      </div>
+      <div class="form-group">
+        <label>الإجراء</label>
+        <select id="subAction">
+          <option value="activate">تفعيل الاشتراك</option>
+          <option value="deactivate">إلغاء الاشتراك</option>
+          <option value="extend">تمديد الاشتراك</option>
+          <option value="stop">إيقاف الطالب</option>
+          <option value="cancel">إلغاء الاشتراك بالكامل</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>المدة (بالأيام)</label>
+        <input type="number" id="subDays" value="30" min="1" placeholder="30">
+      </div>
+      <button class="btn btn-primary" onclick="manageSubscription()" style="width:100%;">
+        <i class="fas fa-check"></i> تنفيذ
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== STUDENT CRUD =====
+function openStudentModal(s) {
+  document.getElementById('studentId').value = s.id;
+  document.getElementById('studentName').value = s.name || '';
+  document.getElementById('studentEmail').value = s.email || '';
+  document.getElementById('studentPhone').value = s.phone || '';
+  document.getElementById('studentParentPhone').value = s.parentPhone || '';
+  document.getElementById('studentStage').value = s.stage || '';
+  document.getElementById('studentGrade').value = s.grade || '';
+  document.getElementById('studentGovernorate').value = s.governorate || '';
+  document.getElementById('studentModal').classList.add('show');
+}
+function closeSM() { document.getElementById('studentModal').classList.remove('show'); }
+function saveStudent() {
+  var id = document.getElementById('studentId').value;
+  var data = {
+    name: document.getElementById('studentName').value,
+    email: document.getElementById('studentEmail').value,
+    phone: document.getElementById('studentPhone').value,
+    parentPhone: document.getElementById('studentParentPhone').value,
+    stage: document.getElementById('studentStage').value,
+    grade: document.getElementById('studentGrade').value,
+    governorate: document.getElementById('studentGovernorate').value
+  };
+  fetch('/api/admin/students/' + id, {
+    method: 'PUT',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(data)
+  }).then(function(r) { return r.json(); }).then(function(d) { if (d.success) location.reload(); else alert(d.error); });
+}
+function deleteStudent(id) {
+  if (!confirm('هل أنت متأكد من حذف هذا الطالب؟')) return;
+  fetch('/api/admin/students/' + id, { method: 'DELETE' })
+    .then(function(r) { return r.json(); }).then(function(d) { if (d.success) location.reload(); else alert(d.error); });
+}
+document.getElementById('studentModal').addEventListener('click', function(e) { if (e.target === this) this.classList.remove('show'); });
+
+// ===== SUBSCRIPTION MANAGEMENT =====
+function openSubModal(s) {
+  document.getElementById('subStudentId').value = s.id;
+  document.getElementById('subStudentName').textContent = s.name;
+  var statusMap = { active: 'نشط', inactive: 'غير مشترك', expired: 'منتهي', stopped: 'موقوف', cancelled: 'ملغي' };
+  var status = statusMap[s.subscriptionStatus] || 'غير مشترك';
+  var endDate = s.subscriptionEnd ? new Date(s.subscriptionEnd).toLocaleDateString('ar-EG') : '---';
+  document.getElementById('subStudentStatus').textContent = 'الحالة: ' + status + ' | تاريخ النهاية: ' + endDate;
+  document.getElementById('subModal').classList.add('show');
+}
+function closeSubModal() { document.getElementById('subModal').classList.remove('show'); }
+function manageSubscription() {
+  var id = document.getElementById('subStudentId').value;
+  var action = document.getElementById('subAction').value;
+  var days = parseInt(document.getElementById('subDays').value) || 30;
+  if (!confirm('تأكيد الإجراء للطالب؟')) return;
+  fetch('/api/admin/students/' + id + '/subscription', {
+    method: 'PUT',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ action: action, durationDays: days })
+  }).then(function(r) { return r.json(); }).then(function(d) { if (d.success) location.reload(); else alert(d.error); });
+}
+document.getElementById('subModal').addEventListener('click', function(e) { if (e.target === this) this.classList.remove('show'); });
+</script>
+</body>
+</html>

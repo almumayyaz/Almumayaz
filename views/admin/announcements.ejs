@@ -1,0 +1,92 @@
+<%- include('../partials/header', { title: title, bodyClass: 'admin-body' }) %>
+<%- include('../partials/admin-sidebar') %>
+<main class="admin-content">
+  <div class="page-header">
+    <div>
+      <h1>الإعلانات</h1>
+      <p>إدارة الإعلانات والتحديثات</p>
+    </div>
+    <button class="btn btn-primary" onclick="openAnnModal()"><i class="fas fa-plus"></i> إعلان جديد</button>
+  </div>
+  <div class="admin-table">
+    <table>
+      <thead>
+        <tr><th>#</th><th>العنوان</th><th>المحتوى</th><th>التاريخ</th><th>مهم</th><th>الإجراءات</th></tr>
+      </thead>
+      <tbody>
+        <% if (announcements.length > 0) { %>
+          <% announcements.forEach(function(a, i) { %>
+          <tr>
+            <td><%= i + 1 %></td>
+            <td><strong><%= a.title %></strong></td>
+            <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><%= a.content %></td>
+            <td><%= a.date %></td>
+            <td><% if (a.important) { %><span class="status-badge active">مهم</span><% } else { %><span class="status-badge pending">عادي</span><% } %></td>
+            <td>
+              <div class="admin-actions">
+                <button class="edit" onclick='openAnnModal(<%= JSON.stringify(a) %>)'><i class="fas fa-edit"></i></button>
+                <button class="delete" onclick="deleteAnn('<%= a.id %>')"><i class="fas fa-trash"></i></button>
+              </div>
+            </td>
+          </tr>
+          <% }) %>
+        <% } else { %>
+          <tr><td colspan="6" style="text-align:center;color:var(--text-light);">لا توجد إعلانات</td></tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<!-- Announcement Modal -->
+<div class="modal-overlay" id="annModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="annModalTitle">إعلان جديد</h3>
+      <button class="modal-close" onclick="closeAnnModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="annId">
+      <div class="form-group"><label>عنوان الإعلان</label><input id="annTitle" placeholder="مثال: بدء الحجز للعام الجديد"></div>
+      <div class="form-group"><label>المحتوى</label><textarea id="annContent" rows="4" placeholder="نص الإعلان"></textarea></div>
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:8px;">
+          <input type="checkbox" id="annImportant"> إعلان مهم
+        </label>
+      </div>
+      <button class="btn btn-primary" onclick="saveAnn()" style="width:100%;"><i class="fas fa-save"></i> حفظ</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function openAnnModal(ann) {
+  document.getElementById('annModalTitle').textContent = ann ? 'تعديل الإعلان' : 'إعلان جديد';
+  document.getElementById('annId').value = ann ? ann.id : '';
+  document.getElementById('annTitle').value = ann ? ann.title : '';
+  document.getElementById('annContent').value = ann ? ann.content : '';
+  document.getElementById('annImportant').checked = ann ? !!ann.important : false;
+  document.getElementById('annModal').classList.add('show');
+}
+function closeAnnModal() { document.getElementById('annModal').classList.remove('show'); }
+function saveAnn() {
+  const id = document.getElementById('annId').value;
+  const data = {
+    title: document.getElementById('annTitle').value,
+    content: document.getElementById('annContent').value,
+    important: document.getElementById('annImportant').checked
+  };
+  const url = id ? '/api/admin/announcements/' + id : '/api/admin/announcements';
+  const method = id ? 'PUT' : 'POST';
+  fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) })
+    .then(r => r.json()).then(d => { if (d.success) location.reload(); else alert(d.error); });
+}
+function deleteAnn(id) {
+  if (!confirm('هل أنت متأكد من حذف هذا الإعلان؟')) return;
+  fetch('/api/admin/announcements/' + id, { method: 'DELETE' })
+    .then(r => r.json()).then(d => { if (d.success) location.reload(); else alert(d.error); });
+}
+document.getElementById('annModal').addEventListener('click', function(e) { if (e.target === this) this.classList.remove('show'); });
+</script>
+</body>
+</html>

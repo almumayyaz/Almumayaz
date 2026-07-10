@@ -1,0 +1,65 @@
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-about">
+          <a href="/" class="nav-logo">لغتي</a>
+          <p>منصة تعليمية متخصصة في تدريس اللغة العربية لطلاب الثانوية العامة. نقدم شرحاً مبسطاً، مراجعات قوية، واختبارات متخصصة لضمان التفوق والتميز.</p>
+        </div>
+        <div>
+          <h4>روابط سريعة</h4>
+          <ul class="footer-links">
+            <li><a href="/"><i class="fas fa-chevron-left"></i> الرئيسية</a></li>
+            <li><a href="/courses"><i class="fas fa-chevron-left"></i> المحاضرات</a></li>
+            <li><a href="/subscriptions"><i class="fas fa-chevron-left"></i> الاشتراكات</a></li>
+            <li><a href="/contact"><i class="fas fa-chevron-left"></i> تواصل معنا</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>المحاضرات</h4>
+          <ul class="footer-links">
+            <li><a href="/courses"><i class="fas fa-chevron-left"></i> النحو</a></li>
+            <li><a href="/courses"><i class="fas fa-chevron-left"></i> البلاغة</a></li>
+            <li><a href="/courses"><i class="fas fa-chevron-left"></i> الأدب</a></li>
+            <li><a href="/courses"><i class="fas fa-chevron-left"></i> النصوص</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>تواصل معنا</h4>
+          <ul class="footer-contact">
+            <li><i class="fas fa-phone"></i> 0100 000 0000</li>
+            <li><i class="fas fa-envelope"></i> info@lughati.com</li>
+            <li><i class="fas fa-map-marker-alt"></i> القاهرة، مصر</li>
+            <li><i class="fas fa-whatsapp"></i> واتساب: 0100 000 0000</li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        © 2026 جميع الحقوق محفوظة - منصة لغتي | الأستاذ مصطفى فرغلي
+      </div>
+    </div>
+  </footer>
+
+  <script src="/js/main.js"></script>
+  <script>
+    document.querySelectorAll('.faq-question').forEach(q => {
+      q.addEventListener('click', () => q.parentElement.classList.toggle('active'));
+    });
+    var lsTheme = localStorage.getItem('lughati-theme');
+    if (lsTheme && document.documentElement.getAttribute('data-theme') !== lsTheme) {
+      fetch('/api/toggle-dark-mode', { method: 'POST' }).then(r => r.json()).then(function(d) {
+        setTheme(d.darkMode ? 'dark' : 'light');
+      });
+    }
+    document.querySelectorAll('.btn-logout').forEach(btn => {
+      btn.addEventListener('click', function(e) {
+        if (!confirm('هل أنت متأكد من تسجيل الخروج؟')) e.preventDefault();
+      });
+    });
+    if (typeof firebase !== 'undefined' && firebase.auth) {
+      firebase.auth().onAuthStateChanged(function(user) {
+        // Track Firebase auth state if needed
+      });
+    }
+  </script>
+</body>
+</html>

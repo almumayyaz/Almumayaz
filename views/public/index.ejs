@@ -1,0 +1,193 @@
+<%- include('../partials/header', { title: title }) %>
+
+<section class="hero">
+  <div class="hero-bg">
+    <div class="hero-glow hero-glow-1"></div>
+    <div class="hero-glow hero-glow-2"></div>
+  </div>
+  <div class="container">
+    <div class="hero-content">
+      <div class="hero-badge">
+        <span class="hero-badge-dot"></span>
+        منصة تعليمية متخصصة
+      </div>
+      <h1>مصطفى <span class="title-accent text-gold">فرغلي</span></h1>
+      <h2>مدرس اللغة العربية للثانوية العامة</h2>
+      <div class="hero-tags">
+        <span><i class="fas fa-chalkboard-teacher"></i> شرح مبسط</span>
+        <span><i class="fas fa-sync-alt"></i> مراجعات قوية</span>
+        <span><i class="fas fa-tasks"></i> اختبارات متخصصة</span>
+      </div>
+      <div class="hero-stats-row">
+        <div class="hero-stat-item">
+          <span class="hero-stat-item-num">+15</span>
+          <span class="hero-stat-item-label">عاماً من الخبرة</span>
+        </div>
+        <div class="hero-stat-item">
+          <span class="hero-stat-item-num">+50</span>
+          <span class="hero-stat-item-label">محاضرة مسجلة</span>
+        </div>
+        <div class="hero-stat-item">
+          <span class="hero-stat-item-num">+95%</span>
+          <span class="hero-stat-item-label">نسبة النجاح</span>
+        </div>
+      </div>
+      <div class="hero-buttons">
+        <a href="/subscriptions" class="btn btn-primary btn-lg">اشترك الآن</a>
+        <a href="/demo" class="btn btn-outline btn-lg"><i class="fas fa-user-guest"></i> تسجيل كضيف</a>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <div class="hero-teacher-card">
+        <div class="hero-teacher-glow"></div>
+        <div class="hero-teacher-avatar">
+          <i class="fas fa-chalkboard-teacher"></i>
+        </div>
+        <div class="hero-teacher-name">
+          <span>الأستاذ</span>
+          <strong>مصطفى فرغلي</strong>
+        </div>
+        <div class="hero-teacher-title">اللغة العربية - الثانوية العامة</div>
+        <div class="hero-teacher-line"></div>
+        <div class="hero-teacher-badge">
+          <i class="fas fa-graduation-cap"></i>
+          <span>خبرة +15 عاماً</span>
+        </div>
+      </div>
+      <div class="hero-float-item hero-float-1">
+        <i class="fas fa-book-open"></i>
+        <span>النحو</span>
+      </div>
+      <div class="hero-float-item hero-float-2">
+        <i class="fas fa-feather-alt"></i>
+        <span>البلاغة</span>
+      </div>
+      <div class="hero-float-item hero-float-3">
+        <i class="fas fa-pen-fancy"></i>
+        <span>الأدب</span>
+      </div>
+      <div class="hero-float-item hero-float-4">
+        <i class="fas fa-quote-right"></i>
+        <span>النصوص</span>
+      </div>
+      <div class="hero-float-icon hero-float-icon-1">ن</div>
+      <div class="hero-float-icon hero-float-icon-2">ب</div>
+      <div class="hero-float-icon hero-float-icon-3">أ</div>
+      <div class="hero-float-icon hero-float-icon-4">ت</div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section-header">
+      <span class="tag">مميزاتنا</span>
+      <h2>لماذا لغتي؟</h2>
+      <p>منصة تعليمية متكاملة تقدم كل ما يحتاجه طالب الثانوية العامة لتحقيق التفوق</p>
+    </div>
+    <div class="features-grid">
+      <div class="feature-card animate-in">
+        <div class="feature-icon"><i class="fas fa-chalkboard"></i></div>
+        <h3>شرح كامل</h3>
+        <p>فيديوهات شرح وافرة لجميع أجزاء المنهج بأسلوب مبسط ومتدرج</p>
+      </div>
+      <div class="feature-card animate-in animate-in-d1">
+        <div class="feature-icon"><i class="fas fa-file-pdf"></i></div>
+        <h3>مذكرات PDF</h3>
+        <p>مذكرات شاملة ومنظمة للتحميل والطباعة لجميع فروع اللغة العربية</p>
+      </div>
+      <div class="feature-card animate-in animate-in-d2">
+        <div class="feature-icon"><i class="fas fa-tasks"></i></div>
+        <h3>اختبارات</h3>
+        <p>اختبارات إلكترونية تفاعلية مع تصحيح فوري ونتائج مباشرة</p>
+      </div>
+      <div class="feature-card animate-in animate-in-d3">
+        <div class="feature-icon"><i class="fas fa-question-circle"></i></div>
+        <h3>بنك أسئلة</h3>
+        <p>آلاف الأسئلة المصممة خصيصاً وفقاً لنظام الثانوية العامة</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<section class="section">
+  <div class="container">
+    <div class="section-header">
+      <span class="tag">الباقات</span>
+      <h2>خطط الاشتراك</h2>
+      <p>اختر الخطة المناسبة لك وابدأ التعلم اليوم</p>
+    </div>
+    <div class="subscriptions-grid">
+      <% var subs = typeof subscriptions !== 'undefined' ? subscriptions : []; %>
+      <% subs.forEach(function(sub) { %>
+      <div class="sub-card <%= sub.popular ? 'popular' : '' %>">
+        <% if (sub.popular) { %><div class="sub-badge">الأكثر طلباً</div><% } %>
+        <div class="sub-header">
+          <h3><%= sub.name %></h3>
+          <div class="sub-price">
+            <span class="amount"><%= sub.price %></span>
+            <span class="currency"><%= sub.currency %></span>
+          </div>
+          <div class="sub-period"><%= sub.period %></div>
+        </div>
+        <ul class="sub-features">
+          <% sub.features.forEach(function(f) { %>
+          <li><i class="fas fa-check"></i> <%= f %></li>
+          <% }) %>
+        </ul>
+        <a href="/register" class="btn btn-primary">اشترك الآن</a>
+      </div>
+      <% }) %>
+    </div>
+  </div>
+</section>
+
+<section class="section section-alt">
+  <div class="container">
+    <div class="section-header">
+      <span class="tag">FAQ</span>
+      <h2>الأسئلة الشائعة</h2>
+      <p>إجابات لأكثر الأسئلة التي تهم طلابنا</p>
+    </div>
+    <div class="faq-list">
+      <div class="faq-item active">
+        <div class="faq-question">
+          كيف يمكنني الاشتراك في المنصة؟
+          <i class="fas fa-chevron-down"></i>
+        </div>
+        <div class="faq-answer">يمكنك الاشتراك من خلال الضغط على زر "اشترك الآن" واختيار الخطة المناسبة لك، ثم إنشاء حساب وبدء التعلم فوراً.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-question">
+          هل المحاضرات مسجلة أم مباشرة؟
+          <i class="fas fa-chevron-down"></i>
+        </div>
+        <div class="faq-answer">جميع المحاضرات مسجلة بجودة عالية ويمكنك مشاهدتها في أي وقت يناسبك. كما نوفر مراجعات مباشرة دورية.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-question">
+          هل يمكنني تحميل المذكرات؟
+          <i class="fas fa-chevron-down"></i>
+        </div>
+        <div class="faq-answer">نعم، جميع المذكرات متاحة للتحميل بصيغة PDF مع كل محاضرة.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-question">
+          ما هي طرق الدفع المتاحة؟
+          <i class="fas fa-chevron-down"></i>
+        </div>
+        <div class="faq-answer">يمكن الدفع عبر فودافون كاش أو تحويل بنكي أو بطاقات الائتمان.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-question">
+          هل يمكنني استرداد المبلغ إذا لم تعجبني الخدمة؟
+          <i class="fas fa-chevron-down"></i>
+        </div>
+        <div class="faq-answer">نوفر ضمان استرداد كامل خلال أول 7 أيام من الاشتراك إذا لم تكن راضياً عن الخدمة.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<%- include('../partials/footer') %>

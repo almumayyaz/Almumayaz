@@ -1,0 +1,185 @@
+<%- include('../partials/header', { title: title }) %>
+<section class="auth-section">
+  <div class="auth-card">
+    <a href="/" class="nav-logo">لغتي</a>
+    <h2>إنشاء حساب جديد</h2>
+    <p>انضم إلى منصة لغتي التعليمية</p>
+
+    <% if (typeof error !== 'undefined' && error) { %>
+    <div class="auth-error">
+      <i class="fas fa-exclamation-circle"></i> <%= error %>
+    </div>
+    <% } %>
+
+    <form id="registerForm" onsubmit="return handleRegister(event)">
+      <div class="form-group">
+        <label>اسم الطالب <span style="color:var(--danger);">*</span></label>
+        <input type="text" name="name" id="regName" placeholder="الاسم كاملاً" required>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="form-group">
+          <label>رقم هاتف الطالب <span style="color:var(--text-muted);">(اختياري)</span></label>
+          <input type="tel" name="phone" id="regPhone" placeholder="مثال: 01234567890">
+        </div>
+        <div class="form-group">
+          <label>رقم ولي الأمر <span style="color:var(--danger);">*</span></label>
+          <input type="tel" name="parentPhone" id="regParentPhone" placeholder="مثال: 01234567890" required>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>البريد الإلكتروني <span style="color:var(--danger);">*</span></label>
+        <input type="email" name="email" id="regEmail" placeholder="example@email.com" dir="ltr" required>
+      </div>
+
+      <div class="form-group">
+        <label>كلمة المرور <span style="color:var(--danger);">*</span></label>
+        <input type="password" name="password" id="regPassword" placeholder="كلمة المرور" required minlength="6">
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="form-group">
+          <label>المرحلة الدراسية <span style="color:var(--danger);">*</span></label>
+          <select name="stage" id="regStage" required onchange="updateGrades()">
+            <option value="">اختر المرحلة</option>
+            <option value="إعدادية">إعدادية</option>
+            <option value="ثانوية">ثانوية</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>الصف الدراسي <span style="color:var(--danger);">*</span></label>
+          <select name="grade" id="regGrade" required>
+            <option value="">اختر الصف</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>المحافظة <span style="color:var(--danger);">*</span></label>
+        <select name="governorate" id="regGovernorate" required>
+          <option value="">اختر المحافظة</option>
+          <option>القاهرة</option>
+          <option>الجيزة</option>
+          <option>الإسكندرية</option>
+          <option>الدقهلية</option>
+          <option>الشرقية</option>
+          <option>القليوبية</option>
+          <option>الغربية</option>
+          <option>المنوفية</option>
+          <option>كفر الشيخ</option>
+          <option>البحيرة</option>
+          <option>دمياط</option>
+          <option>بورسعيد</option>
+          <option>السويس</option>
+          <option>الإسماعيلية</option>
+          <option>الفيوم</option>
+          <option>بني سويف</option>
+          <option>المنيا</option>
+          <option>أسيوط</option>
+          <option>سوهاج</option>
+          <option>قنا</option>
+          <option>الأقصر</option>
+          <option>أسوان</option>
+          <option>الوادي الجديد</option>
+          <option>مطروح</option>
+          <option>شمال سيناء</option>
+          <option>جنوب سيناء</option>
+          <option>البحر الأحمر</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>كود الدعوة <span style="color:var(--text-muted);">(اختياري)</span></label>
+        <input type="text" name="referralCode" id="regReferral" placeholder="كود الدعوة">
+      </div>
+
+      <button type="submit" class="btn btn-primary" id="registerBtn">
+        <i class="fas fa-user-plus"></i> إنشاء الحساب
+      </button>
+    </form>
+
+    <div class="auth-footer">
+      لديك حساب بالفعل؟ <a href="/login">تسجيل الدخول</a>
+    </div>
+  </div>
+</section>
+
+<script>
+function updateGrades() {
+  var stage = document.getElementById('regStage').value;
+  var gradeSelect = document.getElementById('regGrade');
+  gradeSelect.innerHTML = '<option value="">اختر الصف</option>';
+  if (stage === 'إعدادية') {
+    gradeSelect.innerHTML += '<option value="الأول الإعدادي">الأول الإعدادي</option>';
+    gradeSelect.innerHTML += '<option value="الثاني الإعدادي">الثاني الإعدادي</option>';
+    gradeSelect.innerHTML += '<option value="الثالث الإعدادي">الثالث الإعدادي</option>';
+  } else if (stage === 'ثانوية') {
+    gradeSelect.innerHTML += '<option value="الأول الثانوي">الأول الثانوي</option>';
+    gradeSelect.innerHTML += '<option value="الثاني الثانوي">الثاني الثانوي</option>';
+    gradeSelect.innerHTML += '<option value="الثالث الثانوي">الثالث الثانوي</option>';
+  }
+}
+
+function handleRegister(e) {
+  e.preventDefault();
+  var btn = document.getElementById('registerBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري إنشاء الحساب...';
+
+  var name = document.getElementById('regName').value;
+  var email = document.getElementById('regEmail').value;
+  var phone = document.getElementById('regPhone').value;
+  var parentPhone = document.getElementById('regParentPhone').value;
+  var password = document.getElementById('regPassword').value;
+  var grade = document.getElementById('regGrade').value;
+  var stage = document.getElementById('regStage').value;
+  var governorate = document.getElementById('regGovernorate').value;
+  var referralCode = document.getElementById('regReferral').value;
+
+  if (!name || !email || !parentPhone || !password || !grade || !stage || !governorate) {
+    alert('يرجى ملء جميع الحقول المطلوبة');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-user-plus"></i> إنشاء الحساب';
+    return false;
+  }
+
+  try {
+    firebase.auth().createUserWithEmailAndPassword(email, password)
+      .then(function(cred) {
+        return cred.user.getIdToken();
+      })
+      .then(function(token) {
+        return fetch('/api/auth/firebase-register', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            idToken: token, name: name, email: email,
+            phone: phone, parentPhone: parentPhone,
+            grade: grade, stage: stage,
+            governorate: governorate, referralCode: referralCode
+          })
+        });
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.success) window.location.href = d.redirect;
+        else { alert(d.error || 'فشل إنشاء الحساب'); location.reload(); }
+      })
+      .catch(function(err) {
+        var msg = err.message;
+        if (err.code === 'auth/email-already-in-use') msg = 'البريد الإلكتروني مستخدم بالفعل';
+        else if (err.code === 'auth/weak-password') msg = 'كلمة المرور ضعيفة (6 أحرف على الأقل)';
+        alert(msg);
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-user-plus"></i> إنشاء الحساب';
+      });
+  } catch (err) {
+    alert('حدث خطأ في الاتصال. تأكد من اتصالك بالإنترنت.');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-user-plus"></i> إنشاء الحساب';
+  }
+  return false;
+}
+</script>
+<%- include('../partials/footer') %>

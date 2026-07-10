@@ -1,0 +1,27 @@
+<%- include('../partials/header', { title: title, navPageTitle: 'المحاضرات', bodyClass: 'student-body' }) %>
+<%- include('../partials/student-sidebar') %>
+<main class="main-content">
+  <div class="page-header">
+    <div>
+      <h1>المحاضرات</h1>
+      <p>جميع محاضرات اللغة العربية للثانوية العامة</p>
+    </div>
+  </div>
+  <div class="courses-grid">
+    <% courses.forEach(function(course) { %>
+    <div class="course-card">
+      <div class="course-card-header">
+        <div class="icon"><i class="fas <%= course.icon %>"></i></div>
+        <h3><%= course.title %></h3>
+        <p><%= course.subtitle %></p>
+      </div>
+      <div class="course-card-body">
+
+        <a href="/student/course/<%= course.id %>" class="btn btn-primary">الدخول إلى المحاضرات</a>
+      </div>
+    </div>
+    <% }) %>
+  </div>
+</main>
+</body>
+</html>

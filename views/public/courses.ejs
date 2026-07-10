@@ -1,0 +1,32 @@
+<%- include('../partials/header', { title: title }) %>
+
+<section class="section" style="padding-top: 120px;">
+  <div class="container">
+    <div class="section-header">
+      <h2>المحاضرات</h2>
+      <p>جميع محاضرات اللغة العربية للثانوية العامة في مكان واحد</p>
+    </div>
+    <div class="courses-grid">
+      <% courses.forEach(function(course) { %>
+      <div class="course-card">
+        <div class="course-card-header">
+          <div class="icon"><i class="fas <%= course.icon %>"></i></div>
+          <h3><%= course.title %></h3>
+          <p><%= course.subtitle %></p>
+        </div>
+        <div class="course-card-body">
+          <div class="course-stat"><i class="fas fa-video"></i> <%= course.lessons.length %> محاضرة</div>
+          <div class="course-stat"><i class="fas fa-question-circle"></i> اختبارات تفاعلية</div>
+          <% if (user) { %>
+          <a href="/student/course/<%= course.id %>" class="btn btn-primary">الدخول إلى المحاضرات</a>
+          <% } else { %>
+          <a href="/register" class="btn btn-primary">اشترك الآن للوصول</a>
+          <% } %>
+        </div>
+      </div>
+      <% }) %>
+    </div>
+  </div>
+</section>
+
+<%- include('../partials/footer') %>

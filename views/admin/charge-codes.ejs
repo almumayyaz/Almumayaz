@@ -1,0 +1,133 @@
+<%- include('../partials/header', { title: title, bodyClass: 'admin-body' }) %>
+<%- include('../partials/admin-sidebar') %>
+<main class="admin-content">
+  <div class="page-header">
+    <div>
+      <h1>أكواد الشحن</h1>
+      <p>إدارة أكواد الشحن والرصيد (<%= chargeCodes.length %> كود)</p>
+    </div>
+    <button class="btn btn-primary" onclick="openCodeModal()"><i class="fas fa-plus"></i> إضافة كود</button>
+  </div>
+  <div class="admin-table">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>الكود</th>
+          <th>تاريخ الصلاحية</th>
+          <th>نوع الاشتراك</th>
+          <th>القيمة</th>
+          <th>عدد الاستخدامات</th>
+          <th>الحالة</th>
+          <th>الإجراءات</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (chargeCodes.length > 0) { %>
+          <% chargeCodes.forEach(function(c, i) { %>
+          <tr>
+            <td><%= i + 1 %></td>
+            <td dir="ltr" style="font-family:monospace;font-weight:700;"><%= c.code %></td>
+            <td><%= new Date(c.expiryDate).toLocaleDateString('ar-EG') %></td>
+            <td><%= c.subscriptionType %></td>
+            <td><%= c.value %> جنيه</td>
+            <td><%= c.currentUses || 0 %> / <%= c.maxUses || '∞' %></td>
+            <td><span class="status-badge <%= c.status === 'نشط' || c.status === 'active' ? 'active' : 'pending' %>"><%= c.status === 'active' ? 'نشط' : c.status === 'expired' ? 'منتهي' : c.status %></span></td>
+            <td>
+              <div class="admin-actions">
+                <button class="edit" onclick='openCodeModal(<%= JSON.stringify(c) %>)'><i class="fas fa-edit"></i></button>
+                <button class="delete" onclick="deleteCode('<%= c.id %>')"><i class="fas fa-trash"></i></button>
+              </div>
+            </td>
+          </tr>
+          <% }) %>
+        <% } else { %>
+          <tr><td colspan="8" style="text-align:center;color:var(--text-light);">لا توجد أكواد شحن</td></tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<!-- Code Modal -->
+<div class="modal-overlay" id="codeModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="codeModalTitle">إضافة كود شحن</h3>
+      <button class="modal-close" onclick="closeCodeModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="codeId">
+      <div class="form-group">
+        <label>الكود</label>
+        <div style="display:flex;gap:8px;">
+          <input id="codeValue" placeholder="سيتم التوليد تلقائياً" style="flex:1;font-family:monospace;" dir="ltr">
+          <button class="btn btn-sm" style="background:var(--accent);color:#fff;white-space:nowrap;" onclick="generateCode()"><i class="fas fa-sync"></i> توليد</button>
+        </div>
+      </div>
+      <div class="form-group"><label>مدة الصلاحية (بالأيام)</label><input id="codeDuration" type="number" min="1" value="30" placeholder="30"></div>
+      <div class="form-group">
+        <label>نوع الاشتراك</label>
+        <select id="codeSubscriptionType">
+          <option value="شهري">شهري</option>
+          <option value="ترم">ترم</option>
+          <option value="سنوي">سنوي</option>
+        </select>
+      </div>
+      <div class="form-group"><label>القيمة (جنيه)</label><input id="codeValueAmount" type="number" min="0" step="0.01" placeholder="200"></div>
+      <div class="form-group"><label>أقصى عدد استخدامات</label><input id="codeMaxUses" type="number" min="1" value="1" placeholder="1"></div>
+      <button class="btn btn-primary" onclick="saveCode()" style="width:100%;"><i class="fas fa-save"></i> حفظ</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function openCodeModal(code) {
+  document.getElementById('codeModalTitle').textContent = code ? 'تعديل كود الشحن' : 'إضافة كود شحن جديد';
+  document.getElementById('codeId').value = code ? code.id : '';
+  document.getElementById('codeValue').value = code ? code.code : '';
+  document.getElementById('codeDuration').value = code ? '' : '30';
+  document.getElementById('codeSubscriptionType').value = code ? code.subscriptionType : 'شهري';
+  document.getElementById('codeValueAmount').value = code ? (code.value || '') : '';
+  document.getElementById('codeMaxUses').value = code ? (code.maxUses || 1) : 1;
+  document.getElementById('codeModal').classList.add('show');
+}
+
+function closeCodeModal() { document.getElementById('codeModal').classList.remove('show'); }
+
+function generateCode() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let code = '';
+  for (let i = 0; i < 12; i++) {
+    if (i > 0 && i % 4 === 0) code += '-';
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  document.getElementById('codeValue').value = code;
+}
+
+function saveCode() {
+  const id = document.getElementById('codeId').value;
+  const data = {
+    code: document.getElementById('codeValue').value,
+    duration: parseInt(document.getElementById('codeDuration').value) || 30,
+    subscriptionType: document.getElementById('codeSubscriptionType').value,
+    value: parseFloat(document.getElementById('codeValueAmount').value) || 0,
+    maxUses: parseInt(document.getElementById('codeMaxUses').value) || 1
+  };
+  if (!data.code) { alert('يرجى إدخال كود أو توليد واحد'); return; }
+  const url = id ? '/api/admin/charge-codes/' + id : '/api/admin/charge-codes';
+  const method = id ? 'PUT' : 'POST';
+  fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) })
+    .then(r => r.json()).then(d => { if (d.success) location.reload(); else alert(d.error); });
+}
+
+function deleteCode(id) {
+  if (!confirm('هل أنت متأكد من حذف كود الشحن هذا؟')) return;
+  fetch('/api/admin/charge-codes/' + id, { method: 'DELETE' })
+    .then(r => r.json()).then(d => { if (d.success) location.reload(); else alert(d.error); });
+}
+
+document.getElementById('codeModal').addEventListener('click', function(e) { if (e.target === this) this.classList.remove('show'); });
+</script>
+</body>
+</html>

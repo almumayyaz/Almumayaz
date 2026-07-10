@@ -1,0 +1,42 @@
+<%- include('../partials/header', { title: title, navPageTitle: 'المراجعات', bodyClass: 'student-body' }) %>
+<%- include('../partials/student-sidebar') %>
+<main class="main-content">
+  <div class="page-header">
+    <div>
+      <h1>المراجعات</h1>
+      <p>مراجعات شاملة لجميع فروع اللغة العربية - أعدها الأستاذ مصطفى فرغلي</p>
+    </div>
+  </div>
+
+  <div class="reviews-timeline">
+    <% if (reviews && reviews.length > 0) { %>
+      <% reviews.forEach(function(r, idx) { %>
+      <div class="review-card" style="animation: fadeInLeft 0.5s ease <%= idx * 0.15 %>s both;">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:12px;">
+          <div style="width:48px;height:48px;background:<%= r.color %>;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;flex-shrink:0;">
+            <i class="fas <%= r.icon %>"></i>
+          </div>
+          <div>
+            <h3 style="margin-bottom:0;"><%= r.title %></h3>
+            <div class="meta" style="margin-bottom:0;">
+              <% if (r.course) { %><span><i class="fas fa-book"></i> <%= r.course %></span><% } %>
+              <span><i class="fas fa-calendar-alt"></i> <%= r.date %></span>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;">
+              <a href="/student/review/<%= r.id %>" class="btn btn-sm btn-primary"><i class="fas fa-play"></i> بدء المراجعة</a>
+          <button class="btn btn-sm" style="background:var(--bg);color:var(--text);border:1px solid var(--border);" onclick="alert('تمت إضافة المراجعة إلى قائمتي')"><i class="fas fa-bookmark"></i> حفظ</button>
+        </div>
+      </div>
+      <% }) %>
+    <% } else { %>
+    <div style="text-align:center;padding:60px 20px;color:var(--text-light);">
+      <i class="fas fa-star" style="font-size:48px;display:block;margin-bottom:16px;color:var(--border);"></i>
+      <p>لا توجد مراجعات متاحة حالياً</p>
+    </div>
+    <% } %>
+  </div>
+</main>
+</body>
+</html>

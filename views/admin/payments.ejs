@@ -1,0 +1,155 @@
+<%- include('../partials/header', { title: title, bodyClass: 'admin-body' }) %>
+<%- include('../partials/admin-sidebar') %>
+<main class="admin-content">
+  <div class="page-header">
+    <div>
+      <h1>المدفوعات</h1>
+      <p>متابعة وإدارة طلبات الدفع والاشتراكات</p>
+    </div>
+  </div>
+
+  <div class="admin-stats" style="margin-bottom:24px;">
+    <div class="admin-stat-card">
+      <h3>قيد الانتظار</h3>
+      <div class="value" style="color:#ca8a04;"><%= payments.filter(function(p) { return p.status === 'pending'; }).length %></div>
+    </div>
+    <div class="admin-stat-card">
+      <h3>مقبولة</h3>
+      <div class="value" style="color:var(--success);"><%= payments.filter(function(p) { return p.status === 'approved'; }).length %></div>
+    </div>
+    <div class="admin-stat-card">
+      <h3>مرفوضة</h3>
+      <div class="value" style="color:var(--danger);"><%= payments.filter(function(p) { return p.status === 'rejected'; }).length %></div>
+    </div>
+    <div class="admin-stat-card">
+      <h3>إجمالي المدفوعات</h3>
+      <div class="value"><%= payments.length %></div>
+    </div>
+  </div>
+
+  <div class="admin-table">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>الطالب</th>
+          <th>رقم العملية</th>
+          <th>المبلغ</th>
+          <th>طريقة الدفع</th>
+          <th>التاريخ</th>
+          <th>الإيصال</th>
+          <th>الحالة</th>
+          <th>الإجراءات</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (payments.length > 0) { %>
+          <% payments.sort(function(a, b) { return new Date(b.date) - new Date(a.date); }).forEach(function(p, i) { %>
+          <tr>
+            <td><%= i + 1 %></td>
+            <td><strong><%= p.userName %></strong></td>
+            <td dir="ltr" style="font-size:12px;"><%= p.transactionId %></td>
+            <td><%= p.amount %> جنيه</td>
+            <td><%= p.method %></td>
+            <td style="font-size:12px;"><%= new Date(p.date).toLocaleDateString('ar-EG') %></td>
+            <td>
+              <% if (p.receiptImage) { %>
+                <a href="#" onclick="window.open(this.href,'_blank','width=600,height=600');return false;" style="color:var(--accent);font-size:12px;display:flex;align-items:center;gap:4px;">
+                  <i class="fas fa-image"></i> عرض الإيصال
+                  <img src="<%= p.receiptImage %>" style="display:none;">
+                </a>
+              <% } else { %>
+                <span style="color:var(--text-muted);font-size:12px;">لا يوجد</span>
+              <% } %>
+            </td>
+            <td>
+              <% if (p.status === 'pending') { %>
+                <span class="status-badge pending">قيد الانتظار</span>
+              <% } else if (p.status === 'approved') { %>
+                <span class="status-badge active">مقبول</span>
+              <% } else if (p.status === 'rejected') { %>
+                <span class="status-badge inactive" title="<%= p.rejectReason %>">مرفوض</span>
+              <% } %>
+            </td>
+            <td>
+              <% if (p.status === 'pending') { %>
+              <div class="admin-actions">
+                <button class="view" onclick="approvePayment('<%= p.id %>')"><i class="fas fa-check"></i> قبول</button>
+                <button class="delete" onclick="rejectPayment('<%= p.id %>')"><i class="fas fa-times"></i> رفض</button>
+              </div>
+              <% } else { %>
+                <span style="font-size:11px;color:var(--text-muted);"><%= p.status === 'approved' ? 'تمت الموافقة' : 'تم الرفض' %></span>
+              <% } %>
+            </td>
+          </tr>
+          <% if (p.status === 'rejected' && p.rejectReason) { %>
+          <tr style="background:rgba(220,38,38,0.04);">
+            <td colspan="9" style="font-size:12px;color:var(--danger);padding:4px 20px;">
+              <i class="fas fa-info-circle"></i> سبب الرفض: <%= p.rejectReason %>
+            </td>
+          </tr>
+          <% } %>
+          <% }) %>
+        <% } else { %>
+          <tr>
+            <td colspan="9" style="text-align:center;color:var(--text-light);padding:40px;">
+              <i class="fas fa-inbox" style="font-size:40px;display:block;margin-bottom:12px;color:var(--border);"></i>
+              لا توجد طلبات دفع حتى الآن
+            </td>
+          </tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<!-- Reject Modal -->
+<div class="modal-overlay" id="rejectModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>رفض طلب الدفع</h3>
+      <button class="modal-close" onclick="closeModal('rejectModal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="rejectPaymentId">
+      <div class="form-group"><label>سبب الرفض</label>
+        <textarea id="rejectReason" rows="4" placeholder="اكتب سبب الرفض..."></textarea>
+      </div>
+      <button class="btn" style="width:100%;background:var(--danger);color:#fff;" onclick="confirmReject()">
+        <i class="fas fa-times"></i> تأكيد الرفض
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+function approvePayment(id) {
+  if (!confirm('هل أنت متأكد من قبول طلب الدفع؟ سيتم تفعيل اشتراك الطالب.')) return;
+  fetch('/api/admin/payments/' + id, {
+    method: 'PUT',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ status: 'approved' })
+  }).then(function(r) { return r.json(); }).then(function(d) { if (d.success) location.reload(); else alert(d.error); });
+}
+
+function rejectPayment(id) {
+  document.getElementById('rejectPaymentId').value = id;
+  document.getElementById('rejectReason').value = '';
+  document.getElementById('rejectModal').classList.add('show');
+}
+
+function confirmReject() {
+  var id = document.getElementById('rejectPaymentId').value;
+  var reason = document.getElementById('rejectReason').value;
+  fetch('/api/admin/payments/' + id, {
+    method: 'PUT',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ status: 'rejected', rejectReason: reason })
+  }).then(function(r) { return r.json(); }).then(function(d) { if (d.success) location.reload(); else alert(d.error); });
+}
+
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+document.getElementById('rejectModal').addEventListener('click', function(e) { if (e.target === this) this.classList.remove('show'); });
+</script>
+</body>
+</html>

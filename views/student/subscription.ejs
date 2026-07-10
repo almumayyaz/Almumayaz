@@ -1,0 +1,230 @@
+<%- include('../partials/header', { title: title, navPageTitle: 'الاشتراك', bodyClass: 'student-body' }) %>
+<%- include('../partials/student-sidebar') %>
+<main class="main-content">
+  <div class="page-header">
+    <div>
+      <h1>الاشتراك</h1>
+      <p>اختر خطة الاشتراك المناسبة لك وتمتع بجميع المميزات</p>
+    </div>
+  </div>
+
+  <% if (isGuest) { %>
+  <div style="background:var(--accent-glow);border:1px solid var(--accent);border-radius:var(--radius);padding:20px 24px;margin-bottom:20px;text-align:center;">
+    <i class="fas fa-user-friends" style="font-size:32px;color:var(--accent);display:block;margin-bottom:12px;"></i>
+    <h3 style="font-size:18px;font-weight:700;margin-bottom:8px;">وضع الزائر</h3>
+    <p style="font-size:14px;color:var(--text-light);margin-bottom:16px;">أنت تستخدم المنصة كزائر. أنشئ حساباً للوصول إلى جميع المحاضرات والمذكرات والمراجعات.</p>
+    <a href="/register" class="btn btn-primary btn-lg"><i class="fas fa-user-plus"></i> إنشاء حساب مجاني</a>
+  </div>
+  <% } else { %>
+  <div class="welcome-banner" style="padding:20px 24px;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+      <i class="fas fa-credit-card" style="color:var(--accent);font-size:18px;"></i>
+      <h3 style="font-size:16px;font-weight:700;color:var(--accent);font-family:'Aref Ruqaa',serif;margin:0;">حالة الاشتراك</h3>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+      <div>
+        <div id="subStatusText" style="font-size:13px;font-weight:700;">
+          <% if (user.subscriptionStatus === 'active') { %>
+            <span style="color:var(--success);">مشترك <i class="fas fa-check-circle"></i></span>
+          <% } else if (user.subscriptionStatus === 'expired') { %>
+            <span style="color:#ca8a04;">منتهي <i class="fas fa-exclamation-circle"></i></span>
+          <% } else if (user.subscriptionStatus === 'stopped' || user.subscriptionStatus === 'cancelled') { %>
+            <span style="color:var(--danger);">موقوف <i class="fas fa-ban"></i></span>
+          <% } else { %>
+            غير مشترك
+          <% } %>
+        </div>
+        <div style="font-size:12px;opacity:0.7;margin-top:2px;">
+          <% if (user.subscriptionStatus === 'active' && user.subscriptionEnd) { %>
+            ينتهي في: <%= new Date(user.subscriptionEnd).toLocaleDateString('ar-EG') %>
+          <% } else { %>
+            اشترك الآن للوصول إلى جميع المحاضرات والمذكرات
+          <% } %>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  <% } %>
+
+  <div style="background:var(--card);border-radius:var(--radius-lg);padding:20px 24px;margin-bottom:20px;box-shadow:var(--shadow);border:1px solid var(--border);border-right:4px solid var(--accent);">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+      <i class="fas fa-barcode" style="color:var(--accent);font-size:18px;"></i>
+      <h3 style="font-size:15px;font-weight:700;margin:0;">تفعيل بكود شحن</h3>
+    </div>
+    <div id="redeemSection">
+      <div id="redeemMessage" style="display:none;padding:12px;border-radius:8px;margin-bottom:12px;text-align:center;font-size:13px;font-weight:600;"></div>
+      <div style="display:flex;gap:10px;">
+        <input type="text" id="redeemCode" class="form-input" placeholder="أدخل كود الشحن" style="flex:1;direction:rtl;text-align:center;font-family:monospace;font-size:16px;letter-spacing:2px;">
+        <button class="btn btn-primary" onclick="redeemCode()" id="redeemBtn" style="white-space:nowrap;"><i class="fas fa-check"></i> تفعيل</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="subscription-plans">
+    <% subscriptions.forEach(function(sub, idx) { %>
+    <div class="sub-card <%= sub.popular ? 'popular' : '' %>">
+      <% if (sub.popular) { %><div class="sub-badge">الأكثر طلباً</div><% } %>
+      <div class="sub-header">
+        <h3><%= sub.name %></h3>
+        <div class="sub-price">
+          <span class="amount"><%= sub.price %></span>
+          <span class="currency"><%= sub.currency %></span>
+        </div>
+        <div class="sub-period"><%= sub.period %></div>
+      </div>
+      <div class="sub-features-wrap">
+        <ul class="sub-features" id="subFeatures<%= idx %>">
+          <% sub.features.forEach(function(f) { %>
+          <li><i class="fas fa-check"></i> <%= f %></li>
+          <% }) %>
+        </ul>
+      </div>
+      <button class="btn btn-primary" onclick="openSubPopup(<%= idx %>, '<%= sub.name %>', '<%= sub.price %>')">اشترك الآن</button>
+      <div class="sub-expand" onclick="toggleFeatures(<%= idx %>)"><span>عرض المزايا</span> <i class="fas fa-chevron-down"></i></div>
+    </div>
+    <% }) %>
+  </div>
+</main>
+
+<!-- Subscription Payment Popup -->
+<div class="modal-overlay" id="subPopup">
+  <div class="modal" style="max-width:460px;">
+    <div class="modal-header">
+      <h3>اشتراك: <span id="popupPlanName"></span></h3>
+      <button class="modal-close" onclick="closeSubPopup()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div style="background:var(--accent-glow);border:1px solid var(--accent);border-radius:var(--radius);padding:16px;margin-bottom:16px;text-align:center;">
+        <div style="font-size:13px;font-weight:700;margin-bottom:8px;">المطلوب: <span id="popupPlanPrice" style="color:var(--accent);font-size:20px;"></span> جنيه</div>
+      </div>
+
+      <div style="background:var(--bg);border-radius:var(--radius);padding:16px;margin-bottom:16px;">
+        <div style="font-weight:700;font-size:14px;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+          <i class="fas fa-info-circle" style="color:var(--accent);"></i> بيانات الدفع
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;">
+          <div style="display:flex;justify-content:space-between;padding:8px 12px;background:var(--card);border-radius:8px;">
+            <span style="color:var(--text-light);">فودافون كاش</span>
+            <span dir="ltr" style="font-weight:700;font-family:monospace;font-size:15px;color:var(--accent);"><%= vodafoneCash %></span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:8px 12px;background:var(--card);border-radius:8px;">
+            <span style="color:var(--text-light);">إنستا باي</span>
+            <span dir="ltr" style="font-weight:700;font-family:monospace;font-size:15px;color:var(--accent);"><%= instaPay %></span>
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:12px;text-align:center;">
+          <i class="fas fa-check-circle" style="color:var(--success);"></i> حول المبلغ على أي من الرقمين ثم أدخل كود العملية
+        </div>
+      </div>
+
+      <div id="subFormError" style="display:none;background:rgba(220,38,38,0.1);border:1px solid rgba(220,38,38,0.2);border-radius:var(--radius);padding:12px;margin-bottom:12px;text-align:center;font-size:13px;color:var(--danger);">
+        <span id="subFormErrorText"></span>
+      </div>
+
+      <input type="hidden" id="subPlanName">
+      <input type="hidden" id="subPlanPrice">
+      <div class="form-group">
+        <label>كود العملية (رقم المعاملة)</label>
+        <input type="text" id="subTransactionId" class="form-input" placeholder="أدخل كود العملية من المحفظة" style="direction:rtl;">
+      </div>
+      <div class="form-group">
+        <label>طريقة التحويل</label>
+        <select id="subPaymentMethod" class="form-input">
+          <option value="vodafone-cash">فودافون كاش</option>
+          <option value="instapay">إنستا باي</option>
+        </select>
+      </div>
+      <button class="btn btn-primary btn-lg" onclick="submitSubscription()" id="subSubmitBtn" style="width:100%;">
+        <i class="fas fa-check"></i> تأكيد الاشتراك
+      </button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .sub-features-wrap { overflow:hidden; max-height:0; transition:max-height 0.4s ease; }
+  .sub-features-wrap.open { max-height:600px; }
+
+  .sub-expand { display:flex; align-items:center; justify-content:center; gap:6px; padding:10px; cursor:pointer; color:var(--text); font-size:13px; font-weight:600; transition:var(--transition); background:var(--card-alt); border-radius:0 0 var(--radius-xl) var(--radius-xl); }
+  .sub-expand:hover { color:var(--accent); background:var(--accent-glow); }
+  .sub-expand i { font-size:13px; transition:transform 0.3s ease; }
+  .sub-expand.open i { transform:rotate(180deg); }
+  .sub-card.expanded .sub-expand { background:var(--card-alt); }
+</style>
+
+<script>
+function toggleFeatures(idx) {
+  var wrap = document.getElementById('subFeatures' + idx);
+  if (!wrap) return;
+  var parent = wrap.closest('.sub-features-wrap');
+  parent.classList.toggle('open');
+  var card = parent.closest('.sub-card');
+  card.classList.toggle('expanded', parent.classList.contains('open'));
+  var expand = card.querySelector('.sub-expand');
+  expand.classList.toggle('open', parent.classList.contains('open'));
+}
+
+function openSubPopup(idx, name, price) {
+  document.getElementById('popupPlanName').textContent = name;
+  document.getElementById('popupPlanPrice').textContent = price;
+  document.getElementById('subPlanName').value = name;
+  document.getElementById('subPlanPrice').value = price;
+  document.getElementById('subFormError').style.display = 'none';
+  document.getElementById('subTransactionId').value = '';
+  document.getElementById('subPopup').classList.add('show');
+}
+function closeSubPopup() { document.getElementById('subPopup').classList.remove('show'); }
+document.getElementById('subPopup').addEventListener('click', function(e) { if (e.target === this) this.classList.remove('show'); });
+
+function redeemCode() {
+  var code = document.getElementById('redeemCode').value.trim();
+  var msg = document.getElementById('redeemMessage');
+  var btn = document.getElementById('redeemBtn');
+  if (!code) { msg.style.display = 'block'; msg.style.background = 'rgba(220,38,38,0.1)'; msg.style.color = 'var(--danger)'; msg.textContent = 'يرجى إدخال كود الشحن'; return; }
+  msg.style.display = 'none';
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+  fetch('/api/student/redeem-code', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code:code}) })
+  .then(function(r){return r.json()})
+  .then(function(d){
+    if(d.success){
+      msg.style.display='block'; msg.style.background='rgba(22,163,74,0.1)'; msg.style.color='var(--success)'; msg.innerHTML='<i class="fas fa-check-circle"></i> تم التفعيل بنجاح! اشتراكك نشط الآن.';
+      document.getElementById('redeemCode').value='';
+      setTimeout(function(){ location.reload(); }, 2000);
+    } else {
+      msg.style.display='block'; msg.style.background='rgba(220,38,38,0.1)'; msg.style.color='var(--danger)'; msg.textContent = d.error || 'الكود غير صالح';
+    }
+    btn.disabled=false; btn.innerHTML='<i class="fas fa-check"></i> تفعيل';
+  })
+  .catch(function(){ msg.style.display='block'; msg.style.background='rgba(220,38,38,0.1)'; msg.style.color='var(--danger)'; msg.textContent='حدث خطأ في الاتصال'; btn.disabled=false; btn.innerHTML='<i class="fas fa-check"></i> تفعيل'; });
+}
+
+function submitSubscription() {
+  var transactionId = document.getElementById('subTransactionId').value.trim();
+  var planName = document.getElementById('subPlanName').value;
+  var price = document.getElementById('subPlanPrice').value;
+  var paymentMethod = document.getElementById('subPaymentMethod').value;
+  var errDiv = document.getElementById('subFormError');
+  var errText = document.getElementById('subFormErrorText');
+  errDiv.style.display = 'none';
+  if (!transactionId) { errDiv.style.display = 'block'; errText.textContent = 'يرجى إدخال كود العملية'; return; }
+  var btn = document.getElementById('subSubmitBtn');
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الإرسال...';
+  fetch('/api/student/subscribe', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ planName: planName, price: Number(price), transactionId: transactionId, paymentMethod: paymentMethod })
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.success) {
+      document.getElementById('subPopup').innerHTML = '<div style="padding:60px 24px;text-align:center;"><i class="fas fa-check-circle" style="font-size:56px;color:var(--success);display:block;margin-bottom:16px;"></i><h2 style="font-family:\'Aref Ruqaa\',serif;font-size:22px;font-weight:700;margin-bottom:8px;">✅ تم إرسال طلب الاشتراك</h2><p style="font-size:14px;color:var(--text-light);margin-bottom:20px;">في انتظار موافقة الأستاذ مصطفى فرغلي. سيتم تفعيل اشتراكك فور الموافقة.</p><button class="btn btn-primary" onclick="location.reload()"><i class="fas fa-home"></i> العودة</button></div>';
+    } else {
+      errDiv.style.display = 'block'; errText.textContent = d.error || 'حدث خطأ';
+      btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> تأكيد الاشتراك';
+    }
+  }).catch(function() {
+    errDiv.style.display = 'block'; errText.textContent = 'حدث خطأ في الاتصال';
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> تأكيد الاشتراك';
+  });
+}
+</script>
+</body>
+</html>

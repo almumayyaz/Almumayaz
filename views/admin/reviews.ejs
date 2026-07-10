@@ -1,0 +1,165 @@
+<%- include('../partials/header', { title: title, bodyClass: 'admin-body' }) %>
+<%- include('../partials/admin-sidebar') %>
+<main class="admin-content">
+  <div class="page-header">
+    <div>
+      <h1>المراجعات</h1>
+      <p>إدارة المراجعات والفيديوهات التعليمية والاختبارات</p>
+    </div>
+    <button class="btn btn-primary" onclick="openReviewModal()"><i class="fas fa-plus"></i> مراجعة جديدة</button>
+  </div>
+  <div class="admin-table">
+    <table>
+      <thead>
+        <tr><th>#</th><th>العنوان</th><th>المادة</th><th>التاريخ</th><th>اختبار</th><th>الإجراءات</th></tr>
+      </thead>
+      <tbody>
+        <% if (reviews.length > 0) { %>
+          <% reviews.forEach(function(r, i) { %>
+          <tr>
+            <td><%= i + 1 %></td>
+            <td><strong><%= r.title %></strong></td>
+            <td><%= r.course || '---' %></td>
+            <td><%= r.date %></td>
+            <td><% if (r.quiz) { %><span class="status-badge active"><%= r.quiz.questions.length %> سؤال</span><% } else { %><span class="status-badge pending">لا يوجد</span><% } %></td>
+            <td>
+              <div class="admin-actions">
+                <button class="edit" onclick='openReviewModal(<%= JSON.stringify(r) %>)'><i class="fas fa-edit"></i></button>
+                <button class="view" onclick='openReviewQuizModal(<%= JSON.stringify(r) %>)'><i class="fas fa-tasks"></i></button>
+                <button class="delete" onclick="deleteReview('<%= r.id %>')"><i class="fas fa-trash"></i></button>
+              </div>
+            </td>
+          </tr>
+          <% }) %>
+        <% } else { %>
+          <tr><td colspan="6" style="text-align:center;color:var(--text-light);">لا توجد مراجعات</td></tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<!-- Review Modal -->
+<div class="modal-overlay" id="reviewModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="reviewModalTitle">مراجعة جديدة</h3>
+      <button class="modal-close" onclick="closeRM()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="reviewId">
+      <div class="form-group"><label>عنوان المراجعة</label><input id="reviewTitle" placeholder="مثال: مراجعة النحو الشاملة"></div>
+      <div class="form-group"><label>المادة</label><input id="reviewCourse" placeholder="نحو - بلاغة - أدب - نصوص"></div>
+      <div class="form-group"><label>الوصف</label><textarea id="reviewDesc" rows="3" placeholder="وصف المراجعة"></textarea></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="form-group"><label>أيقونة</label><input id="reviewIcon" value="fa-book-open"></div>
+        <div class="form-group"><label>اللون</label><input type="color" id="reviewColor" value="#A07200"></div>
+      </div>
+      <div class="form-group"><label>رابط فيديو (YouTube Embed)</label><input id="reviewVideoUrl" placeholder="https://www.youtube.com/embed/..."></div>
+      <div class="form-group"><label>رابط PDF</label><input id="reviewPdfUrl" placeholder="/files/review.pdf"></div>
+      <button class="btn btn-primary" onclick="saveReview()" style="width:100%;"><i class="fas fa-save"></i> حفظ</button>
+    </div>
+  </div>
+</div>
+
+<!-- Review Quiz Modal -->
+<div class="modal-overlay" id="reviewQuizModal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3 id="reviewQuizModalTitle">اختبار المراجعة</h3>
+      <button class="modal-close" onclick="closeRQM()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="rqReviewId">
+      <div class="form-group"><label>عنوان الاختبار</label><input id="rqTitle" placeholder="مثال: اختبار مراجعة النحو"></div>
+      <div id="rqQuestionsContainer">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <label>الأسئلة</label>
+          <button class="btn btn-sm" style="background:var(--accent);color:#fff;" onclick="addRqQuestion()"><i class="fas fa-plus"></i> إضافة سؤال</button>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="saveReviewQuiz()" style="width:100%;margin-top:16px;"><i class="fas fa-save"></i> حفظ الاختبار</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function openReviewModal(r) {
+  document.getElementById('reviewModalTitle').textContent = r ? 'تعديل المراجعة' : 'مراجعة جديدة';
+  document.getElementById('reviewId').value = r ? r.id : '';
+  document.getElementById('reviewTitle').value = r ? r.title : '';
+  document.getElementById('reviewCourse').value = r ? (r.course || '') : '';
+  document.getElementById('reviewDesc').value = r ? (r.desc || '') : '';
+  document.getElementById('reviewIcon').value = r ? (r.icon || 'fa-book-open') : 'fa-book-open';
+  document.getElementById('reviewColor').value = r ? (r.color || '#A07200') : '#A07200';
+  document.getElementById('reviewVideoUrl').value = r ? (r.videoUrl || '') : '';
+  document.getElementById('reviewPdfUrl').value = r ? (r.pdfUrl || '') : '';
+  document.getElementById('reviewModal').classList.add('show');
+}
+function closeRM() { document.getElementById('reviewModal').classList.remove('show'); }
+function saveReview() {
+  const id = document.getElementById('reviewId').value;
+  const data = {
+    title: document.getElementById('reviewTitle').value,
+    course: document.getElementById('reviewCourse').value,
+    desc: document.getElementById('reviewDesc').value,
+    icon: document.getElementById('reviewIcon').value,
+    color: document.getElementById('reviewColor').value,
+    videoUrl: document.getElementById('reviewVideoUrl').value,
+    pdfUrl: document.getElementById('reviewPdfUrl').value
+  };
+  const url = id ? '/api/admin/reviews/' + id : '/api/admin/reviews';
+  const method = id ? 'PUT' : 'POST';
+  fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) })
+    .then(r => r.json()).then(d => { if (d.success) location.reload(); else alert(d.error); });
+}
+function deleteReview(id) {
+  if (!confirm('هل أنت متأكد من حذف هذه المراجعة؟')) return;
+  fetch('/api/admin/reviews/' + id, { method: 'DELETE' })
+    .then(r => r.json()).then(d => { if (d.success) location.reload(); else alert(d.error); });
+}
+document.getElementById('reviewModal').addEventListener('click', function(e) { if (e.target === this) this.classList.remove('show'); });
+
+function openReviewQuizModal(r) {
+  document.getElementById('reviewQuizModalTitle').textContent = 'اختبار - ' + r.title;
+  document.getElementById('rqReviewId').value = r.id;
+  document.getElementById('rqTitle').value = r.quiz ? r.quiz.title : 'اختبار المراجعة';
+  const container = document.getElementById('rqQuestionsContainer');
+  const existing = container.querySelectorAll('.question-block');
+  existing.forEach(el => el.remove());
+  if (r.quiz && r.quiz.questions) {
+    r.quiz.questions.forEach((q, i) => addRqQuestion(q, i));
+  }
+  document.getElementById('reviewQuizModal').classList.add('show');
+}
+function closeRQM() { document.getElementById('reviewQuizModal').classList.remove('show'); }
+function addRqQuestion(q, idx) {
+  const container = document.getElementById('rqQuestionsContainer');
+  const div = document.createElement('div');
+  div.className = 'question-block';
+  div.style.cssText = 'background:var(--bg);border-radius:10px;padding:16px;margin-bottom:12px;border:1px solid var(--border);';
+  const qi = idx !== undefined ? idx : container.querySelectorAll('.question-block').length;
+  div.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><strong style="color:var(--primary);">السؤال ' + (qi + 1) + '</strong><button class="btn btn-sm" style="background:#ef4444;color:#fff;font-size:11px;padding:4px 10px;" onclick="this.closest(\'.question-block\').remove()">حذف</button></div><div class="form-group"><input class="q-text" placeholder="نص السؤال" value="' + (q ? q.question : '') + '"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' + ['أ','ب','ج','د'].map((letter, oi) => '<div class="form-group" style="margin-bottom:4px;"><label style="font-size:11px;margin-bottom:2px;">الخيار ' + letter + '</label><input class="q-opt-' + oi + '" placeholder="الخيار ' + letter + '" value="' + (q && q.options && q.options[oi] ? q.options[oi] : '') + '"></div>').join('') + '</div><div class="form-group" style="margin-bottom:0;"><label style="font-size:12px;">الإجابة الصحيحة (رقم الخيار: 0-3)</label><input class="q-correct" type="number" min="0" max="3" value="' + (q ? q.correct : 0) + '" style="width:80px;"></div>';
+  container.appendChild(div);
+}
+function saveReviewQuiz() {
+  const reviewId = document.getElementById('rqReviewId').value;
+  const title = document.getElementById('rqTitle').value;
+  const blocks = document.querySelectorAll('#rqQuestionsContainer .question-block');
+  const questions = [];
+  blocks.forEach(b => {
+    const qtext = b.querySelector('.q-text').value;
+    const opts = [0,1,2,3].map(i => b.querySelector('.q-opt-' + i).value);
+    const correct = parseInt(b.querySelector('.q-correct').value) || 0;
+    if (qtext && opts.some(o => o)) questions.push({ question: qtext, options: opts, correct });
+  });
+  fetch('/api/admin/reviews/' + reviewId + '/quiz', {
+    method: 'PUT',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ title, questions })
+  }).then(r => r.json()).then(d => { if (d.success) location.reload(); else alert(d.error); });
+}
+document.getElementById('reviewQuizModal').addEventListener('click', function(e) { if (e.target === this) this.classList.remove('show'); });
+</script>
+</body>
+</html>

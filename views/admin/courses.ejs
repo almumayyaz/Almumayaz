@@ -1,0 +1,565 @@
+<%- include('../partials/header', { title: title, bodyClass: 'admin-body' }) %>
+<%- include('../partials/admin-sidebar') %>
+<main class="admin-content">
+  <div class="page-header">
+    <div>
+      <h1>المحاضرات</h1>
+      <p>إدارة المواد والمحاضرات والدروس والأسئلة حسب المرحلة والصف</p>
+    </div>
+    <button class="btn btn-primary" onclick="openCourseModal()"><i class="fas fa-plus"></i> مادة جديدة</button>
+  </div>
+
+  <!-- Stage Tabs -->
+  <div id="stageTabs" style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
+    <button class="btn btn-primary btn-sm" onclick="switchStage('all')" style="font-size:14px;">
+      <i class="fas fa-th-large"></i> الكل
+    </button>
+    <button class="btn btn-outline btn-sm" onclick="switchStage('إعدادية')" style="font-size:14px;">
+      <i class="fas fa-school"></i> إعدادية
+    </button>
+    <button class="btn btn-outline btn-sm" onclick="switchStage('ثانوية')" style="font-size:14px;">
+      <i class="fas fa-graduation-cap"></i> ثانوية
+    </button>
+  </div>
+
+  <div id="coursesContainer" style="display:flex;flex-direction:column;gap:24px;">
+    <% 
+    var stages = ['إعدادية', 'ثانوية'];
+    stages.forEach(function(stage) { 
+      var stageCourses = courses.filter(function(c) { return c.stage === stage || c.stage === 'all'; });
+      if (stageCourses.length === 0) return;
+    %>
+    <div class="stage-section" data-stage="<%= stage %>">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding:12px 20px;background:var(--card);border-radius:var(--radius-lg);box-shadow:var(--shadow);border:1px solid var(--border);border-right:4px solid <%= stage === 'إعدادية' ? '#059669' : '#A07200' %>;">
+        <div style="width:44px;height:44px;border-radius:12px;background:<%= stage === 'إعدادية' ? 'linear-gradient(135deg,#059669,#34d399)' : 'linear-gradient(135deg,#A07200,#F6C453)' %>;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;">
+          <i class="fas <%= stage === 'إعدادية' ? 'fa-school' : 'fa-graduation-cap' %>"></i>
+        </div>
+        <div style="flex:1;">
+          <h2 style="font-size:20px;font-weight:700;margin:0;font-family:'Aref Ruqaa',serif;"><%= stage %></h2>
+          <p style="font-size:13px;color:var(--text-light);margin:2px 0 0;"><%= stageCourses.length %> مادة</p>
+        </div>
+        <button class="btn btn-sm btn-outline" onclick="switchStage('<%= stage %>')" style="font-size:12px;">
+          <i class="fas fa-arrow-left"></i> عرض الكل
+        </button>
+      </div>
+
+      <% stageCourses.forEach(function(course, ci) { %>
+      <div class="admin-table" style="margin-bottom:16px;">
+        <div style="padding:16px 20px;background:var(--bg);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="width:40px;height:40px;background:<%= course.color %>;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;">
+              <i class="fas <%= course.icon %>"></i>
+            </div>
+            <div>
+              <h3 style="font-size:16px;font-weight:700;color:var(--primary);margin:0;"><%= course.title %></h3>
+              <div style="display:flex;align-items:center;gap:8px;margin-top:2px;">
+                <span style="font-size:12px;color:var(--text-light);"><%= course.lessons.length %> دروس</span>
+                <% if (course.grade) { %>
+                <span style="background:var(--accent-glow);color:var(--accent);font-size:11px;padding:2px 10px;border-radius:10px;font-weight:600;"><%= course.grade %></span>
+                <% } %>
+              </div>
+            </div>
+          </div>
+          <div class="admin-actions" style="flex-wrap:wrap;">
+            <button class="edit" onclick='openLessonModal(<%= JSON.stringify(course) %>)'><i class="fas fa-plus"></i> درس</button>
+            <% if (course.stage === 'ثانوية') { %>
+            <button class="view" onclick='openSectionModal(<%= JSON.stringify(course) %>)'><i class="fas fa-sitemap"></i> أقسام</button>
+            <% } %>
+            <button class="view" onclick='openCourseModal(<%= JSON.stringify(course) %>)'><i class="fas fa-edit"></i></button>
+            <button class="delete" onclick="deleteCourse('<%= course.id %>')"><i class="fas fa-trash"></i></button>
+            <% if (course.quiz) { %>
+            <button class="view" onclick='openQuizModal(<%= JSON.stringify(course) %>)'><i class="fas fa-tasks"></i> الأسئلة</button>
+            <% } else { %>
+            <button class="edit" onclick='openQuizModal(<%= JSON.stringify(course) %>)'><i class="fas fa-plus"></i> اختبار</button>
+            <% } %>
+          </div>
+        </div>
+
+        <% if (course.sections && course.sections.length > 0) { %>
+        <div style="padding:12px 20px;background:var(--accent-glow);border-bottom:1px solid var(--border);font-size:13px;font-weight:600;color:var(--accent);display:flex;align-items:center;gap:8px;">
+          <i class="fas fa-sitemap"></i> أقسام المادة
+        </div>
+        <div style="padding:8px 20px;display:flex;flex-wrap:wrap;gap:8px;">
+          <% course.sections.forEach(function(section) { %>
+          <span style="background:var(--bg);padding:4px 12px;border-radius:6px;font-size:12px;display:flex;align-items:center;gap:6px;">
+            <%= section.name %>
+            <span style="color:var(--text-light);font-size:10px;">(<%= section.lessons.length %>)</span>
+          </span>
+          <% }) %>
+        </div>
+        <% } %>
+
+        <table>
+          <thead>
+            <tr><th>#</th><th>عنوان الدرس</th><th>المدة</th><th>الفيديو</th><th>PDF</th><th>مجاني</th><th>القسم</th><th>الإجراءات</th></tr>
+          </thead>
+          <tbody>
+            <% course.lessons.forEach(function(l, li) { %>
+            <tr>
+              <td><%= li + 1 %></td>
+              <td><%= l.title %></td>
+              <td><%= l.duration %></td>
+              <td><%= (l.videos && l.videos.length > 0) ? '<i class="fas fa-check" style="color:var(--success);"></i> ' + l.videos.length : (l.videoUrl ? '<i class="fas fa-check" style="color:var(--success);"></i>' : '---') %></td>
+              <td><%= (l.pdfFiles && l.pdfFiles.length > 0) ? '<i class="fas fa-file-pdf" style="color:var(--danger);"></i> ' + l.pdfFiles.length : (l.pdfUrl ? '<i class="fas fa-check" style="color:var(--success);"></i>' : '---') %></td>
+              <td><%= l.isFree ? '<span style="color:var(--success);font-weight:600;">مجاني</span>' : '---' %> <% if (l.guestVisible) { %><span style="color:var(--accent);font-weight:600;font-size:11px;"><br>زائر</span><% } %></td>
+              <td style="font-size:12px;"><%= l.sectionId ? (function(){ var s = (course.sections || []).find(function(s){ return s.id === l.sectionId; }); return s ? s.name : '---'; })() : '---' %></td>
+              <td>
+                <div class="admin-actions">
+                  <button class="edit" onclick='openLessonModal(<%= JSON.stringify(course) %>, <%= JSON.stringify(l) %>)'><i class="fas fa-edit"></i></button>
+                  <button class="delete" onclick="deleteLesson('<%= course.id %>','<%= l.id %>')"><i class="fas fa-trash"></i></button>
+                </div>
+              </td>
+            </tr>
+            <% }) %>
+            <% if (course.lessons.length === 0) { %>
+            <tr><td colspan="8" style="text-align:center;color:var(--text-light);">لا توجد دروس بعد</td></tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+      <% }); %>
+    </div>
+    <% }); %>
+  </div>
+</main>
+
+<!-- Course Modal -->
+<div class="modal-overlay" id="courseModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="courseModalTitle">مادة جديدة</h3>
+      <button class="modal-close" onclick="closeModal('courseModal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="courseId">
+      <div class="form-group"><label>عنوان المادة</label><input id="courseTitle" placeholder="مثال: النحو"></div>
+      <div class="form-group"><label>العنوان الفرعي</label><input id="courseSubtitle" placeholder="مثال: قواعد اللغة العربية"></div>
+      <div class="form-group"><label>الوصف</label><textarea id="courseDescription" rows="3" placeholder="وصف المادة"></textarea></div>
+      <div class="form-group"><label>المرحلة</label>
+        <select id="courseStage" onchange="updateGradeOptions()">
+          <option value="all">كل المراحل</option>
+          <option value="إعدادية">إعدادية</option>
+          <option value="ثانوية">ثانوية</option>
+        </select>
+      </div>
+      <div class="form-group"><label>الصف</label>
+        <select id="courseGrade">
+          <option value="">بدون</option>
+        </select>
+      </div>
+      <div class="form-group"><label>أيقونة (FontAwesome)</label><input id="courseIcon" value="fa-book" placeholder="fa-book"></div>
+      <div class="form-group"><label>اللون</label><input type="color" id="courseColor" value="#A07200"></div>
+      <button class="btn btn-primary" onclick="saveCourse()" style="width:100%;"><i class="fas fa-save"></i> حفظ</button>
+    </div>
+  </div>
+</div>
+
+<!-- Section Modal -->
+<div class="modal-overlay" id="sectionModal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3 id="sectionModalTitle">إدارة الأقسام (شجرة المنهج)</h3>
+      <button class="modal-close" onclick="closeModal('sectionModal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="sectionCourseId">
+      <div id="sectionsContainer">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <label>أقسام المادة</label>
+          <button class="btn btn-sm" style="background:var(--accent);color:#fff;" onclick="addSection()"><i class="fas fa-plus"></i> إضافة قسم</button>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="saveSections()" style="width:100%;margin-top:16px;"><i class="fas fa-save"></i> حفظ الأقسام</button>
+    </div>
+  </div>
+</div>
+
+<!-- Lesson Modal -->
+<div class="modal-overlay" id="lessonModal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3 id="lessonModalTitle">إضافة درس</h3>
+      <button class="modal-close" onclick="closeModal('lessonModal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="lessonCourseId">
+      <input type="hidden" id="lessonId">
+      <div class="form-group"><label>عنوان الدرس</label><input id="lessonTitle" placeholder="مثال: المبتدأ والخبر"></div>
+      <div class="form-group"><label>الوصف</label><textarea id="lessonDescription" rows="2" placeholder="وصف الدرس"></textarea></div>
+
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:8px;">
+          <input type="checkbox" id="lessonIsFree"> درس مجاني (لغير المشتركين)
+        </label>
+      </div>
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:8px;">
+          <input type="checkbox" id="lessonGuestVisible"> مرئي للزوار (تجريبي)
+        </label>
+      </div>
+
+      <div id="videosSection">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <label style="font-size:13px;font-weight:600;color:var(--text-light);">مقاطع الفيديو (يمكن إضافة أكثر من فيديو)</label>
+          <button class="btn btn-sm" style="background:var(--accent);color:#fff;" onclick="addVideoField()"><i class="fas fa-plus"></i> إضافة فيديو</button>
+        </div>
+        <div id="videosContainer"></div>
+      </div>
+
+      <div id="pdfsSection" style="margin-top:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <label style="font-size:13px;font-weight:600;color:var(--text-light);">ملفات PDF</label>
+          <button class="btn btn-sm" style="background:var(--accent);color:#fff;" onclick="addPdfField()"><i class="fas fa-plus"></i> إضافة PDF</button>
+        </div>
+        <div id="pdfsContainer"></div>
+      </div>
+
+      <div class="form-group" style="margin-top:16px;">
+        <label>المدة</label>
+        <input id="lessonDuration" placeholder="مثال: 45:30">
+      </div>
+      <div class="form-group">
+        <label>القسم (للمرحلة الثانوية)</label>
+        <select id="lessonSectionId"><option value="">بدون قسم</option></select>
+      </div>
+      <div class="form-group">
+        <label>مؤقت الاختبار (بالدقائق، اترك فارغاً لتعطيله)</label>
+        <input id="lessonQuizTimer" type="number" min="0" placeholder="مثال: 15">
+      </div>
+
+      <!-- Legacy fields for backward compatibility -->
+      <input type="hidden" id="lessonVideoUrl">
+      <input type="hidden" id="lessonPdfUrl">
+
+      <button class="btn btn-primary" onclick="saveLesson()" style="width:100%;margin-top:8px;"><i class="fas fa-save"></i> حفظ</button>
+    </div>
+  </div>
+</div>
+
+<!-- Quiz Modal -->
+<div class="modal-overlay" id="quizModal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3 id="quizModalTitle">بنك الأسئلة</h3>
+      <button class="modal-close" onclick="closeModal('quizModal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="quizCourseId">
+      <div class="form-group"><label>عنوان الاختبار</label><input id="quizTitle" placeholder="مثال: اختبار النحو الشامل"></div>
+      <div class="form-group"><label>مدة الاختبار (بالدقائق)</label><input id="quizTimer" type="number" min="0" placeholder="15"></div>
+      <div id="questionsContainer">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <label>الأسئلة</label>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-sm" style="background:var(--accent);color:#fff;" onclick="addQuestion()"><i class="fas fa-plus"></i> إضافة سؤال</button>
+            <button class="btn btn-sm" style="background:var(--primary);color:#fff;" onclick="uploadWordFile()"><i class="fas fa-file-word"></i> رفع Word</button>
+          </div>
+        </div>
+      </div>
+      <div id="wordUploadArea" style="display:none;margin-bottom:16px;">
+        <div class="form-group">
+          <label>لصق محتوى ملف Word (الأسئلة)</label>
+          <textarea id="wordContent" rows="8" placeholder="الصق محتوى الأسئلة من ملف Word هنا&#10;تنسيق:&#10;1. نص السؤال&#10;أ. خيار 1&#10;ب. خيار 2&#10;ج. خيار 3&#10;د. خيار 4"></textarea>
+        </div>
+        <button class="btn btn-sm" style="background:var(--success);color:#fff;" onclick="extractQuestions()"><i class="fas fa-magic"></i> استخراج الأسئلة</button>
+      </div>
+      <button class="btn btn-primary" onclick="saveQuiz()" style="width:100%;margin-top:16px;"><i class="fas fa-save"></i> حفظ الاختبار</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== COURSE CRUD =====
+var gradeOptions = {
+  'all': [''],
+  'إعدادية': ['', 'الأول الإعدادي', 'الثاني الإعدادي', 'الثالث الإعدادي'],
+  'ثانوية': ['', 'الأول الثانوي', 'الثاني الثانوي', 'الثالث الثانوي']
+};
+function updateGradeOptions() {
+  var stage = document.getElementById('courseStage').value;
+  var sel = document.getElementById('courseGrade');
+  sel.innerHTML = '';
+  (gradeOptions[stage] || ['']).forEach(function(g) {
+    var opt = document.createElement('option');
+    opt.value = g;
+    opt.textContent = g || 'بدون';
+    sel.appendChild(opt);
+  });
+}
+function openCourseModal(course) {
+  document.getElementById('courseModalTitle').textContent = course ? 'تعديل المادة' : 'مادة جديدة';
+  document.getElementById('courseId').value = course ? course.id : '';
+  document.getElementById('courseTitle').value = course ? course.title : '';
+  document.getElementById('courseSubtitle').value = course ? (course.subtitle || '') : '';
+  document.getElementById('courseDescription').value = course ? (course.description || '') : '';
+  document.getElementById('courseStage').value = course ? (course.stage || 'all') : 'all';
+  updateGradeOptions();
+  document.getElementById('courseGrade').value = course ? (course.grade || '') : '';
+  document.getElementById('courseIcon').value = course ? (course.icon || 'fa-book') : 'fa-book';
+  document.getElementById('courseColor').value = course ? (course.color || '#A07200') : '#A07200';
+  document.getElementById('courseModal').classList.add('show');
+}
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+function saveCourse() {
+  const id = document.getElementById('courseId').value;
+  const data = {
+    title: document.getElementById('courseTitle').value,
+    subtitle: document.getElementById('courseSubtitle').value,
+    description: document.getElementById('courseDescription').value,
+    stage: document.getElementById('courseStage').value,
+    grade: document.getElementById('courseGrade').value,
+    icon: document.getElementById('courseIcon').value,
+    color: document.getElementById('courseColor').value
+  };
+  const url = id ? '/api/admin/courses/' + id : '/api/admin/courses';
+  const method = id ? 'PUT' : 'POST';
+  fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) })
+    .then(r => r.json()).then(d => { if (d.success) location.reload(); else alert(d.error); });
+}
+
+// ===== STAGE FILTERING =====
+document.addEventListener('DOMContentLoaded', function() {
+  switchStage('all');
+});
+function switchStage(stage) {
+  document.querySelectorAll('.stage-section').forEach(function(el) {
+    el.style.display = (stage === 'all' || el.dataset.stage === stage) ? '' : 'none';
+  });
+  document.querySelectorAll('#stageTabs .btn').forEach(function(btn) {
+    var match = btn.getAttribute('onclick') ? btn.getAttribute('onclick').match(/'([^']+)'/) : null;
+    var btnStage = match ? match[1] : 'all';
+    btn.className = 'btn btn-sm ' + (btnStage === stage ? 'btn-primary' : 'btn-outline');
+  });
+}
+function deleteCourse(id) {
+  if (!confirm('هل أنت متأكد من حذف هذه المادة وجميع دروسها؟')) return;
+  fetch('/api/admin/courses/' + id, { method: 'DELETE' })
+    .then(r => r.json()).then(d => { if (d.success) location.reload(); else alert(d.error); });
+}
+
+// ===== SECTION MANAGEMENT =====
+var currentSections = [];
+function openSectionModal(course) {
+  document.getElementById('sectionModalTitle').textContent = 'إدارة أقسام - ' + course.title;
+  document.getElementById('sectionCourseId').value = course.id;
+  currentSections = (course.sections || []).map(function(s) { return { id: s.id, name: s.name, lessons: s.lessons || [] }; });
+  renderSections();
+  document.getElementById('sectionModal').classList.add('show');
+}
+function renderSections() {
+  var container = document.getElementById('sectionsContainer');
+  var existing = container.querySelectorAll('.section-block');
+  existing.forEach(function(el) { el.remove(); });
+  currentSections.forEach(function(s, i) {
+    var div = document.createElement('div');
+    div.className = 'section-block';
+    div.style.cssText = 'background:var(--bg);border-radius:10px;padding:12px 16px;margin-bottom:8px;border:1px solid var(--border);display:flex;align-items:center;gap:10px;';
+    div.innerHTML = '<span style="font-weight:600;color:var(--primary);flex:1;">' + s.name + '</span><span style="font-size:11px;color:var(--text-light);">' + s.lessons.length + ' درس</span><button class="btn btn-sm" style="background:#ef4444;color:#fff;font-size:10px;padding:3px 8px;" onclick="removeSection(' + i + ')"><i class="fas fa-times"></i></button>';
+    container.appendChild(div);
+  });
+}
+function addSection() {
+  var name = prompt('اسم القسم الجديد:');
+  if (!name || !name.trim()) return;
+  currentSections.push({ id: 'sec-' + Date.now() + '-' + Math.random().toString(36).substr(2,4), name: name.trim(), lessons: [] });
+  renderSections();
+  document.querySelector('#sectionsContainer .section-block:last-child')?.scrollIntoView({ behavior: 'smooth' });
+}
+function removeSection(idx) {
+  if (!confirm('حذف القسم "' + currentSections[idx].name + '"؟')) return;
+  currentSections.splice(idx, 1);
+  renderSections();
+}
+function saveSections() {
+  var courseId = document.getElementById('sectionCourseId').value;
+  fetch('/api/admin/courses/' + courseId, {
+    method: 'PUT',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ sections: currentSections })
+  }).then(function(r) { return r.json(); }).then(function(d) { if (d.success) location.reload(); else alert(d.error); });
+}
+
+// ===== LESSON CRUD =====
+function openLessonModal(course, lesson) {
+  document.getElementById('lessonModalTitle').textContent = lesson ? 'تعديل الدرس' : 'إضافة درس جديد - ' + course.title;
+  document.getElementById('lessonCourseId').value = course.id;
+  document.getElementById('lessonId').value = lesson ? lesson.id : '';
+  document.getElementById('lessonTitle').value = lesson ? lesson.title : '';
+  document.getElementById('lessonDescription').value = lesson ? (lesson.description || '') : '';
+  document.getElementById('lessonIsFree').checked = lesson ? !!lesson.isFree : false;
+  document.getElementById('lessonGuestVisible').checked = lesson ? !!lesson.guestVisible : false;
+  document.getElementById('lessonDuration').value = lesson ? (lesson.duration || '') : '';
+  document.getElementById('lessonQuizTimer').value = lesson ? (lesson.quizTimer || '') : '';
+
+  // Populate section dropdown
+  var sel = document.getElementById('lessonSectionId');
+  sel.innerHTML = '<option value="">بدون قسم</option>';
+  if (course.sections) {
+    course.sections.forEach(function(s) {
+      var opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = s.name;
+      if (lesson && lesson.sectionId === s.id) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  }
+  document.getElementById('lessonSectionId').value = lesson ? (lesson.sectionId || '') : '';
+
+  // Videos
+  var vc = document.getElementById('videosContainer');
+  vc.innerHTML = '';
+  var videos = (lesson && lesson.videos) || [];
+  if (videos.length === 0) videos = [{ title: '', url: lesson ? (lesson.videoUrl || '') : '' }];
+  videos.forEach(function(v) { addVideoField(v.title, v.url); });
+
+  // PDFs
+  var pc = document.getElementById('pdfsContainer');
+  pc.innerHTML = '';
+  var pdfs = (lesson && lesson.pdfFiles) || [];
+  if (pdfs.length === 0 && lesson && lesson.pdfUrl) pdfs = [{ title: 'مذكرة ' + (lesson.title || ''), url: lesson.pdfUrl }];
+  pdfs.forEach(function(p) { addPdfField(p.title, p.url); });
+
+  // Legacy
+  document.getElementById('lessonVideoUrl').value = lesson ? (lesson.videoUrl || '') : '';
+  document.getElementById('lessonPdfUrl').value = lesson ? (lesson.pdfUrl || '') : '';
+
+  document.getElementById('lessonModal').classList.add('show');
+}
+
+function addVideoField(title, url) {
+  var container = document.getElementById('videosContainer');
+  var div = document.createElement('div');
+  div.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:flex-end;';
+  div.innerHTML = '<div class="form-group" style="flex:1;margin-bottom:0;"><label style="font-size:11px;">عنوان الفيديو</label><input class="video-title" placeholder="مثال: شرح الجزء الأول" value="' + (title || '') + '"></div><div class="form-group" style="flex:2;margin-bottom:0;"><label style="font-size:11px;">رابط YouTube Embed</label><input class="video-url" placeholder="https://www.youtube.com/embed/..." value="' + (url || '') + '"></div><button class="btn btn-sm" style="background:#ef4444;color:#fff;height:36px;width:36px;padding:0;display:flex;align-items:center;justify-content:center;flex-shrink:0;" onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>';
+  container.appendChild(div);
+}
+
+function addPdfField(title, url) {
+  var container = document.getElementById('pdfsContainer');
+  var div = document.createElement('div');
+  div.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:flex-end;';
+  div.innerHTML = '<div class="form-group" style="flex:1;margin-bottom:0;"><label style="font-size:11px;">عنوان الملف</label><input class="pdf-title" placeholder="مثال: مذكرة الدرس" value="' + (title || '') + '"></div><div class="form-group" style="flex:2;margin-bottom:0;"><label style="font-size:11px;">رابط الملف</label><input class="pdf-url" placeholder="/files/lesson.pdf" value="' + (url || '') + '"></div><button class="btn btn-sm" style="background:#ef4444;color:#fff;height:36px;width:36px;padding:0;display:flex;align-items:center;justify-content:center;flex-shrink:0;" onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>';
+  container.appendChild(div);
+}
+
+function saveLesson() {
+  var courseId = document.getElementById('lessonCourseId').value;
+  var lessonId = document.getElementById('lessonId').value;
+
+  var videoInputs = document.querySelectorAll('#videosContainer > div');
+  var videos = [];
+  videoInputs.forEach(function(v) {
+    var title = v.querySelector('.video-title').value;
+    var url = v.querySelector('.video-url').value;
+    if (url) videos.push({ title: title || 'فيديو', url: url });
+  });
+
+  var pdfInputs = document.querySelectorAll('#pdfsContainer > div');
+  var pdfFiles = [];
+  pdfInputs.forEach(function(p) {
+    var title = p.querySelector('.pdf-title').value;
+    var url = p.querySelector('.pdf-url').value;
+    if (url) pdfFiles.push({ title: title || 'ملف', url: url });
+  });
+
+  var data = {
+    title: document.getElementById('lessonTitle').value,
+    description: document.getElementById('lessonDescription').value,
+    videos: videos,
+    pdfFiles: pdfFiles,
+    duration: document.getElementById('lessonDuration').value,
+    isFree: document.getElementById('lessonIsFree').checked,
+    guestVisible: document.getElementById('lessonGuestVisible').checked,
+    sectionId: document.getElementById('lessonSectionId').value,
+    quizTimer: document.getElementById('lessonQuizTimer').value || null,
+    videoUrl: videos.length > 0 ? videos[0].url : '',
+    pdfUrl: pdfFiles.length > 0 ? pdfFiles[0].url : ''
+  };
+
+  var url = lessonId ? '/api/admin/courses/' + courseId + '/lessons/' + lessonId : '/api/admin/courses/' + courseId + '/lessons';
+  var method = lessonId ? 'PUT' : 'POST';
+  fetch(url, { method: method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) })
+    .then(function(r) { return r.json(); }).then(function(d) { if (d.success) location.reload(); else alert(d.error); });
+}
+
+function deleteLesson(courseId, lessonId) {
+  if (!confirm('هل أنت متأكد من حذف هذا الدرس؟')) return;
+  fetch('/api/admin/courses/' + courseId + '/lessons/' + lessonId, { method: 'DELETE' })
+    .then(function(r) { return r.json(); }).then(function(d) { if (d.success) location.reload(); else alert(d.error); });
+}
+
+// ===== QUIZ CRUD =====
+function openQuizModal(course) {
+  document.getElementById('quizModalTitle').textContent = 'بنك أسئلة - ' + course.title;
+  document.getElementById('quizCourseId').value = course.id;
+  document.getElementById('quizTitle').value = course.quiz ? course.quiz.title : 'اختبار شامل';
+  document.getElementById('quizTimer').value = course.quiz ? (course.quiz.timerMinutes || '') : '';
+  var container = document.getElementById('questionsContainer');
+  var existing = container.querySelectorAll('.question-block');
+  existing.forEach(function(el) { el.remove(); });
+  if (course.quiz && course.quiz.questions) {
+    course.quiz.questions.forEach(function(q, i) { addQuestion(q, i); });
+  }
+  document.getElementById('wordUploadArea').style.display = 'none';
+  document.getElementById('quizModal').classList.add('show');
+}
+
+function addQuestion(q, idx) {
+  var container = document.getElementById('questionsContainer');
+  var div = document.createElement('div');
+  div.className = 'question-block';
+  div.style.cssText = 'background:var(--bg);border-radius:10px;padding:16px;margin-bottom:12px;border:1px solid var(--border);';
+  var qi = idx !== undefined ? idx : container.querySelectorAll('.question-block').length;
+  div.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><strong style="color:var(--primary);">السؤال ' + (qi + 1) + '</strong><button class="btn btn-sm" style="background:#ef4444;color:#fff;font-size:11px;padding:4px 10px;" onclick="this.closest(\'.question-block\').remove()">حذف</button></div><div class="form-group"><input class="q-text" placeholder="نص السؤال" value="' + (q ? q.question : '') + '"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' + ['أ','ب','ج','د'].map(function(letter, oi) { return '<div class="form-group" style="margin-bottom:4px;"><label style="font-size:11px;margin-bottom:2px;">الخيار ' + letter + '</label><input class="q-opt-' + oi + '" placeholder="الخيار ' + letter + '" value="' + (q && q.options && q.options[oi] ? q.options[oi] : '') + '"></div>'; }).join('') + '</div><div class="form-group" style="margin-bottom:0;"><label style="font-size:12px;">الإجابة الصحيحة (رقم الخيار: 0-3)</label><input class="q-correct" type="number" min="0" max="3" value="' + (q ? q.correct : 0) + '" style="width:80px;"></div>';
+  container.appendChild(div);
+}
+
+function uploadWordFile() {
+  var area = document.getElementById('wordUploadArea');
+  area.style.display = area.style.display === 'none' ? 'block' : 'none';
+}
+
+function extractQuestions() {
+  var content = document.getElementById('wordContent').value;
+  if (!content.trim()) { alert('يرجى لصق محتوى الأسئلة أولاً'); return; }
+  fetch('/api/admin/upload-questions', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ fileContent: content })
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.success && d.questions) {
+      d.questions.forEach(function(q) { addQuestion(q); });
+      document.getElementById('wordUploadArea').style.display = 'none';
+      document.getElementById('wordContent').value = '';
+      alert('تم استخراج ' + d.questions.length + ' سؤال بنجاح');
+    } else {
+      alert('فشل استخراج الأسئلة');
+    }
+  });
+}
+
+function saveQuiz() {
+  var courseId = document.getElementById('quizCourseId').value;
+  var title = document.getElementById('quizTitle').value;
+  var timerMinutes = parseInt(document.getElementById('quizTimer').value) || null;
+  var blocks = document.querySelectorAll('.question-block');
+  var questions = [];
+  blocks.forEach(function(b) {
+    var qtext = b.querySelector('.q-text').value;
+    var opts = [0,1,2,3].map(function(i) { return b.querySelector('.q-opt-' + i).value; });
+    var correct = parseInt(b.querySelector('.q-correct').value) || 0;
+    if (qtext && opts.some(function(o) { return o; })) questions.push({ question: qtext, options: opts, correct: correct });
+  });
+  fetch('/api/admin/courses/' + courseId + '/quiz', {
+    method: 'PUT',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ title: title, questions: questions, timerMinutes: timerMinutes })
+  }).then(function(r) { return r.json(); }).then(function(d) { if (d.success) location.reload(); else alert(d.error); });
+}
+
+document.querySelectorAll('.modal-overlay').forEach(function(m) {
+  m.addEventListener('click', function(e) { if (e.target === this) this.classList.remove('show'); });
+});
+</script>
+</body>
+</html>
