@@ -73,7 +73,7 @@
                   var isCompleted = progressData && progressData.completedLessons && progressData.completedLessons.includes(lesson.id);
                 %>
                 <a href="<%= canAccess ? '/student/lesson/' + course.id + '/' + lesson.id : '#' %>" class="bab-lesson-item <%= !canAccess ? 'locked' : '' %> <%= isCompleted ? 'completed' : '' %>" <%= !canAccess ? 'onclick="alert(\'هذا الدرس تجريبي للضيوف فقط. سجل للوصول الكامل.\');return false;"' : '' %>>
-                  <span class="bab-lesson-num"><%= isCompleted ? '<i class="fas fa-check-circle" style="color:var(--success);"></i>' : (idx + 1) %></span>
+                  <span class="bab-lesson-num"><%- isCompleted ? '<i class="fas fa-check-circle" style="color:var(--success);"></i>' : (idx + 1) %></span>
                   <span class="bab-lesson-title"><%= lesson.title %></span>
                   <span class="bab-lesson-duration"><i class="fas fa-clock"></i> <%= lesson.duration %></span>
                   <% if (lesson.isFree) { %><span class="bab-free-tag">مجاني</span><% } %>
@@ -133,7 +133,7 @@
                 <i class="fas fa-chevron-left tree-arrow"></i>
               </div>
               <div class="tree-section-children">
-                <%= sectionLessons.map(function(lesson, idx) {
+                <%- sectionLessons.map(function(lesson, idx) {
                   var canAccess = isSubscribed || lesson.isFree || (isGuest && lesson.guestVisible);
                   var progressData = (user && user.progress && user.progress[course.id]) || null;
                   var isCompleted = progressData && progressData.completedLessons && progressData.completedLessons.includes(lesson.id);
@@ -182,7 +182,7 @@
           <a href="<%= canAccess ? '/student/lesson/' + course.id + '/' + lesson.id : '#' %>" class="lesson-item" style="flex-direction:column;align-items:stretch;gap:10px;padding:14px 16px;position:relative;opacity:<%= canAccess ? 1 : 0.6 %>;" <%= !canAccess ? 'onclick="alert(\'هذا الدرس تجريبي للضيوف فقط. سجل للوصول الكامل.\');return false;"' : '' %>>
             <div style="display:flex;align-items:center;gap:12px;">
               <div style="width:32px;height:32px;background:var(--bg);border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--primary);font-size:12px;font-weight:700;flex-shrink:0;">
-                <%= isCompleted ? '<i class="fas fa-check-circle" style="color:var(--success);font-size:16px;"></i>' : (idx + 1) %>
+                <%- isCompleted ? '<i class="fas fa-check-circle" style="color:var(--success);font-size:16px;"></i>' : (idx + 1) %>
               </div>
               <div class="lesson-info" style="flex:1;">
                 <h3 style="font-size:14px;font-weight:600;margin-bottom:2px;font-family:\'Cairo\',sans-serif;"><%= lesson.title %></h3>
