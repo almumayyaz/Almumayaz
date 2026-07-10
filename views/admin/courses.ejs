@@ -99,7 +99,7 @@
           <div>
             <h3 style="font-size:16px;font-weight:700;color:var(--primary);margin:0;"><%= course.title %></h3>
             <div style="display:flex;align-items:center;gap:8px;margin-top:2px;">
-              <span style="font-size:12px;color:var(--text-light);"><%= course.lessons.length %> درس</span>
+              <span style="font-size:12px;color:var(--text-light);"><%= (course.lessons||[]).length %> درس</span>
               <% if (course.grade) { %>
               <span style="background:var(--accent-glow);color:var(--accent);font-size:11px;padding:2px 10px;border-radius:10px;font-weight:600;"><%= course.grade %></span>
               <% } %>
@@ -154,7 +154,7 @@
             <tr><th>#</th><th>عنوان الدرس</th><th>المدة</th><th>الفيديو</th><th>PDF</th><th>مجاني</th><th><%= stage === 'إعدادية' ? 'الوحدة' : 'الباب' %></th><th>الإجراءات</th></tr>
           </thead>
           <tbody>
-            <% course.lessons.forEach(function(l, li) { %>
+            <% (course.lessons||[]).forEach(function(l, li) { %>
             <tr>
               <td><%= li + 1 %></td>
               <td><%= l.title %></td>
@@ -195,7 +195,7 @@
               </td>
             </tr>
             <% }) %>
-            <% if (course.lessons.length === 0) { %>
+            <% if ((course.lessons||[]).length === 0) { %>
             <tr><td colspan="8" style="text-align:center;color:var(--text-light);">لا توجد دروس بعد</td></tr>
             <% } %>
           </tbody>
@@ -317,7 +317,7 @@
       <div class="tab-panel" id="tab-quiz-<%= course.id %>" style="display:none;">
         <div style="padding:16px 20px;text-align:center;">
           <% if (course.quiz) { %>
-          <p style="color:var(--text-light);margin-bottom:12px;">الاختبار الشامل للمادة - <%= course.quiz.questions.length %> سؤال</p>
+          <p style="color:var(--text-light);margin-bottom:12px;">الاختبار الشامل للمادة - <%= (course.quiz.questions||[]).length %> سؤال</p>
           <button class="btn btn-primary" onclick='openQuizModal(<%= JSON.stringify(course) %>)'><i class="fas fa-edit"></i> إدارة الاختبار الشامل</button>
           <% } else { %>
           <p style="color:var(--text-muted);margin-bottom:12px;">لا يوجد اختبار شامل لهذه المادة</p>
