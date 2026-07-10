@@ -50,7 +50,10 @@
   var studentNameEl = document.getElementById('chatStudentName');
   var lastDate = '';
   var nameSet = false;
-  var messagesCache = {};
+  var isSending = false;
+
+  // Show delete button
+  document.getElementById('deleteChatBtn').style.display = '';
 
   function scrollToBottom() {
     setTimeout(function(){ chatDiv.scrollTop = chatDiv.scrollHeight; }, 50);
@@ -75,6 +78,8 @@
     var isMine = data.senderId === 'teacher';
     var div = document.createElement('div');
     div.id = 'msg-' + (data._key || data._localId || data.timestamp);
+    if (data._localId) div.setAttribute('data-local-id', data._localId);
+    if (data._status === 'sending') div.setAttribute('data-sending', '1');
     div.style.cssText = 'display:flex;flex-direction:column;align-items:' + (isMine ? 'flex-start' : 'flex-end') + ';max-width:80%;align-self:' + (isMine ? 'flex-end' : 'flex-start') + ';';
 
     var bubble = document.createElement('div');
@@ -117,7 +122,6 @@
     if (isMine) {
       meta.appendChild(document.createTextNode('·'));
       var receipt = document.createElement('span');
-      receipt.id = 'rcpt-' + (data._key || data._localId || data.timestamp);
       if (data._status === 'sending') {
         receipt.innerHTML = '<i class="fas fa-clock" style="color:var(--warning);font-size:11px;"></i>';
       } else {
@@ -149,46 +153,28 @@
     }
     chatDiv.appendChild(createMessageElement(data));
     scrollToBottom();
-    messagesCache[key] = data;
-  }
-
-  // Real-time Firebase listener
-  if (typeof firebase !== 'undefined' && firebase.database) {
-    firebase.database().ref('chats/' + fullChatId + '/messages')
-      .orderByChild('timestamp')
-      .on('child_added', function(snapshot) {
-        var data = snapshot.val();
-        data._key = snapshot.key;
-        // Update receipt if we had this as a local optimistic message
-        var localKey = Object.keys(messagesCache).find(function(k) {
-          return messagesCache[k]._localId && messagesCache[k]._localId === data._key;
-        });
-        if (localKey) {
-          var oldEl = document.getElementById('msg-' + localKey);
-          if (oldEl) oldEl.id = 'msg-' + data._key;
-          var rcpt = document.getElementById('rcpt-' + localKey);
-          if (rcpt) { rcpt.id = 'rcpt-' + data._key; rcpt.innerHTML = '<i class="fas fa-check" style="color:var(--text-muted);font-size:11px;"></i>'; }
-          delete messagesCache[localKey];
-        }
-        if (!document.getElementById('msg-' + data._key)) {
-          addMessage(data);
-        }
-        // Mark as read
-        fetch('/api/admin/chat/' + encodeURIComponent(studentId) + '/read', { method: 'PUT' }).catch(function(){});
-      });
-  } else {
-    // Fallback: poll
-    setInterval(loadMessages, 3000);
-    loadMessages();
   }
 
   function loadMessages() {
     fetch('/api/admin/chat/' + encodeURIComponent(studentId) + '/messages').then(function(r){return r.json()}).then(function(d){
       if (!d.success) return;
       d.messages.forEach(function(data) {
-        if (!document.getElementById('msg-' + (data._key || data.timestamp))) {
-          addMessage(data);
+        var key = data._key || data.timestamp;
+        if (document.getElementById('msg-' + key)) return;
+        if (!nameSet && data.senderId !== 'teacher' && data.senderName) {
+          studentNameEl.textContent = data.senderName;
+          nameSet = true;
         }
+        var msgDate = new Date(data.timestamp).toDateString();
+        if (msgDate !== lastDate) {
+          lastDate = msgDate;
+          var dateSep = document.createElement('div');
+          dateSep.style.cssText = 'text-align:center;font-size:11px;color:var(--text-muted);padding:8px 0;font-weight:600;';
+          dateSep.textContent = formatDate(data.timestamp);
+          chatDiv.appendChild(dateSep);
+        }
+        chatDiv.appendChild(createMessageElement(data));
+        scrollToBottom();
       });
       if (d.messages.length > 0) {
         fetch('/api/admin/chat/' + encodeURIComponent(studentId) + '/read', { method: 'PUT' }).catch(function(){});
@@ -196,20 +182,41 @@
     }).catch(function(){});
   }
 
+  // Real-time receipt updates from Firebase
+  if (typeof firebase !== 'undefined' && firebase.database) {
+    firebase.database().ref('chats/' + fullChatId + '/messages')
+      .on('child_changed', function(snapshot) {
+        var data = snapshot.val();
+        var key = snapshot.key;
+        var el = document.getElementById('msg-' + key);
+        if (!el) return;
+        var rcpt = el.querySelector('[id^="rcpt-"]');
+        if (rcpt && data.read) {
+          rcpt.innerHTML = '<i class="fas fa-check-double" style="color:var(--success);font-size:11px;"></i>';
+        }
+      });
+  }
+
+  // Poll every 1.5s
+  setInterval(loadMessages, 1500);
+  loadMessages();
+
   function sendMessage() {
     var text = chatInput.value.trim();
-    if (!text && !selectedImage) return;
+    if ((!text && !selectedImage) || isSending) return;
+    isSending = true;
 
     if (selectedImage) {
       var body = { text: text || '', image: selectedImage };
       fetch('/api/admin/chat/' + encodeURIComponent(studentId) + '/send', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) })
       .then(function(r){return r.json()}).then(function(d){
         if (d.success) { chatInput.value = ''; selectedImage = null; updateAttachBtn(); document.getElementById('imageInput').value = ''; }
-      });
+        isSending = false;
+      }).catch(function(){ isSending = false; });
       return;
     }
 
-    // Optimistic: show message immediately with sending status
+    // Optimistic: show immediately with sending status
     var tempId = 'local-' + Date.now();
     var localMsg = { _localId: tempId, senderId: 'teacher', senderName: 'محمد عفيفي', timestamp: Date.now(), text: text, read: false, _status: 'sending' };
     addMessage(localMsg);
@@ -220,16 +227,16 @@
     fetch('/api/admin/chat/' + encodeURIComponent(studentId) + '/send', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({text:text}) })
     .then(function(r){return r.json()}).then(function(d){
       if (d.success && d.key) {
-        var el = document.getElementById('msg-' + tempId);
-        if (el) el.id = 'msg-' + d.key;
-        var rcpt = document.getElementById('rcpt-' + tempId);
-        if (rcpt) { rcpt.id = 'rcpt-' + d.key; rcpt.innerHTML = '<i class="fas fa-check" style="color:var(--text-muted);font-size:11px;"></i>'; }
-        delete messagesCache[tempId];
-        messagesCache[d.key] = { timestamp: Date.now(), read: false };
+        var el = document.querySelector('[data-local-id="' + tempId + '"]');
+        if (el) { el.id = 'msg-' + d.key; el.removeAttribute('data-local-id'); el.removeAttribute('data-sending'); }
+        var rcpt = el ? el.querySelector('[id^="rcpt-"]') : null;
+        if (rcpt) { rcpt.innerHTML = '<i class="fas fa-check" style="color:var(--text-muted);font-size:11px;"></i>'; }
       }
       btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> إرسال';
+      isSending = false;
     }).catch(function() {
       btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> إرسال';
+      isSending = false;
     });
   }
 
@@ -260,9 +267,6 @@
     document.getElementById('imageInput').value = '';
   }
 
-  // Show delete button
-  document.getElementById('deleteChatBtn').style.display = '';
-
   window.deleteChat = function() {
     if (!confirm('هل أنت متأكد من حذف المحادثة بالكامل؟')) return;
     fetch('/api/admin/chat/' + encodeURIComponent(studentId), { method: 'DELETE' })
@@ -271,19 +275,6 @@
       else alert('فشل حذف المحادثة');
     }).catch(function(){ alert('فشل حذف المحادثة'); });
   };
-
-  // Update receipt icons when messages are read
-  if (typeof firebase !== 'undefined' && firebase.database) {
-    firebase.database().ref('chats/' + fullChatId + '/messages')
-      .on('child_changed', function(snapshot) {
-        var data = snapshot.val();
-        var key = snapshot.key;
-        var rcpt = document.getElementById('rcpt-' + key);
-        if (rcpt && data.read) {
-          rcpt.innerHTML = '<i class="fas fa-check-double" style="color:var(--success);font-size:11px;"></i>';
-        }
-      });
-  }
 
   window.sendMessage = sendMessage;
   window.handleImageSelect = handleImageSelect;
