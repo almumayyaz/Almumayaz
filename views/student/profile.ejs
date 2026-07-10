@@ -109,10 +109,9 @@
         <span class="value" style="color:var(--text-light);">غير مشترك</span>
         <% } %>
       </div>
-      <% if (user.referralCode) { %>
       <div class="info-row">
         <span class="label">كود الإحالة</span>
-        <span class="value" dir="ltr" style="font-family:monospace;background:var(--bg);padding:2px 10px;border-radius:4px;font-weight:700;letter-spacing:1px;"><%= user.referralCode %></span>
+        <span class="value" dir="ltr" style="font-family:monospace;background:var(--bg);padding:2px 10px;border-radius:4px;font-weight:700;letter-spacing:1px;"><%= user.referralCode || '---' %></span>
         <button class="btn btn-sm" onclick="navigator.clipboard.writeText('<%= user.referralCode %>');this.innerHTML='<i class=\\'fas fa-check\\'></i>';setTimeout(()=>this.innerHTML='<i class=\\'fas fa-copy\\'></i>',1500)" style="font-size:12px;padding:4px 10px;"><i class="fas fa-copy"></i></button>
       </div>
       <% } %>

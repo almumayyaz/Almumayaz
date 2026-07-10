@@ -137,6 +137,7 @@ app.use((req, res, next) => {
     var usersChanged = false;
     users.forEach(function(u) {
       if (u.referralDiscount === undefined) { u.referralDiscount = 0; usersChanged = true; }
+      if (!u.referralCode) { u.referralCode = 'REF-' + Math.random().toString(36).substr(2, 8).toUpperCase(); usersChanged = true; }
     });
     if (usersChanged) await writeData('users', users);
     console.log('Auto-migration complete');

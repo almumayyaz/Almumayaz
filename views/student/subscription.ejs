@@ -67,6 +67,13 @@
       <i class="fas fa-user-friends" style="color:var(--success);font-size:18px;"></i>
       <h3 style="font-size:15px;font-weight:700;margin:0;">كود الدعوة — خصم 25%</h3>
     </div>
+    <div style="background:rgba(22,163,74,0.06);border-radius:8px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+      <span style="font-size:13px;color:var(--text-light);">كودك للإحالة:</span>
+      <span style="font-family:monospace;font-weight:700;font-size:16px;letter-spacing:2px;direction:ltr;display:inline-block;"><%= user.referralCode || '---' %></span>
+      <% if (user.referralCode) { %>
+      <button class="btn btn-sm" onclick="navigator.clipboard.writeText('<%= user.referralCode %>');this.innerHTML='<i class=\\'fas fa-check\\'></i> تم';setTimeout(()=>this.innerHTML='<i class=\\'fas fa-copy\\'></i> نسخ',2000)" style="font-size:12px;padding:4px 12px;"><i class="fas fa-copy"></i> نسخ</button>
+      <% } %>
+    </div>
     <% if (user.referralDiscount) { %>
       <div style="background:rgba(22,163,74,0.1);border:1px solid rgba(22,163,74,0.2);border-radius:8px;padding:16px;text-align:center;">
         <i class="fas fa-check-circle" style="color:var(--success);font-size:28px;display:block;margin-bottom:8px;"></i>
