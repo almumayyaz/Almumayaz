@@ -36,8 +36,8 @@
 (function(){
   var chatDiv = document.getElementById('chatMessages');
   var chatInput = document.getElementById('chatInput');
-  var lastTimestamp = 0;
-  var sentKeys = {};
+  var lastDate = '';
+  var messagesCache = {};
 
   function scrollToBottom() {
     setTimeout(function(){ chatDiv.scrollTop = chatDiv.scrollHeight; }, 50);
@@ -61,7 +61,7 @@
   function createMessageElement(data) {
     var isMine = data.senderId !== 'teacher';
     var div = document.createElement('div');
-    div.id = 'msg-' + (data._key || data.timestamp);
+    div.id = 'msg-' + (data._key || data._localId || data.timestamp);
     div.style.cssText = 'display:flex;flex-direction:column;align-items:' + (isMine ? 'flex-start' : 'flex-end') + ';max-width:80%;align-self:' + (isMine ? 'flex-end' : 'flex-start') + ';';
 
     var bubble = document.createElement('div');
@@ -104,9 +104,14 @@
     if (isMine) {
       meta.appendChild(document.createTextNode('·'));
       var receipt = document.createElement('span');
-      receipt.innerHTML = data.read
-        ? '<i class="fas fa-check-double" style="color:var(--success);font-size:11px;"></i>'
-        : '<i class="fas fa-check" style="color:var(--text-muted);font-size:11px;"></i>';
+      receipt.id = 'rcpt-' + (data._key || data._localId || data.timestamp);
+      if (data._status === 'sending') {
+        receipt.innerHTML = '<i class="fas fa-clock" style="color:var(--warning);font-size:11px;"></i>';
+      } else {
+        receipt.innerHTML = data.read
+          ? '<i class="fas fa-check-double" style="color:var(--success);font-size:11px;"></i>'
+          : '<i class="fas fa-check" style="color:var(--text-muted);font-size:11px;"></i>';
+      }
       meta.appendChild(receipt);
     }
 
@@ -114,27 +119,61 @@
     return div;
   }
 
-  var lastDate = '';
+  function addMessage(data) {
+    var key = data._key || data._localId || data.timestamp;
+    if (document.getElementById('msg-' + key)) return;
+    var msgDate = new Date(data.timestamp).toDateString();
+    if (msgDate !== lastDate) {
+      lastDate = msgDate;
+      var dateSep = document.createElement('div');
+      dateSep.style.cssText = 'text-align:center;font-size:11px;color:var(--text-muted);padding:8px 0;font-weight:600;';
+      dateSep.textContent = formatDate(data.timestamp);
+      chatDiv.appendChild(dateSep);
+    }
+    chatDiv.appendChild(createMessageElement(data));
+    scrollToBottom();
+    messagesCache[key] = data;
+  }
+
+  // Real-time Firebase listener
+  if (typeof firebase !== 'undefined' && firebase.database) {
+    firebase.database().ref('chats/' + '<%= chatId %>' + '/messages')
+      .orderByChild('timestamp')
+      .on('child_added', function(snapshot) {
+        var data = snapshot.val();
+        data._key = snapshot.key;
+        // Update receipt if we had this as a local optimistic message
+        var localKey = Object.keys(messagesCache).find(function(k) {
+          return messagesCache[k]._localId && messagesCache[k]._localId === data._key;
+        });
+        if (localKey) {
+          var oldEl = document.getElementById('msg-' + localKey);
+          if (oldEl) oldEl.id = 'msg-' + data._key;
+          var rcpt = document.getElementById('rcpt-' + localKey);
+          if (rcpt) { rcpt.id = 'rcpt-' + data._key; rcpt.innerHTML = '<i class="fas fa-check" style="color:var(--text-muted);font-size:11px;"></i>'; }
+          delete messagesCache[localKey];
+        }
+        if (!document.getElementById('msg-' + data._key)) {
+          addMessage(data);
+        }
+        // Mark as read
+        fetch('/api/student/chat/read', { method: 'PUT' }).catch(function(){});
+      });
+  } else {
+    // Fallback: poll
+    setInterval(loadMessages, 3000);
+    loadMessages();
+  }
 
   function loadMessages() {
     fetch('/api/student/chat/messages').then(function(r){return r.json()}).then(function(d){
       if (!d.success) return;
-      var msgs = d.messages;
-      msgs.forEach(function(data) {
-        var key = data._key || data.timestamp;
-        if (document.getElementById('msg-' + key)) return;
-        var msgDate = new Date(data.timestamp).toDateString();
-        if (msgDate !== lastDate) {
-          lastDate = msgDate;
-          var dateSep = document.createElement('div');
-          dateSep.style.cssText = 'text-align:center;font-size:11px;color:var(--text-muted);padding:8px 0;font-weight:600;';
-          dateSep.textContent = formatDate(data.timestamp);
-          chatDiv.appendChild(dateSep);
+      d.messages.forEach(function(data) {
+        if (!document.getElementById('msg-' + (data._key || data.timestamp))) {
+          addMessage(data);
         }
-        chatDiv.appendChild(createMessageElement(data));
-        scrollToBottom();
       });
-      if (msgs.length > 0) {
+      if (d.messages.length > 0) {
         fetch('/api/student/chat/read', { method: 'PUT' }).catch(function(){});
       }
     }).catch(function(){});
@@ -149,14 +188,33 @@
       var msg = { text: text || '', image: selectedImage };
       fetch('/api/student/chat/send', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(msg) })
       .then(function(r){return r.json()}).then(function(d){
-        if (d.success) { chatInput.value = ''; selectedImage = null; updateAttachBtn(); imgInput.value = ''; loadMessages(); }
+        if (d.success) { chatInput.value = ''; selectedImage = null; updateAttachBtn(); imgInput.value = ''; }
       });
       return;
     }
 
+    // Optimistic: show message immediately with sending status
+    var tempId = 'local-' + Date.now();
+    var localMsg = { _localId: tempId, senderId: '<%= user && !isGuest ? "student-" + user.id : (chatId || "guest") %>', senderName: '<%= user ? user.name : "زائر" %>', timestamp: Date.now(), text: text, read: false, _status: 'sending' };
+    addMessage(localMsg);
+    chatInput.value = '';
+    var btn = document.getElementById('sendBtn');
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
     fetch('/api/student/chat/send', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({text:text}) })
     .then(function(r){return r.json()}).then(function(d){
-      if (d.success) { chatInput.value = ''; loadMessages(); }
+      if (d.success && d.key) {
+        // Update local message with real key and sent status
+        var el = document.getElementById('msg-' + tempId);
+        if (el) el.id = 'msg-' + d.key;
+        var rcpt = document.getElementById('rcpt-' + tempId);
+        if (rcpt) { rcpt.id = 'rcpt-' + d.key; rcpt.innerHTML = '<i class="fas fa-check" style="color:var(--text-muted);font-size:11px;"></i>'; }
+        delete messagesCache[tempId];
+        messagesCache[d.key] = { timestamp: Date.now(), read: false };
+      }
+      btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> إرسال';
+    }).catch(function() {
+      btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> إرسال';
     });
   }
 
@@ -164,7 +222,7 @@
   function handleImageSelect(e) {
     var file = e.target.files[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { alert('حجم الصورة يجب أن يكون أقل من 5 ميجابايت'); return; }
+    if (file.size > 5 * 1024 * 1024) { alert('حجم الصورة يجب أن أقل من 5 ميجابايت'); return; }
     var reader = new FileReader();
     reader.onload = function(ev) {
       selectedImage = ev.target.result;
@@ -187,11 +245,21 @@
     document.getElementById('imageInput').value = '';
   }
 
-  setInterval(loadMessages, 3000);
-  loadMessages();
-
   window.sendMessage = sendMessage;
   window.handleImageSelect = handleImageSelect;
+
+  // Update receipt icons to read when Firebase data changes
+  if (typeof firebase !== 'undefined' && firebase.database) {
+    firebase.database().ref('chats/' + '<%= chatId %>' + '/messages')
+      .on('child_changed', function(snapshot) {
+        var data = snapshot.val();
+        var key = snapshot.key;
+        var rcpt = document.getElementById('rcpt-' + key);
+        if (rcpt && data.read) {
+          rcpt.innerHTML = '<i class="fas fa-check-double" style="color:var(--success);font-size:11px;"></i>';
+        }
+      });
+  }
 })();
 </script>
 

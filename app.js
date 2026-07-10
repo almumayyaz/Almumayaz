@@ -616,7 +616,8 @@ app.post('/api/student/apply-referral', requireAuth, async (req, res) => {
 app.get('/student/chat', requireStudentOrGuest, (req, res) => {
   const user = req.session.user;
   const isGuest = !!req.session.demoMode;
-  res.render('student/chat', { user, isGuest, title: 'اسأل عفيفي - المُميز' });
+  const chatId = isGuest ? (req.session.guestChatId || 'guest-' + Date.now()) : ('student-' + user.id);
+  res.render('student/chat', { user, isGuest, chatId, title: 'اسأل عفيفي - المُميز' });
 });
 
 /* ===================== STUDENT SUBSCRIPTION API ===================== */
@@ -634,6 +635,8 @@ app.post('/api/student/subscribe', requireAuth, async (req, res) => {
       userName: req.session.user.name,
       userPhone: req.session.user.phone || '',
       planName, price, transactionId, paymentMethod: paymentMethod || 'vodafone-cash',
+      planId: sub ? sub.id : '',
+      durationDays: sub ? (sub.durationDays || 30) : 30,
       status: 'pending',
       date: new Date().toISOString(),
       discount: req.session.user.referralDiscount || 0
@@ -663,8 +666,17 @@ app.put('/api/admin/sub-requests/:id', requireAdmin, async (req, res) => {
     if (idx === -1) return res.status(404).json({ error: 'الطلب غير موجود' });
     subRequests[idx].status = status;
     await writeData('subRequests', subRequests);
-    // Send push notification to student
     if (status === 'approved') {
+      // Activate user subscription
+      const users = await readData('users');
+      const uidx = users.findIndex(u => u.id === subRequests[idx].userId);
+      if (uidx !== -1) {
+        users[uidx].subscriptionStatus = 'active';
+        users[uidx].subscriptionStart = new Date().toISOString();
+        const durDays = parseInt(subRequests[idx].durationDays) || 30;
+        users[uidx].subscriptionEnd = new Date(Date.now() + durDays * 24 * 60 * 60 * 1000).toISOString();
+        await writeData('users', users);
+      }
       sendFCM(subRequests[idx].userId, 'تم تفعيل الاشتراك 🎉', 'مرحباً ' + (subRequests[idx].userName || '') + '! تم تفعيل اشتراكك في منصة المُميز. يمكنك الآن مشاهدة جميع المحاضرات.', '/student/subscription');
     } else if (status === 'rejected') {
       sendFCM(subRequests[idx].userId, 'لم يتم الموافقة على طلب الاشتراك', 'عذراً ' + (subRequests[idx].userName || '') + '، لم تتم الموافقة على طلب الاشتراك الخاص بك. يرجى التواصل مع الدعم الفني.', '/student/subscription');
