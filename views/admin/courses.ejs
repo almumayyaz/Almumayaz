@@ -185,7 +185,7 @@
                     <span style="color:var(--text-muted);font-size:11px;">---</span>
                   <% } %>
               </td>
-              <td style="font-size:12px;"><%= l.isFree ? '<span style="color:var(--success);font-weight:600;">مجاني</span>' : '---' %> <% if (l.guestVisible) { %><span style="color:var(--accent);font-weight:600;font-size:11px;"><br>زائر</span><% } %></td>
+              <td style="font-size:12px;"><%- l.isFree ? '<span style="color:var(--success);font-weight:600;">مجاني</span>' : '---' %> <% if (l.guestVisible) { %><span style="color:var(--accent);font-weight:600;font-size:11px;"><br>زائر</span><% } %></td>
               <td style="font-size:12px;"><%= l.sectionId ? (function(){ var s = (course.sections || []).find(function(s){ return s.id === l.sectionId; }); return s ? s.name : '---'; })() : '---' %></td>
               <td>
                 <div class="admin-actions">
@@ -221,7 +221,7 @@
               <td><%= n.title %></td>
               <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><%= n.description||'---' %></td>
               <td><% if (n.fileUrl) { %><a href="<%= n.fileUrl %>" target="_blank" style="color:var(--accent);font-size:12px;"><i class="fas fa-file-pdf"></i> عرض</a><% } else { %><span style="color:var(--text-muted);">---</span><% } %></td>
-              <td style="font-size:12px;"><%= n.isFree ? '<span style="color:var(--success);font-weight:600;">مجاني</span>' : '---' %></td>
+              <td style="font-size:12px;"><%- n.isFree ? '<span style="color:var(--success);font-weight:600;">مجاني</span>' : '---' %></td>
               <td style="font-size:12px;"><%= n.order %></td>
               <td>
                 <div class="admin-actions">
@@ -237,8 +237,7 @@
               <td><%= l.title %></td>
               <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">مذكرة المحاضرة</td>
               <td><% if (l.pdfUrl) { %><a href="<%= l.pdfUrl %>" target="_blank" style="color:var(--accent);font-size:12px;"><i class="fas fa-file-pdf"></i> عرض</a><% } else { %><span style="color:var(--text-muted);">---</span><% } %></td>
-              <td style="font-size:12px;"><%= l.isFree ? '<span style="color:var(--success);font-weight:600;">مجاني</span>' : '---' %></td>
-              <td style="font-size:12px;"><%= l.order||0 %></td>
+              <td style="font-size:12px;"><%- l.isFree ? '<span style="color:var(--success);font-weight:600;">مجاني</span>' : '---' %></td>
               <td>
                 <div class="admin-actions">
                   <span style="font-size:11px;color:var(--text-muted);"><i class="fas fa-lock"></i> تابع للدرس</span>
@@ -273,8 +272,8 @@
                 <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><%= r.desc||'---' %></td>
                 <td style="font-size:12px;"><%= (r.videos&&r.videos.length>0) ? r.videos.length+' فيديو' : '---' %></td>
                 <td style="font-size:12px;"><%= (r.pdfFiles&&r.pdfFiles.length>0) ? r.pdfFiles.length+' ملف' : '---' %></td>
-                <td style="font-size:12px;"><%= r.quiz ? '<span style="color:var(--success);">'+r.quiz.questions.length+' سؤال</span>' : '---' %></td>
-                <td style="font-size:12px;"><%= r.isFree ? '<span style="color:var(--success);font-weight:600;">مجاني</span>' : '---' %></td>
+                <td style="font-size:12px;"><%- r.quiz ? '<span style="color:var(--success);">'+r.quiz.questions.length+' سؤال</span>' : '---' %></td>
+                <td style="font-size:12px;"><%- r.isFree ? '<span style="color:var(--success);font-weight:600;">مجاني</span>' : '---' %></td>
                 <td style="font-size:12px;"><%= r.order||0 %></td>
                 <td>
                   <div class="admin-actions">
