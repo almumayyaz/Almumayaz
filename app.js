@@ -302,7 +302,9 @@ app.get('/student', requireStudentOrGuest, async (req, res) => {
 
 app.get('/student/courses', requireStudentOrGuest, async (req, res) => {
   const courses = await readData('courses');
-  res.render('student/courses', { courses, title: 'المحاضرات - لغتي' });
+  const user = req.session.user;
+  const userStage = (user && user.stage) || '';
+  res.render('student/courses', { courses, userStage, title: 'المحاضرات - لغتي' });
 });
 
 app.get('/student/course/:id', requireStudentOrGuest, async (req, res) => {
