@@ -152,6 +152,8 @@ function handleRegister(e) {
     }
     firebase.auth().createUserWithEmailAndPassword(email, password)
       .then(function(cred) {
+        // Send email verification
+        cred.user.sendEmailVerification().catch(function(){});
         return cred.user.getIdToken();
       })
       .then(function(token) {
@@ -168,7 +170,9 @@ function handleRegister(e) {
       })
       .then(function(r) { return r.json(); })
       .then(function(d) {
-        if (d.success) window.location.href = d.redirect;
+        if (d.success) {
+          document.getElementById('registerForm').innerHTML = '<div style="padding:40px 20px;text-align:center;"><i class="fas fa-envelope" style="font-size:56px;color:var(--accent);display:block;margin-bottom:16px;"></i><h2 style="font-family:\'Aref Ruqaa\',serif;font-size:22px;font-weight:700;margin-bottom:8px;">تم إنشاء الحساب 🎉</h2><p style="font-size:14px;color:var(--text-light);margin-bottom:20px;">تم إرسال رابط تأكيد إلى بريدك الإلكتروني. يرجى التحقق من بريدك (أو البريد المزعج) وتأكيد الحساب ثم تسجيل الدخول.</p><a href="/login" class="btn btn-primary"><i class="fas fa-sign-in-alt"></i> تسجيل الدخول</a></div>';
+        }
         else { alert(d.error || 'فشل إنشاء الحساب'); location.reload(); }
       })
       .catch(function(err) {

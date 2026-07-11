@@ -14,7 +14,6 @@ var CACHE = 'lughati-v2';
 var urls = ['/', '/css/style.css', '/manifest.json'];
 
 self.addEventListener('install', function(e) {
-  self.skipWaiting();
   e.waitUntil(caches.open(CACHE).then(function(c) { return c.addAll(urls); }));
 });
 

@@ -203,6 +203,10 @@ app.post('/api/auth/firebase-login', async (req, res) => {
   try {
     const { idToken } = req.body;
     const decoded = await fbAuth.verifyIdToken(idToken);
+    // Require email verified (handled on frontend too, but double-check server-side)
+    if (!decoded.email_verified) {
+      return res.status(403).json({ error: 'البريد الإلكتروني غير مؤكد. يرجى التحقق من بريدك أولاً.' });
+    }
     const uid = decoded.uid;
     const users = await readData('users');
     let user = users.find(u => u.uid === uid);
