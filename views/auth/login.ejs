@@ -39,6 +39,36 @@
   </div>
 </section>
 
+<!-- Password Reset Modal -->
+<div class="modal-overlay" id="resetModal">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-header">
+      <h3><i class="fas fa-key"></i> إعادة تعيين كلمة المرور</h3>
+      <button class="modal-close" onclick="closeResetModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div id="resetModalBody">
+        <p style="font-size:14px;color:var(--text-light);margin-bottom:16px;">أدخل بريدك الإلكتروني المسجل وسنرسل لك رابطاً لإعادة تعيين كلمة المرور.</p>
+        <div class="form-group">
+          <label>البريد الإلكتروني</label>
+          <input type="email" id="resetEmail" class="form-input" placeholder="example@email.com" dir="ltr">
+        </div>
+        <div id="resetModalError" style="display:none;background:rgba(220,38,38,0.1);border:1px solid rgba(220,38,38,0.2);border-radius:8px;padding:12px;margin-bottom:12px;text-align:center;font-size:13px;color:var(--danger);"></div>
+        <button class="btn btn-primary" onclick="sendResetEmail()" id="resetBtn" style="width:100%;"><i class="fas fa-paper-plane"></i> إرسال رابط التعيين</button>
+      </div>
+      <div id="resetSentBody" style="display:none;text-align:center;padding:24px 12px;">
+        <i class="fas fa-envelope" style="font-size:48px;color:var(--success);display:block;margin-bottom:12px;"></i>
+        <h3 style="font-size:18px;font-weight:700;margin-bottom:8px;">تم الإرسال ✅</h3>
+        <p style="font-size:14px;color:var(--text-light);margin-bottom:12px;">تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك الإلكتروني.</p>
+        <p style="font-size:13px;background:rgba(234,179,8,0.1);border:1px solid rgba(234,179,8,0.2);border-radius:8px;padding:12px;color:#a16207;">
+          <i class="fas fa-exclamation-triangle"></i> <strong>تنبيه:</strong> إذا لم تجد الرسالة في صندوق الوارد، يرجى التحقق من <strong>البريد المزعج (Spam)</strong>.
+        </p>
+        <button class="btn btn-primary" onclick="closeResetModal()" style="margin-top:12px;"><i class="fas fa-check"></i> تم</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <% if (typeof firebaseConfig !== 'undefined' && firebaseConfig.apiKey) { %>
 <script>
 function firebaseLogin() {
@@ -89,23 +119,36 @@ function firebaseLogin() {
 }
 
 function resetPassword() {
-  var email = prompt('أدخل البريد الإلكتروني لإعادة تعيين كلمة المرور:');
-  if (!email) return;
-  firebase.auth().sendPasswordResetEmail(email)
+  document.getElementById('resetEmail').value = '';
+  document.getElementById('resetModalError').style.display = 'none';
+  document.getElementById('resetModalBody').style.display = 'block';
+  document.getElementById('resetSentBody').style.display = 'none';
+  document.getElementById('resetModal').classList.add('show');
+  setTimeout(function(){ document.getElementById('resetEmail').focus(); }, 300);
+}
+
+function closeResetModal() {
+  document.getElementById('resetModal').classList.remove('show');
+}
+
+function sendResetEmail() {
+  var email = document.getElementById('resetEmail').value.trim();
+  var errDiv = document.getElementById('resetModalError');
+  var btn = document.getElementById('resetBtn');
+  errDiv.style.display = 'none';
+  if (!email) { errDiv.style.display = 'block'; errDiv.textContent = 'يرجى إدخال البريد الإلكتروني'; return; }
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الإرسال...';
+  firebase.auth().sendPasswordResetEmail(email, { url: window.location.origin + '/login' })
     .then(function() {
-      var msg = document.getElementById('resetMessage');
-      msg.style.display = 'block';
-      msg.style.background = 'rgba(22,163,74,0.1)';
-      msg.style.color = 'var(--success)';
-      msg.innerHTML = '<i class="fas fa-check-circle"></i> تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك الإلكتروني.';
+      document.getElementById('resetModalBody').style.display = 'none';
+      document.getElementById('resetSentBody').style.display = 'block';
     })
     .catch(function(error) {
-      var msg = document.getElementById('resetMessage');
-      msg.style.display = 'block';
-      msg.style.background = 'rgba(220,38,38,0.1)';
-      msg.style.color = 'var(--danger)';
-      if (error.code === 'auth/user-not-found') msg.textContent = 'لا يوجد حساب بهذا البريد الإلكتروني';
-      else msg.textContent = 'فشل إرسال الرابط: ' + error.message;
+      btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> إرسال رابط التعيين';
+      errDiv.style.display = 'block';
+      if (error.code === 'auth/user-not-found') errDiv.textContent = 'لا يوجد حساب بهذا البريد الإلكتروني';
+      else if (error.code === 'auth/invalid-email') errDiv.textContent = 'البريد الإلكتروني غير صحيح';
+      else errDiv.textContent = 'فشل إرسال الرابط: ' + error.message;
     });
 }
 </script>
