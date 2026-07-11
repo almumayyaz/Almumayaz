@@ -138,7 +138,7 @@ function sendResetEmail() {
   errDiv.style.display = 'none';
   if (!email) { errDiv.style.display = 'block'; errDiv.textContent = 'يرجى إدخال البريد الإلكتروني'; return; }
   btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الإرسال...';
-  firebase.auth().sendPasswordResetEmail(email, { url: window.location.origin + '/login' })
+  firebase.auth().sendPasswordResetEmail(email)
     .then(function() {
       document.getElementById('resetModalBody').style.display = 'none';
       document.getElementById('resetSentBody').style.display = 'block';
