@@ -29,7 +29,7 @@
       </div>
       <div class="info-row">
         <span class="label">المرحلة</span>
-        <select id="editStage" class="value" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;width:100%;">
+        <select id="editStage" class="value" onchange="updateGrades()" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;width:100%;">
           <option value="">اختر المرحلة</option>
           <option value="إعدادية" <%= user.stage==='إعدادية'?'selected':'' %>>إعدادية</option>
           <option value="ثانوية" <%= user.stage==='ثانوية'?'selected':'' %>>ثانوية</option>
@@ -39,12 +39,6 @@
         <span class="label">الصف الدراسي</span>
         <select id="editGrade" class="value" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;width:100%;">
           <option value="">اختر الصف</option>
-          <option value="الأول الإعدادي" <%= user.grade==='الأول الإعدادي'?'selected':'' %>>الأول الإعدادي</option>
-          <option value="الثاني الإعدادي" <%= user.grade==='الثاني الإعدادي'?'selected':'' %>>الثاني الإعدادي</option>
-          <option value="الثالث الإعدادي" <%= user.grade==='الثالث الإعدادي'?'selected':'' %>>الثالث الإعدادي</option>
-          <option value="الأول الثانوي" <%= user.grade==='الأول الثانوي'?'selected':'' %>>الأول الثانوي</option>
-          <option value="الثاني الثانوي" <%= user.grade==='الثاني الثانوي'?'selected':'' %>>الثاني الثانوي</option>
-          <option value="الثالث الثانوي" <%= user.grade==='الثالث الثانوي'?'selected':'' %>>الثالث الثانوي</option>
         </select>
       </div>
       <div class="info-row">
@@ -123,12 +117,28 @@
 </main>
 
 <script>
+function updateGrades() {
+  var stage = document.getElementById('editStage').value;
+  var gradeSel = document.getElementById('editGrade');
+  var currentVal = gradeSel.value || '<%= user.grade || "" %>';
+  gradeSel.innerHTML = '<option value="">اختر الصف</option>';
+  if (stage === 'إعدادية') {
+    ['الأول الإعدادي','الثاني الإعدادي','الثالث الإعدادي'].forEach(function(g) {
+      gradeSel.innerHTML += '<option value="'+g+'"'+(currentVal===g?' selected':'')+'>'+g+'</option>';
+    });
+  } else if (stage === 'ثانوية') {
+    ['الأول الثانوي','الثاني الثانوي','الثالث الثانوي'].forEach(function(g) {
+      gradeSel.innerHTML += '<option value="'+g+'"'+(currentVal===g?' selected':'')+'>'+g+'</option>';
+    });
+  }
+}
 function toggleEdit() {
   var form = document.getElementById('profileEditForm');
   var view = document.getElementById('profileView');
   if (form.style.display === 'none') {
     form.style.display = 'block';
     view.style.display = 'none';
+    updateGrades();
   } else {
     form.style.display = 'none';
     view.style.display = 'block';

@@ -102,7 +102,7 @@
       <div class="form-group"><label>رقم الهاتف</label><input id="studentPhone"></div>
       <div class="form-group"><label>هاتف ولي الأمر</label><input id="studentParentPhone"></div>
       <div class="form-group"><label>المرحلة</label>
-        <select id="studentStage">
+        <select id="studentStage" onchange="updateStudentGrades()">
           <option value="">اختر المرحلة</option>
           <option value="إعدادية">إعدادية</option>
           <option value="ثانوية">ثانوية</option>
@@ -111,12 +111,6 @@
       <div class="form-group"><label>الصف الدراسي</label>
         <select id="studentGrade">
           <option value="">اختر الصف</option>
-          <option value="الأول الإعدادي">الأول الإعدادي</option>
-          <option value="الثاني الإعدادي">الثاني الإعدادي</option>
-          <option value="الثالث الإعدادي">الثالث الإعدادي</option>
-          <option value="الأول الثانوي">الأول الثانوي</option>
-          <option value="الثاني الثانوي">الثاني الثانوي</option>
-          <option value="الثالث الثانوي">الثالث الثانوي</option>
         </select>
       </div>
       <div class="form-group"><label>المحافظة</label>
@@ -167,6 +161,21 @@
 </div>
 
 <script>
+function updateStudentGrades() {
+  var stage = document.getElementById('studentStage').value;
+  var gradeSel = document.getElementById('studentGrade');
+  var currentVal = gradeSel.getAttribute('data-cur') || '';
+  gradeSel.innerHTML = '<option value="">اختر الصف</option>';
+  if (stage === 'إعدادية') {
+    ['الأول الإعدادي','الثاني الإعدادي','الثالث الإعدادي'].forEach(function(g) {
+      gradeSel.innerHTML += '<option value="'+g+'"'+(currentVal===g?' selected':'')+'>'+g+'</option>';
+    });
+  } else if (stage === 'ثانوية') {
+    ['الأول الثانوي','الثاني الثانوي','الثالث الثانوي'].forEach(function(g) {
+      gradeSel.innerHTML += '<option value="'+g+'"'+(currentVal===g?' selected':'')+'>'+g+'</option>';
+    });
+  }
+}
 // ===== STUDENT CRUD =====
 function openStudentModal(s) {
   document.getElementById('studentId').value = s.id;
@@ -175,7 +184,8 @@ function openStudentModal(s) {
   document.getElementById('studentPhone').value = s.phone || '';
   document.getElementById('studentParentPhone').value = s.parentPhone || '';
   document.getElementById('studentStage').value = s.stage || '';
-  document.getElementById('studentGrade').value = s.grade || '';
+  document.getElementById('studentGrade').setAttribute('data-cur', s.grade || '');
+  updateStudentGrades();
   document.getElementById('studentGovernorate').value = s.governorate || '';
   document.getElementById('studentModal').classList.add('show');
 }
