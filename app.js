@@ -697,6 +697,23 @@ app.put('/api/admin/sub-requests/:id', requireAdmin, async (req, res) => {
         users[uidx].subscriptionEnd = new Date(Date.now() + durDays * 24 * 60 * 60 * 1000).toISOString();
         await writeData('users', users);
       }
+      // Record the payment for revenue tracking
+      try {
+        const payments = await readData('payments') || [];
+        payments.push({
+          id: 'PAY-' + Date.now(),
+          userId: subRequests[idx].userId,
+          userName: subRequests[idx].userName,
+          transactionId: subRequests[idx].transactionId || '',
+          amount: Number(subRequests[idx].price) || 0,
+          method: subRequests[idx].paymentMethod || 'vodafone-cash',
+          planName: subRequests[idx].planName || '',
+          status: 'approved',
+          date: new Date().toISOString(),
+          rejectReason: ''
+        });
+        await writeData('payments', payments);
+      } catch(e) { console.error('Failed to record payment for sub-request:', e.message); }
       sendFCM(subRequests[idx].userId, 'تم تفعيل الاشتراك 🎉', 'مرحباً ' + (subRequests[idx].userName || '') + '! تم تفعيل اشتراكك في منصة المُميز. يمكنك الآن مشاهدة جميع المحاضرات.', '/student/subscription');
     } else if (status === 'rejected') {
       sendFCM(subRequests[idx].userId, 'لم يتم الموافقة على طلب الاشتراك', 'عذراً ' + (subRequests[idx].userName || '') + '، لم تتم الموافقة على طلب الاشتراك الخاص بك. يرجى التواصل مع الدعم الفني.', '/student/subscription');
