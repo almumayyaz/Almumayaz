@@ -328,6 +328,11 @@ async function migrateSeedData() {
               changed = true;
             }
           });
+          // Force-update semester from seed data (teacher can override later)
+          if (sc.semester && c.semester !== sc.semester) {
+            c.semester = sc.semester;
+            changed = true;
+          }
         }
         if (changed) {
           await fbDb.ref(key).set(val);
