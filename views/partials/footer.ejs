@@ -89,9 +89,9 @@
           messaging.onMessage(function(payload) {
             var title = payload.notification?.title || payload.data?.title || 'المُميز';
             var body = payload.notification?.body || payload.data?.body || '';
-            var icon = payload.notification?.icon || '/icon-192.png';
-            if (Notification.permission === 'granted') {
-              new Notification(title, { body: body, icon: icon, badge: '/icon-192.png' });
+          var icon = payload.notification?.icon || '/icon.png';
+          if (Notification.permission === 'granted') {
+            new Notification(title, { body: body, icon: icon, badge: '/icon.png' });
             }
           });
         } catch(e) { console.error('FCM init error:', e); }

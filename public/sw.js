@@ -31,12 +31,12 @@ var messaging = firebase.messaging();
 messaging.onBackgroundMessage(function(payload) {
   var title = payload.notification?.title || payload.data?.title || 'المُميز';
   var body = payload.notification?.body || payload.data?.body || '';
-  var icon = payload.notification?.icon || '/icon-192.png';
+  var icon = payload.notification?.icon || '/icon.png';
   var clickUrl = payload.data?.url || '/';
   self.registration.showNotification(title, {
     body: body,
     icon: icon,
-    badge: '/icon-192.png',
+    badge: '/icon.png',
     data: { url: clickUrl, click_action: clickUrl },
     vibrate: [200, 100, 200],
     requireInteraction: true
