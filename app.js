@@ -1124,6 +1124,18 @@ app.put('/api/admin/courses/:id/lessons/:lessonId', requireAdmin, async (req, re
   }
 });
 
+/* ===================== ADMIN: FORCE SEED MIGRATION ===================== */
+
+app.post('/api/admin/migrate-seed', requireAdmin, async (req, res) => {
+  try {
+    const { migrateSeedData } = require('./firebase-admin');
+    await migrateSeedData();
+    res.json({ success: true, message: 'تم ترحيل البيانات بنجاح' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.delete('/api/admin/courses/:id/lessons/:lessonId', requireAdmin, async (req, res) => {
   try {
     const courses = await readData('courses');

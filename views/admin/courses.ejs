@@ -92,7 +92,10 @@
         <p style="font-size:12px;color:var(--text-light);margin:2px 0 0;"><%= courses.length %> فرع — <%= courses.reduce(function(a,c){return a+(c.lessons||[]).length;},0) %> محاضرة</p>
       </div>
     </div>
-    <button class="btn btn-primary" onclick="openCourseModal()"><i class="fas fa-plus"></i> إضافة فرع</button>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button class="btn btn-outline" onclick="migrateSeed()" style="font-size:12px;" title="ترحيل البيانات من الملفات المحلية إلى قاعدة البيانات"><i class="fas fa-database"></i></button>
+      <button class="btn btn-primary" onclick="openCourseModal()"><i class="fas fa-plus"></i> إضافة فرع</button>
+    </div>
   </div>
 
   <div id="coursesContainer" style="display:flex;flex-direction:column;gap:20px;">
@@ -657,6 +660,17 @@
 </div>
 
 <script>
+function migrateSeed() {
+  if (!confirm('هل أنت متأكد من ترحيل البيانات من الملفات المحلية إلى قاعدة البيانات؟')) return;
+  var btn = event.target.closest('button');
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+  fetch('/api/admin/migrate-seed', { method: 'POST' })
+    .then(function(r){ return r.json(); })
+    .then(function(d){ alert(d.success ? 'تم ترحيل البيانات بنجاح' : d.error); if (d.success) location.reload(); })
+    .catch(function(e){ alert('خطأ: ' + e.message); })
+    .finally(function(){ btn.disabled = false; btn.innerHTML = '<i class="fas fa-database"></i>'; });
+}
+</script><script>
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function escAttr(s) { return String(s).replace(/"/g,'&quot;').replace(/&/g,'&amp;'); }
 function extractSrcFromIframe(v) { var m = String(v).match(/src=["']([^"']+)["']/); return m ? m[1] : v; }
