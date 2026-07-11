@@ -112,9 +112,33 @@ async function readData(key) {
   if (fbDb) {
     try {
       const snap = await fbDb.ref(key).once('value');
-      const val = snap.val();
+      let val = snap.val();
       if (val !== null && val !== undefined) {
-        localStore.writeData(key, val).catch(function(){});
+        // Merge seed data into Firebase courses if lessons/sections are missing
+        if (key === 'courses' && Array.isArray(val)) {
+          const seed = await localStore.readData('courses');
+          if (Array.isArray(seed)) {
+            let changed = false;
+            val.forEach(function(c) {
+              const seedCourse = seed.find(function(sc) { return sc.id === c.id; });
+              if (seedCourse) {
+                if ((!c.lessons || c.lessons.length === 0) && seedCourse.lessons && seedCourse.lessons.length > 0) {
+                  c.lessons = seedCourse.lessons; changed = true;
+                }
+                if ((!c.sections || c.sections.length === 0) && seedCourse.sections && seedCourse.sections.length > 0) {
+                  c.sections = seedCourse.sections; changed = true;
+                }
+                if ((!c.quiz || Object.keys(c.quiz).length === 0) && seedCourse.quiz) {
+                  c.quiz = seedCourse.quiz; changed = true;
+                }
+              }
+            });
+            if (changed) {
+              fbDb.ref(key).set(val).catch(function(){});
+              localStore.writeData(key, val).catch(function(){});
+            }
+          }
+        }
         return val;
       }
     } catch (e) {
