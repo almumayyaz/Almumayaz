@@ -116,8 +116,16 @@ async function readData(key) {
       // Firebase returns stored arrays as objects with numeric keys - normalize to array
       if (val && typeof val === 'object' && !Array.isArray(val)) {
         const keys2 = Object.keys(val);
-        if (keys2.length > 0 && keys2.every(k => !isNaN(parseInt(k)))) {
-          val = keys2.sort((a,b) => parseInt(a)-parseInt(b)).map(k => val[k]);
+        if (keys2.length > 0) {
+          if (keys2.every(k => !isNaN(parseInt(k)))) {
+            val = keys2.sort((a,b) => parseInt(a)-parseInt(b)).map(k => val[k]);
+          } else {
+            // Object with non-numeric keys - check if it looks like a stored array (has id field)
+            const first = val[keys2[0]];
+            if (first && typeof first === 'object' && first.id) {
+              val = keys2.map(k => val[k]);
+            }
+          }
         }
       }
       if (val !== null && val !== undefined) {
@@ -275,8 +283,15 @@ async function migrateSeedData() {
       // Firebase returns arrays as objects with numeric keys - normalize
       if (val && typeof val === 'object' && !Array.isArray(val)) {
         const keys2 = Object.keys(val);
-        if (keys2.length > 0 && keys2.every(k => !isNaN(parseInt(k)))) {
-          val = keys2.sort((a,b) => parseInt(a)-parseInt(b)).map(k => val[k]);
+        if (keys2.length > 0) {
+          if (keys2.every(k => !isNaN(parseInt(k)))) {
+            val = keys2.sort((a,b) => parseInt(a)-parseInt(b)).map(k => val[k]);
+          } else {
+            const first = val[keys2[0]];
+            if (first && typeof first === 'object' && first.id) {
+              val = keys2.map(k => val[k]);
+            }
+          }
         }
       }
       if (val === null || val === undefined || (Array.isArray(val) && val.length === 0)) {
