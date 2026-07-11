@@ -1907,6 +1907,28 @@ h3 { font-size: 18px; font-weight: 900; }
   gap: 14px;
 }
 
+/* ===== Tree View ===== */
+.tree-view { display:flex; flex-direction:column; gap:12px; margin-bottom:20px; }
+.tree-section { background:var(--card); border:1px solid var(--border); border-radius:var(--radius-lg); overflow:hidden; }
+.tree-section-header { display:flex; align-items:center; gap:12px; padding:14px 18px; cursor:pointer; transition:var(--transition); user-select:none; }
+.tree-section-header:hover { background:var(--bg); }
+.tree-section-icon { width:36px; height:36px; background:var(--accent-glow); border-radius:10px; display:flex; align-items:center; justify-content:center; color:var(--accent); font-size:16px; flex-shrink:0; }
+.tree-section-info { flex:1; }
+.tree-section-info h4 { font-size:14px; font-weight:700; margin:0; color:var(--text); }
+.tree-section-count { font-size:11px; color:var(--text-muted); }
+.tree-arrow { color:var(--text-light); font-size:14px; transition:transform 0.3s ease; }
+.tree-section.expanded .tree-arrow { transform:rotate(-90deg); }
+.tree-section-children { display:none; padding:0 16px 12px; flex-direction:column; gap:6px; }
+.tree-section.expanded .tree-section-children { display:flex; }
+.tree-lesson-item { display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:var(--radius); transition:var(--transition); text-decoration:none; color:var(--text); background:var(--bg); }
+.tree-lesson-item:hover { background:var(--accent-glow); transform:translateX(-3px); }
+.tree-lesson-item.locked { opacity:0.6; }
+.tree-lesson-item.completed { border-right:3px solid var(--success); }
+.tree-lesson-num { width:28px; height:28px; background:var(--card); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:var(--primary); flex-shrink:0; }
+.tree-lesson-title { flex:1; font-size:13px; font-weight:600; }
+.tree-free-badge { font-size:10px; background:rgba(5,150,105,0.1); color:var(--success); padding:1px 6px; border-radius:3px; font-weight:700; white-space:nowrap; }
+.tree-lesson-duration { font-size:11px; color:var(--text-light); white-space:nowrap; display:flex; align-items:center; gap:3px; }
+
 .lesson-item {
   background: var(--glass-bg);
   backdrop-filter: blur(var(--glass-blur));
