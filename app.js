@@ -106,7 +106,7 @@ app.use(async (req, res, next) => {
   res.locals.vapidKey = stripBOM(process.env.FIREBASE_VAPID_KEY || '');
   try {
     var appSettings = await readData('settings');
-    if (appSettings && typeof appSettings === 'object') {
+    if (appSettings && typeof appSettings === 'object' && !Array.isArray(appSettings)) {
       res.locals.vodafoneCash = appSettings.vodafoneCash || stripBOM(process.env.VODAFONE_CASH || '01000000000');
       res.locals.instaPay = appSettings.instaPay || stripBOM(process.env.INSTAPAY || 'example@instapay.com');
       res.locals.currentSemester = appSettings.currentSemester || 'all';
@@ -181,6 +181,15 @@ app.use(refreshSession);
     try {
       const { fbRemove } = require('./firebase-admin');
       await fbRemove('chats/student-lughati-chat');
+    } catch(e) {}
+    // Fix settings if stored as array (from migration bug)
+    try {
+      var s = await readData('settings');
+      if (Array.isArray(s)) {
+        var fixed = { currentSemester: 'all', vodafoneCash: process.env.VODAFONE_CASH || '01000000000', instaPay: process.env.INSTAPAY || 'example@instapay.com' };
+        await writeData('settings', fixed);
+        console.log('Fixed corrupted settings (array → object)');
+      }
     } catch(e) {}
     console.log('Auto-migration complete');
   } catch(e) {

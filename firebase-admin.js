@@ -306,8 +306,8 @@ async function migrateSeedData() {
 
       // If Firebase is empty, write all seed data
       if (isEmpty) {
-        await fbDb.ref(key).set(seedData);
-        console.log('Migrated seed data to Firebase:', key, seedData.length);
+        await fbDb.ref(key).set(Array.isArray(local) ? seedData : local);
+        console.log('Migrated seed data to Firebase:', key, typeof local === 'object' && !Array.isArray(local) ? JSON.stringify(local).length : seedData.length);
         continue;
       }
 
