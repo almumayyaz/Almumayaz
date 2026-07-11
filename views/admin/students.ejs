@@ -36,6 +36,7 @@
           <th>البريد الإلكتروني</th>
           <th>المرحلة</th>
           <th>الصف</th>
+          <th>المعرف</th>
           <th>حالة الاشتراك</th>
           <th>الإجراءات</th>
         </tr>
@@ -49,6 +50,7 @@
               <td dir="ltr" style="font-size:12px;"><%= s.email || '---' %></td>
               <td><%= s.stage || '---' %></td>
               <td><%= s.grade || '---' %></td>
+              <td style="font-size:11px;color:var(--text-muted);direction:ltr;font-family:monospace;cursor:pointer;" onclick="copyToClipboard('<%= s.id %>')" title="انسخ المعرف"><%= s.id %> <i class="fas fa-copy" style="font-size:9px;opacity:0.6;"></i></td>
               <td>
                 <% if (s.subscriptionStatus === 'active') { %>
                   <span class="status-badge active">نشط</span>
@@ -174,6 +176,16 @@ function updateStudentGrades() {
     ['الأول الثانوي','الثاني الثانوي','الثالث الثانوي'].forEach(function(g) {
       gradeSel.innerHTML += '<option value="'+g+'"'+(currentVal===g?' selected':'')+'>'+g+'</option>';
     });
+  }
+}
+function copyToClipboard(text) {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text);
+  } else {
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta);
   }
 }
 // ===== STUDENT CRUD =====
