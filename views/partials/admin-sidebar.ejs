@@ -1,8 +1,8 @@
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-user">
-      <div class="sidebar-avatar">م</div>
+      <div class="sidebar-avatar"><%= user ? user.name.charAt(0) : 'م' %></div>
       <div class="sidebar-user-info">
-        <h4>محمد عفيفي</h4>
+        <h4><%= user ? user.name : 'محمد عفيفي' %></h4>
         <span>المدير</span>
       </div>
     </div>

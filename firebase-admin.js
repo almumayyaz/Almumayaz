@@ -108,25 +108,40 @@ const localStore = require('./data-store');
 let useLocalFallback = !ready;
 
 async function readData(key) {
-  if (useLocalFallback) return localStore.readData(key);
-  try {
-    const val = await restGet(key);
-    if (val === null || val === undefined) return key.endsWith('s') ? [] : {};
-    return val;
-  } catch (e) {
-    console.error('Firebase read error, falling back to local:', e.message);
-    return localStore.readData(key);
+  // Try Firebase first (authoritative source - persists across instances)
+  if (fbDb) {
+    try {
+      const snap = await fbDb.ref(key).once('value');
+      const val = snap.val();
+      if (val !== null && val !== undefined) {
+        localStore.writeData(key, val).catch(function(){});
+        return val;
+      }
+    } catch (e) {
+      console.error('Firebase read error, using local store:', e.message);
+    }
   }
+  // Fallback: read from local store (has seed data)
+  const local = await localStore.readData(key);
+  // If local has data and Firebase was empty/unavailable, migrate to Firebase
+  if (fbDb && local && (Array.isArray(local) ? local.length > 0 : Object.keys(local).length > 0)) {
+    fbDb.ref(key).set(local).catch(function(){});
+  }
+  return local;
 }
 
 async function writeData(key, data) {
-  if (useLocalFallback) return localStore.writeData(key, data);
-  try {
-    await restPut(key, data);
-  } catch (e) {
-    console.error('Firebase write error, falling back to local:', e.message);
-    return localStore.writeData(key, data);
+  // Write to local store first (always works)
+  await localStore.writeData(key, data);
+  // Also write to Firebase Admin SDK (persistent across instances)
+  if (fbDb) {
+    try {
+      await fbDb.ref(key).set(data);
+    } catch (e) {
+      console.error('Firebase Admin write error:', e.message);
+    }
   }
+  return data;
 }
 
 async function pushData(key, item) {
@@ -192,8 +207,7 @@ async function sendFCM(userId, title, body, url) {
     if (!admin.messaging) { console.error('sendFCM: admin.messaging not available'); return false; }
     const message = {
       token: user.fcmToken,
-      notification: { title, body },
-      data: { url: url || '/' }
+      data: { title: title, body: body, url: url || '/' }
     };
     await admin.messaging().send(message);
     console.log('sendFCM: sent to', userId, title);
@@ -220,8 +234,7 @@ async function sendFCMToRole(role, title, body, url) {
       try {
         const message = {
           token: u.fcmToken,
-          notification: { title, body },
-          data: { url: url || '/' }
+          data: { title: title, body: body, url: url || '/' }
         };
         await admin.messaging().send(message);
         sent++;

@@ -94,6 +94,7 @@
         <a href="/student/courses" style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;font-size:13px;font-weight:600;color:var(--text);transition:all 0.2s;">
           <i class="fas fa-video" style="color:var(--accent);font-size:16px;width:20px;text-align:center;"></i> المحاضرات
         </a>
+        <% if (!isGuest) { %>
         <a href="/student/question-bank" style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;font-size:13px;font-weight:600;color:var(--text);transition:all 0.2s;">
           <i class="fas fa-question-circle" style="color:var(--accent);font-size:16px;width:20px;text-align:center;"></i> بنك الأسئلة
         </a>
@@ -103,17 +104,20 @@
         <a href="/student/reviews" style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;font-size:13px;font-weight:600;color:var(--text);transition:all 0.2s;">
           <i class="fas fa-sync-alt" style="color:var(--accent);font-size:16px;width:20px;text-align:center;"></i> المراجعات
         </a>
+        <% } %>
       </div>
       <style>.dashboard-grid .stat-card a:hover{background:var(--accent-glow);padding-right:18px;}</style>
     </div>
     <div class="stat-card" style="padding:12px;">
       <div style="display:grid;gap:6px;">
+        <% if (!isGuest) { %>
         <a href="/student/subscription" style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;font-size:13px;font-weight:600;color:var(--text);transition:all 0.2s;">
           <i class="fas fa-credit-card" style="color:var(--accent);font-size:16px;width:20px;text-align:center;"></i> الاشتراك
         </a>
         <a href="/student/profile" style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;font-size:13px;font-weight:600;color:var(--text);transition:all 0.2s;">
           <i class="fas fa-user" style="color:var(--accent);font-size:16px;width:20px;text-align:center;"></i> حسابي
         </a>
+        <% } %>
         <a href="/logout" style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;font-size:13px;font-weight:600;color:var(--text);transition:all 0.2s;">
           <i class="fas fa-sign-out-alt" style="color:var(--danger);font-size:16px;width:20px;text-align:center;"></i> تسجيل الخروج
         </a>
@@ -220,6 +224,7 @@
         <i class="fas fa-play-circle" style="color:var(--accent);font-size:20px;"></i>
         متابعة المحاضرات
       </a>
+      <% if (!isGuest) { %>
       <a href="/student/question-bank" style="display:flex;align-items:center;gap:12px;padding:14px 18px;background:var(--bg);border-radius:10px;transition:all 0.3s;font-size:14px;font-weight:600;color:var(--text);">
         <i class="fas fa-question-circle" style="color:var(--purple);font-size:20px;"></i>
         حل الأسئلة
@@ -232,6 +237,7 @@
         <i class="fas fa-sync-alt" style="color:var(--accent);font-size:20px;"></i>
         المراجعات
       </a>
+      <% } %>
     </div>
   </div>
 </main>

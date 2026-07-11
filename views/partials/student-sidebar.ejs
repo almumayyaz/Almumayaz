@@ -18,6 +18,7 @@
     <a href="/student/courses" class="<%= currentPath.startsWith('/student/course') || currentPath === '/student/courses' ? 'active' : '' %>">
       <i class="fas fa-video"></i> المحاضرات
     </a>
+    <% if (!isGuest) { %>
     <a href="/student/question-bank" class="<%= currentPath.startsWith('/student/question-bank') ? 'active' : '' %>">
       <i class="fas fa-question-circle"></i> بنك الأسئلة
     </a>
@@ -27,6 +28,7 @@
     <a href="/student/reviews" class="<%= currentPath.startsWith('/student/review') ? 'active' : '' %>">
       <i class="fas fa-sync-alt"></i> المراجعات
     </a>
+    <% } %>
     <% if (user && !isGuest) { %>
     <a href="/student/chat" class="<%= currentPath === '/student/chat' ? 'active' : '' %>">
       <i class="fas fa-comments"></i> اسأل عفيفي
@@ -41,9 +43,11 @@
       <i class="fas fa-credit-card"></i> الاشتراك
     </a>
     <% } %>
+    <% if (!isGuest) { %>
     <a href="/student/profile" class="<%= currentPath === '/student/profile' ? 'active' : '' %>">
       <i class="fas fa-user"></i> حسابي
     </a>
+    <% } %>
     <div class="sidebar-theme-toggle" onclick="spinTheme(this.querySelector('i'));toggleTheme();">
       <i class="fas <%= darkMode ? 'fa-sun' : 'fa-moon' %>" style="font-size:14px;"></i>
       <%= darkMode ? 'الوضع النهاري' : 'الوضع الليلي' %>

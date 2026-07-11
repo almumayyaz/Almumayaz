@@ -1,22 +1,22 @@
 <%- include('../partials/header', { title: title, bodyClass: 'admin-body' }) %>
 <%- include('../partials/admin-sidebar') %>
-<main class="admin-content" style="display:flex;flex-direction:column;height:calc(100vh - 72px);padding-bottom:0;">
-  <div class="page-header" style="flex-shrink:0;margin-bottom:0;padding:16px 0;">
-    <div style="display:flex;align-items:center;gap:12px;">
-      <a href="/admin/chat" style="color:var(--text-light);font-size:20px;text-decoration:none;display:flex;align-items:center;"><i class="fas fa-arrow-right"></i></a>
-      <div><h1 style="font-size:20px;display:flex;align-items:center;gap:8px;"><i class="fas fa-comments" style="color:var(--accent);font-size:18px;"></i> محادثة مع طالب</h1><p id="chatStudentName" style="font-size:13px;margin:0;">جاري التحميل...</p></div>
-      <button id="deleteChatBtn" onclick="deleteChat()" style="background:none;border:none;color:var(--danger);font-size:18px;cursor:pointer;padding:8px;margin-right:auto;display:none;" title="حذف المحادثة"><i class="fas fa-trash"></i></button>
+<main class="admin-content" style="display:flex;flex-direction:column;height:calc(100vh - 72px);padding:0;overflow:hidden;">
+  <div class="page-header" style="flex-shrink:0;margin-bottom:0;padding:6px 20px 4px;">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <a href="/admin/chat" style="color:var(--text-light);font-size:16px;text-decoration:none;display:flex;align-items:center;"><i class="fas fa-arrow-right"></i></a>
+      <div><h1 style="font-size:15px;display:flex;align-items:center;gap:6px;margin:0;"><i class="fas fa-comments" style="color:var(--accent);font-size:13px;"></i> محادثة مع طالب</h1><p id="chatStudentName" style="font-size:11px;margin:0;">جاري التحميل...</p></div>
+      <button id="deleteChatBtn" onclick="deleteChat()" style="background:none;border:none;color:var(--danger);font-size:14px;cursor:pointer;padding:6px;margin-right:auto;display:none;" title="حذف المحادثة"><i class="fas fa-trash"></i></button>
     </div>
   </div>
-  <div id="chatContainer" style="flex:1;display:flex;flex-direction:column;background:var(--card);border-radius:var(--radius-xl);overflow:hidden;box-shadow:var(--shadow);border:1px solid var(--border);margin-bottom:16px;">
-    <div id="chatMessages" style="flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:12px;scroll-behavior:smooth;"></div>
-    <div id="chatTyping" style="padding:4px 20px 8px;font-size:12px;color:var(--text-muted);min-height:20px;display:none;">الطالب يكتب...</div>
-    <div style="padding:12px 16px;border-top:1px solid var(--border);background:var(--bg);">
-      <div style="display:flex;gap:10px;align-items:flex-end;">
-        <button id="attachBtn" onclick="document.getElementById('imageInput').click()" style="background:var(--card);border:1px solid var(--border);border-radius:50%;width:42px;height:42px;display:flex;align-items:center;justify-content:center;color:var(--accent);font-size:18px;cursor:pointer;transition:var(--transition);flex-shrink:0;"><i class="fas fa-image"></i></button>
+  <div id="chatContainer" style="flex:1;display:flex;flex-direction:column;background:var(--card);border-radius:var(--radius-xl);overflow:hidden;box-shadow:var(--shadow);border:1px solid var(--border);margin:0 16px 10px;">
+    <div id="chatMessages" style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;scroll-behavior:smooth;"></div>
+    <div id="chatTyping" style="padding:2px 14px 4px;font-size:11px;color:var(--text-muted);min-height:16px;display:none;">الطالب يكتب...</div>
+    <div style="padding:8px 12px;border-top:1px solid var(--border);background:var(--bg);">
+      <div style="display:flex;gap:6px;align-items:flex-end;">
+        <button id="attachBtn" onclick="document.getElementById('imageInput').click()" style="background:var(--card);border:1px solid var(--border);border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;color:var(--accent);font-size:14px;cursor:pointer;transition:var(--transition);flex-shrink:0;"><i class="fas fa-image"></i></button>
         <input type="file" id="imageInput" accept="image/*" style="display:none;" onchange="handleImageSelect(event)">
-        <input type="text" id="chatInput" placeholder="اكتب ردك هنا..." style="flex:1;padding:12px 16px;border:2px solid var(--border);border-radius:var(--radius);font-size:14px;background:var(--card);color:var(--text);direction:rtl;transition:var(--transition);" onkeydown="if(event.key==='Enter')sendMessage()">
-        <button id="sendBtn" onclick="sendMessage()" style="background:var(--gold-gradient);border:none;border-radius:var(--radius);padding:12px 20px;color:#fff;font-size:16px;cursor:pointer;transition:var(--transition);display:flex;align-items:center;gap:8px;flex-shrink:0;font-weight:700;"><i class="fas fa-paper-plane"></i> إرسال</button>
+        <input type="text" id="chatInput" placeholder="اكتب ردك هنا..." style="flex:1;padding:8px 12px;border:2px solid var(--border);border-radius:var(--radius);font-size:12px;background:var(--card);color:var(--text);direction:rtl;transition:var(--transition);" onkeydown="if(event.key==='Enter')sendMessage()">
+        <button id="sendBtn" onclick="sendMessage()" style="background:var(--gold-gradient);border:none;border-radius:var(--radius);padding:8px 12px;color:#fff;font-size:12px;cursor:pointer;transition:var(--transition);display:flex;align-items:center;gap:4px;flex-shrink:0;font-weight:700;"><i class="fas fa-paper-plane"></i> إرسال</button>
       </div>
     </div>
   </div>
@@ -32,6 +32,7 @@
   var lastDate = '';
   var nameSet = false;
   var isSending = false;
+  var pendingKeys = {};
 
   document.getElementById('deleteChatBtn').style.display = '';
 
@@ -66,6 +67,7 @@
 
   function msgExists(key) {
     if (document.getElementById('msg-' + key)) return true;
+    if (pendingKeys[key]) return true;
     var all = chatDiv.querySelectorAll('[id^="msg-"]');
     for (var i = 0; i < all.length; i++) {
       if (all[i].getAttribute('data-local-key') === key) return true;
@@ -121,6 +123,7 @@
       return;
     }
     var tempId = 'local-' + Date.now();
+    pendingKeys[tempId] = true;
     addMessage({ _localId: tempId, senderId: 'teacher', senderName: 'محمد عفيفي', timestamp: Date.now(), text: text, read: false, _status: 'sending' });
     chatInput.value = '';
     var btn = document.getElementById('sendBtn');
@@ -128,10 +131,15 @@
     fetch('/api/admin/chat/' + encodeURIComponent(studentId) + '/send', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({text:text}) })
     .then(function(r){return r.json()}).then(function(d){
       if (d.success && d.key) {
+        pendingKeys[d.key] = true;
+        delete pendingKeys[tempId];
         var el = document.getElementById('msg-' + tempId);
+        var dup = document.getElementById('msg-' + d.key);
+        if (dup && dup !== el) dup.remove();
         if (el) { el.id = 'msg-' + d.key; el.setAttribute('data-local-key', d.key); }
         var rcpt = el ? el.querySelector('[id^="rcpt-"]') : null;
         if (rcpt) { rcpt.id = 'rcpt-' + d.key; rcpt.innerHTML = '<i class="fas fa-check" style="color:var(--text-muted);font-size:11px;"></i>'; }
+        delete pendingKeys[d.key];
       }
       btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> إرسال';
       isSending = false;

@@ -152,7 +152,7 @@
     </div>
   <% } %>
 
-  <% if (course.quiz) { %>
+  <% if (course.quiz && !isGuest) { %>
   <div style="margin-top:28px;display:grid;grid-template-columns:1fr 1fr;gap:16px;">
     <a href="/student/exam/<%= course.id %>" class="btn btn-primary" style="border-radius:var(--radius-lg);padding:18px 16px;display:flex;align-items:center;gap:12px;width:100%;">
       <div style="width:38px;height:38px;background:rgba(255,255,255,0.15);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;color:inherit;">

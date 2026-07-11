@@ -380,6 +380,12 @@ function requireStudentOrGuest(req, res, next) {
   res.redirect('/login');
 }
 
+function requireStudent(req, res, next) {
+  if (!req.session.user) return res.redirect('/login');
+  if (req.session.user.role === 'student' || req.session.user.role === 'admin') return next();
+  return res.redirect('/student/courses');
+}
+
 /* ===================== STUDENT ROUTES ===================== */
 
 app.get('/student', requireStudentOrGuest, async (req, res) => {
@@ -463,14 +469,14 @@ app.get('/student/view-pdf/:courseId/:lessonId/:pdfIdx', requireStudentOrGuest, 
   });
 });
 
-app.get('/student/exam/:courseId', requireStudentOrGuest, async (req, res) => {
+app.get('/student/exam/:courseId', requireStudent, async (req, res) => {
   const courses = await readData('courses');
   const course = courses.find(c => c.id === req.params.courseId);
   if (!course || !course.quiz) return res.redirect('/student/courses');
   res.render('student/exam', { course, title: `الاختبار - ${course.title} - المُميز` });
 });
 
-app.get('/student/question-bank', requireStudentOrGuest, async (req, res) => {
+app.get('/student/question-bank', requireStudent, async (req, res) => {
   var courses = await readData('courses');
   var allBanks = await readData('questionBanks') || [];
   var u = req.session.user;
@@ -481,7 +487,7 @@ app.get('/student/question-bank', requireStudentOrGuest, async (req, res) => {
   res.render('student/question-bank', { courses, allBanks, title: 'بنك الأسئلة - المُميز' });
 });
 
-app.get('/student/question-bank/:courseId', requireStudentOrGuest, async (req, res) => {
+app.get('/student/question-bank/:courseId', requireStudent, async (req, res) => {
   const courses = await readData('courses');
   const allBanks = await readData('questionBanks') || [];
   const course = courses.find(c => c.id === req.params.courseId);
@@ -491,7 +497,7 @@ app.get('/student/question-bank/:courseId', requireStudentOrGuest, async (req, r
   res.render('student/question-bank-course', { course, courseBanks, title: `بنك أسئلة ${course.title} - المُميز` });
 });
 
-app.get('/student/notes', requireStudentOrGuest, async (req, res) => {
+app.get('/student/notes', requireStudent, async (req, res) => {
   var courses = await readData('courses');
   var allNotes = await readData('notes');
   var u = req.session.user;
@@ -502,7 +508,7 @@ app.get('/student/notes', requireStudentOrGuest, async (req, res) => {
   res.render('student/notes', { courses, allNotes, title: 'المذكرات - المُميز' });
 });
 
-app.get('/student/reviews', requireStudentOrGuest, async (req, res) => {
+app.get('/student/reviews', requireStudent, async (req, res) => {
   var reviews = await readData('reviews');
   var courses = await readData('courses');
   var u = req.session.user;
@@ -516,7 +522,7 @@ app.get('/student/reviews', requireStudentOrGuest, async (req, res) => {
   res.render('student/reviews', { reviews, courses: filteredCourses, currentCourseId: courseIdFilter || '', title: 'المراجعات - المُميز' });
 });
 
-app.get('/student/review/:id', requireStudentOrGuest, async (req, res) => {
+app.get('/student/review/:id', requireStudent, async (req, res) => {
   const reviews = await readData('reviews');
   const review = reviews.find(r => r.id === req.params.id);
   if (!review) return res.redirect('/student/reviews');
@@ -557,7 +563,7 @@ app.post('/api/student/submit-payment', requireAuth, async (req, res) => {
   }
 });
 
-app.get('/student/profile', requireStudentOrGuest, (req, res) => {
+app.get('/student/profile', requireStudent, (req, res) => {
   res.render('student/profile', { title: 'حسابي - المُميز' });
 });
 
@@ -614,7 +620,7 @@ app.post('/api/student/apply-referral', requireAuth, async (req, res) => {
 
 /* ===================== CHAT ===================== */
 
-app.get('/student/chat', requireStudentOrGuest, (req, res) => {
+app.get('/student/chat', requireStudent, (req, res) => {
   const user = req.session.user;
   const isGuest = !!req.session.demoMode;
   const chatId = isGuest ? (req.session.guestChatId || 'guest-' + Date.now()) : ('student-' + user.id);
@@ -702,7 +708,7 @@ function chatId(req) {
 
 function senderId(req) { return req.session.user.id || (req.session.guestChatId || 'guest'); }
 
-app.get('/api/student/chat/messages', requireStudentOrGuest, async (req, res) => {
+app.get('/api/student/chat/messages', requireStudent, async (req, res) => {
   try {
     const cid = chatId(req);
     const data = await fbRead('chats/' + cid + '/messages');
@@ -711,7 +717,7 @@ app.get('/api/student/chat/messages', requireStudentOrGuest, async (req, res) =>
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/student/chat/send', requireStudentOrGuest, async (req, res) => {
+app.post('/api/student/chat/send', requireStudent, async (req, res) => {
   try {
     const cid = chatId(req);
     const { text, image } = req.body;
@@ -720,12 +726,12 @@ app.post('/api/student/chat/send', requireStudentOrGuest, async (req, res) => {
     const key = await fbPush('chats/' + cid + '/messages', msg);
     // Send push to admin
     const users = await readData('users');
-    const admin = users.find(u => u.role === 'admin' && u.fcmToken);
-    if (admin) {
+    const adminUser = users.find(u => u.role === 'admin' && u.fcmToken);
+    if (adminUser) {
       try {
-        const m = { token: admin.fcmToken, notification: { title: 'رسالة جديدة من ' + (req.session.user.name || 'طالب'), body: text ? (text.length > 80 ? text.slice(0,80) + '...' : text) : '📷 صورة' }, data: { url: '/admin/chat/' + encodeURIComponent(req.session.user.id || (req.session.guestChatId || '')) } };
+        const m = { token: adminUser.fcmToken, data: { title: 'رسالة جديدة من ' + (req.session.user.name || 'طالب'), body: text ? (text.length > 80 ? text.slice(0,80) + '...' : text) : '📷 صورة', url: '/admin/chat/' + encodeURIComponent(req.session.user.id || (req.session.guestChatId || '')) } };
         await admin.messaging().send(m);
-      } catch(e) {}
+      } catch(e) { console.error('Chat push error:', e.code || e.message); }
     }
     res.json({ success: true, key: key, message: msg });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -761,7 +767,7 @@ app.delete('/api/admin/chat/:studentId', requireAdmin, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.put('/api/student/chat/read', requireStudentOrGuest, async (req, res) => {
+app.put('/api/student/chat/read', requireStudent, async (req, res) => {
   try {
     const cid = chatId(req);
     const data = await fbRead('chats/' + cid + '/messages');
@@ -854,7 +860,9 @@ app.get('/admin/courses', requireAdmin, async (req, res) => {
     const stage = req.query.stage || '';
     const grade = req.query.grade || '';
     var courses = allCourses;
-    if (stage) courses = courses.filter(function(c) { return c.stage === stage; });
+    if (stage === 'all') {
+      // show all courses, no filter
+    } else if (stage) courses = courses.filter(function(c) { return c.stage === stage; });
     if (grade) courses = courses.filter(function(c) { return c.grade === grade; });
     const allNotes = await readData('notes') || [];
     const allReviews = await readData('reviews') || [];
@@ -1056,7 +1064,7 @@ app.post('/api/admin/courses/:id/lessons', requireAdmin, async (req, res) => {
     const courses = await readData('courses');
     const course = courses.find(c => c.id === req.params.id);
     if (!course) return res.status(404).json({ error: 'المادة غير موجودة' });
-    const { title, description, videos, pdfFiles, duration, isFree, guestVisible, sectionId } = req.body;
+    const { title, description, videos, pdfFiles, duration, order, isFree, guestVisible, sectionId } = req.body;
     const newLesson = {
       id: Date.now().toString(),
       title: title || 'محاضرة جديدة',
@@ -1064,6 +1072,7 @@ app.post('/api/admin/courses/:id/lessons', requireAdmin, async (req, res) => {
       videos: videos || [],
       pdfFiles: pdfFiles || [],
       duration: duration || '00:00',
+      order: order !== undefined ? order : 0,
       isFree: isFree || false,
       guestVisible: guestVisible || false,
       sectionId: sectionId || ''
@@ -1085,12 +1094,13 @@ app.put('/api/admin/courses/:id/lessons/:lessonId', requireAdmin, async (req, re
     if (!course) return res.status(404).json({ error: 'المادة غير موجودة' });
     const lesson = (course.lessons||[]).find(l => l.id === req.params.lessonId);
     if (!lesson) return res.status(404).json({ error: 'المحاضرة غير موجودة' });
-    const { title, description, videos, pdfFiles, duration, isFree, guestVisible, sectionId } = req.body;
+    const { title, description, videos, pdfFiles, duration, order, isFree, guestVisible, sectionId } = req.body;
     if (title !== undefined) lesson.title = title;
     if (description !== undefined) lesson.description = description;
     if (videos !== undefined) lesson.videos = videos;
     if (pdfFiles !== undefined) lesson.pdfFiles = pdfFiles;
     if (duration !== undefined) lesson.duration = duration;
+    if (order !== undefined) lesson.order = order;
     if (isFree !== undefined) lesson.isFree = isFree;
     if (guestVisible !== undefined) lesson.guestVisible = guestVisible;
     if (sectionId !== undefined) lesson.sectionId = sectionId;
@@ -1656,15 +1666,20 @@ app.delete('/api/admin/reviews/:id', requireAdmin, async (req, res) => {
 app.post('/api/fcm/register', requireAuth, async (req, res) => {
   try {
     const { fcmToken } = req.body;
+    console.log('FCM register: user', req.session.user.id, 'token length:', fcmToken ? fcmToken.length : 0);
     const users = await readData('users');
     const idx = users.findIndex(u => u.id === req.session.user.id);
     if (idx !== -1) {
       users[idx].fcmToken = fcmToken;
       await writeData('users', users);
       req.session.user = users[idx];
+      console.log('FCM register: saved for user', req.session.user.id);
+    } else {
+      console.warn('FCM register: user not found in data store');
     }
     res.json({ success: true });
   } catch (e) {
+    console.error('FCM register error:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -1702,12 +1717,12 @@ app.post('/api/admin/send-notification', requireAdmin, async (req, res) => {
       try {
         const message = {
           token: u.fcmToken,
-          notification: { title, body },
-          data: { url: '/' }
+          data: { title: title, body: body, url: '/' }
         };
         await admin.messaging().send(message);
         sent++;
       } catch (e) {
+        console.error('send-notification FCM error for', u.id, ':', e.code || e.message);
         if (e.code === 'messaging/invalid-registration-token' || e.code === 'messaging/registration-token-not-registered') {
           const idx = users.findIndex(x => x.id === u.id);
           if (idx !== -1) { users[idx].fcmToken = ''; }
@@ -1717,6 +1732,72 @@ app.post('/api/admin/send-notification', requireAdmin, async (req, res) => {
     if (recipients.some(u => !u.fcmToken)) await writeData('users', users);
 
     res.json({ success: true, recipientCount: recipients.length, sentCount: sent, notification: notif });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/admin/test-fcm', requireAdmin, async (req, res) => {
+  try {
+    const users = await readData('users');
+    const students = users.filter(u => u.role === 'student' && u.fcmToken);
+    const allStudentCount = users.filter(u => u.role === 'student').length;
+    const userTokens = students.map(u => ({ id: u.id, name: u.name, token: (u.fcmToken || '').slice(0, 20) + '...' }));
+    // Check apiKey is set
+    const apiKeySet = !!process.env.FIREBASE_API_KEY;
+    const apiKeyPreview = process.env.FIREBASE_API_KEY ? process.env.FIREBASE_API_KEY.slice(0, 10) + '...' : 'NOT SET';
+    let fcmStatus = 'unknown';
+    let fcmError = null;
+    try {
+      if (admin.messaging) {
+        fcmStatus = 'admin.messaging() available';
+        const testMsg = { token: 'test', data: { title: 't', body: 't', url: '/' } };
+        JSON.stringify(testMsg);
+        fcmStatus += ' | can stringify test message';
+      }
+    } catch (e) { fcmError = e.message; }
+    const adminUser = users.find(u => u.role === 'admin');
+    // Try a direct test call to FCM to see if credentials work
+    let fcmCredsOk = false;
+    let fcmCredsError = null;
+    try {
+      const testMsg2 = { token: 'FAKE_TOKEN_FOR_TEST', data: { title: 't', body: 't', url: '/' } };
+      await admin.messaging().send(testMsg2);
+    } catch (e) {
+      fcmCredsError = e.code || e.message;
+      if (e.code === 'messaging/invalid-argument' || e.code === 'messaging/invalid-registration-token' || (e.message && e.message.indexOf('token') !== -1)) {
+        fcmCredsOk = true;
+      }
+    }
+    res.json({
+      success: true,
+      totalStudents: allStudentCount,
+      studentCount: students.length,
+      userTokens,
+      apiKeySet,
+      apiKeyPreview,
+      vapidKeySet: !!process.env.FIREBASE_VAPID_KEY,
+      adminFcmTokenSet: !!(adminUser && adminUser.fcmToken),
+      fcmCredsOk: fcmCredsOk,
+      fcmCredsError: fcmCredsError
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/admin/test-send-fcm', requireAdmin, async (req, res) => {
+  try {
+    const users = await readData('users');
+    const adminUser = users.find(u => u.role === 'admin' && u.fcmToken);
+    if (!adminUser) return res.json({ success: false, error: 'Admin has no FCM token' });
+    const message = { token: adminUser.fcmToken, data: { title: 'Test', body: 'This is a test notification', url: '/' } };
+    try {
+      const result = await admin.messaging().send(message);
+      res.json({ success: true, result: result });
+    } catch (e) {
+      res.json({ success: false, error: e.code || e.message, fullError: e.message });
+    }
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

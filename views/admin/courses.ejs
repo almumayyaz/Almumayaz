@@ -9,17 +9,28 @@
   </div>
 
 <% if (!stage) { %>
-  <!-- ===== STEP 1: Select Stage ===== -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+  <!-- ===== STEP 1: Select Stage OR Show All ===== -->
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;">
     <a href="/admin/courses?stage=%D8%A5%D8%B9%D8%AF%D8%A7%D8%AF%D9%8A%D8%A9" style="display:block;text-decoration:none;padding:40px 24px;background:linear-gradient(135deg,#059669,#34d399);border-radius:var(--radius-xl);color:#fff;text-align:center;transition:var(--transition);" onmouseover="this.style.transform='scale(1.03)'" onmouseout="this.style.transform='scale(1)'">
       <i class="fas fa-school" style="font-size:48px;display:block;margin-bottom:16px;"></i>
       <h2 style="font-size:28px;font-weight:700;margin:0;font-family:'Aref Ruqaa',serif;">المرحلة الإعدادية</h2>
-      <p style="font-size:14px;opacity:0.9;margin-top:8px;"><%= allCourses.filter(function(c){return c.stage==='إعدادية';}).length %> فرع</p>
+      <p style="font-size:14px;opacity:0.9;margin-top:8px;">
+        <% var prepCourses = allCourses.filter(function(c){return c.stage==='إعدادية';}); %>
+        <%= prepCourses.reduce(function(a,c){return a+(c.lessons||[]).length;},0) %> محاضرة — <%= prepCourses.length %> فرع
+      </p>
     </a>
     <a href="/admin/courses?stage=%D8%AB%D8%A7%D9%86%D9%88%D9%8A%D8%A9" style="display:block;text-decoration:none;padding:40px 24px;background:linear-gradient(135deg,#A07200,#F6C453);border-radius:var(--radius-xl);color:#fff;text-align:center;transition:var(--transition);" onmouseover="this.style.transform='scale(1.03)'" onmouseout="this.style.transform='scale(1)'">
       <i class="fas fa-graduation-cap" style="font-size:48px;display:block;margin-bottom:16px;"></i>
       <h2 style="font-size:28px;font-weight:700;margin:0;font-family:'Aref Ruqaa',serif;">المرحلة الثانوية</h2>
-      <p style="font-size:14px;opacity:0.9;margin-top:8px;"><%= allCourses.filter(function(c){return c.stage==='ثانوية';}).length %> فرع</p>
+      <p style="font-size:14px;opacity:0.9;margin-top:8px;">
+        <% var secCourses = allCourses.filter(function(c){return c.stage==='ثانوية';}); %>
+        <%= secCourses.reduce(function(a,c){return a+(c.lessons||[]).length;},0) %> محاضرة — <%= secCourses.length %> فرع
+      </p>
+    </a>
+    <a href="/admin/courses?stage=all" style="display:block;text-decoration:none;padding:40px 24px;background:linear-gradient(135deg,#7c3aed,#a78bfa);border-radius:var(--radius-xl);color:#fff;text-align:center;transition:var(--transition);" onmouseover="this.style.transform='scale(1.03)'" onmouseout="this.style.transform='scale(1)'">
+      <i class="fas fa-layer-group" style="font-size:48px;display:block;margin-bottom:16px;"></i>
+      <h2 style="font-size:28px;font-weight:700;margin:0;">كل المحاضرات</h2>
+      <p style="font-size:14px;opacity:0.9;margin-top:8px;"><%= allCourses.reduce(function(a,c){return a+(c.lessons||[]).length;},0) %> محاضرة — <%= allCourses.length %> فرع</p>
     </a>
   </div>
 
@@ -40,14 +51,16 @@
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;">
       <% var grades = stage === 'إعدادية' ? ['الأول الإعدادي','الثاني الإعدادي','الثالث الإعدادي'] : ['الأول الثانوي','الثاني الثانوي','الثالث الثانوي']; %>
       <% grades.forEach(function(g) { 
-        var count = allCourses.filter(function(c){return c.stage===stage && c.grade===g;}).length;
+        var gradeCourses = allCourses.filter(function(c){return c.stage===stage && c.grade===g;});
+        var count = gradeCourses.length;
+        var lessonCount = gradeCourses.reduce(function(sum, c){ return sum + (c.lessons||[]).length; }, 0);
         var encodedStage = encodeURIComponent(stage);
         var encodedGrade = encodeURIComponent(g);
       %>
       <a href="/admin/courses?stage=<%= encodedStage %>&grade=<%= encodedGrade %>" style="display:block;text-decoration:none;padding:24px 16px;background:var(--bg);border-radius:var(--radius-lg);border:2px solid var(--border);text-align:center;transition:var(--transition);" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
         <div style="font-size:36px;font-weight:700;color:var(--primary);margin-bottom:8px;"><%= g.split(' ')[0] %></div>
         <div style="font-size:14px;font-weight:600;color:var(--text);"><%= g.split(' ').slice(1).join(' ') %></div>
-        <div style="font-size:12px;color:var(--text-light);margin-top:6px;"><%= count %> فرع</div>
+        <div style="font-size:12px;color:var(--text-light);margin-top:6px;"><%= lessonCount %> محاضرة — <%= count %> فرع</div>
       </a>
       <% }) %>
     </div>
@@ -59,22 +72,24 @@
     <a href="/admin/courses" style="color:var(--text-light);text-decoration:none;font-size:13px;">
       <i class="fas fa-arrow-right"></i> المراحل
     </a>
+    <% if (stage !== 'all') { %>
     <span style="color:var(--text-muted);">/</span>
     <a href="/admin/courses?stage=<%= encodeURIComponent(stage) %>" style="color:var(--text-light);text-decoration:none;font-size:13px;">
       <%= stage === 'إعدادية' ? 'إعدادية' : 'ثانوية' %>
     </a>
     <span style="color:var(--text-muted);">/</span>
     <span style="font-size:13px;font-weight:600;color:var(--primary);"><%= grade %></span>
+    <% } %>
   </div>
 
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;padding:16px 20px;background:var(--card);border-radius:var(--radius-lg);border:1px solid var(--border);">
     <div style="display:flex;align-items:center;gap:12px;">
-      <div style="width:40px;height:40px;border-radius:10px;background:<%= stage === 'إعدادية' ? 'linear-gradient(135deg,#059669,#34d399)' : 'linear-gradient(135deg,#A07200,#F6C453)' %>;display:flex;align-items:center;justify-content:center;color:#fff;">
-        <i class="fas <%= stage === 'إعدادية' ? 'fa-school' : 'fa-graduation-cap' %>"></i>
+      <div style="width:40px;height:40px;border-radius:10px;background:<%= stage === 'all' ? 'linear-gradient(135deg,#7c3aed,#a78bfa)' : (stage === 'إعدادية' ? 'linear-gradient(135deg,#059669,#34d399)' : 'linear-gradient(135deg,#A07200,#F6C453)') %>;display:flex;align-items:center;justify-content:center;color:#fff;">
+        <i class="fas <%= stage === 'all' ? 'fa-layer-group' : (stage === 'إعدادية' ? 'fa-school' : 'fa-graduation-cap') %>"></i>
       </div>
       <div>
-        <h2 style="font-size:18px;font-weight:700;margin:0;font-family:'Aref Ruqaa',serif;"><%= grade %></h2>
-        <p style="font-size:12px;color:var(--text-light);margin:2px 0 0;"><%= courses.length %> فرع</p>
+        <h2 style="font-size:18px;font-weight:700;margin:0;font-family:'Aref Ruqaa',serif;"><%= stage === 'all' ? 'كل المحاضرات' : grade %></h2>
+        <p style="font-size:12px;color:var(--text-light);margin:2px 0 0;"><%= courses.length %> فرع — <%= courses.reduce(function(a,c){return a+(c.lessons||[]).length;},0) %> محاضرة</p>
       </div>
     </div>
     <button class="btn btn-primary" onclick="openCourseModal()"><i class="fas fa-plus"></i> إضافة فرع</button>
@@ -85,7 +100,7 @@
     <div style="text-align:center;padding:60px 20px;background:var(--card);border-radius:var(--radius-xl);border:1px solid var(--border);">
       <i class="fas fa-folder-open" style="font-size:48px;color:var(--border);display:block;margin-bottom:16px;"></i>
       <h3 style="font-size:18px;color:var(--text-light);margin-bottom:8px;">لا توجد فروع بعد</h3>
-      <p style="color:var(--text-muted);font-size:14px;">أضف أول فرع للصف <strong><%= grade %></strong></p>
+      <p style="color:var(--text-muted);font-size:14px;"><%= stage === 'all' ? 'لم يتم إضافة أي محتوى بعد' : 'أضف أول فرع للصف <strong>' + grade + '</strong>' %></p>
       <button class="btn btn-primary" onclick="openCourseModal()" style="margin-top:12px;"><i class="fas fa-plus"></i> إضافة فرع</button>
     </div>
     <% } %>
@@ -151,7 +166,7 @@
         </div>
         <table>
           <thead>
-            <tr><th>#</th><th>عنوان الدرس</th><th>المدة</th><th>الفيديو</th><th>PDF</th><th>مجاني</th><th><%= stage === 'إعدادية' ? 'الوحدة' : 'الباب' %></th><th>الإجراءات</th></tr>
+            <tr><th>#</th><th>عنوان الدرس</th><th>المدة</th><th>الترتيب</th><th>الفيديو</th><th>PDF</th><th>مجاني</th><th><%= stage === 'إعدادية' ? 'الوحدة' : 'الباب' %></th><th>الإجراءات</th></tr>
           </thead>
           <tbody>
             <% (course.lessons||[]).forEach(function(l, li) { %>
@@ -159,6 +174,7 @@
               <td><%= li + 1 %></td>
               <td><%= l.title %></td>
               <td><%= l.duration %></td>
+              <td><%= l.order !== undefined ? l.order : '-' %></td>
               <td>
                   <% if (l.videos && l.videos.length > 0) { %>
                     <% l.videos.forEach(function(v, vi) { %>
@@ -345,7 +361,16 @@
       <div class="form-group"><label>اسم الفرع</label><input id="courseTitle" placeholder="مثال: النحو"></div>
       <div class="form-group"><label>العنوان الفرعي</label><input id="courseSubtitle" placeholder="مثال: قواعد اللغة العربية"></div>
       <div class="form-group"><label>الوصف</label><textarea id="courseDescription" rows="3" placeholder="وصف الفرع"></textarea></div>
-      <div class="form-group"><label>أيقونة (FontAwesome)</label><input id="courseIcon" value="fa-book" placeholder="fa-book"></div>
+      <div class="form-group"><label>أيقونة الفرع</label>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;" id="iconPicker">
+          <% var icons = ['fa-book','fa-book-open','fa-pen','fa-pen-fancy','fa-feather','fa-quote-right','fa-scroll','fa-landmark','fa-mosque','fa-star','fa-star-and-crescent','fa-gem','fa-crown','fa-brain','fa-lightbulb','fa-flask','fa-calculator','fa-microscope','fa-globe','fa-earth-africa','fa-language','fa-font','fa-paragraph','fa-list','fa-layer-group','fa-shapes','fa-cube','fa-infinity','fa-square-root-variable','fa-chart-line','fa-music','fa-palette','fa-dragon','fa-leaf','fa-tree','fa-sun','fa-moon']; %>
+          <% icons.forEach(function(ic) { %>
+          <div class="icon-option" data-icon="<%= ic.replace('fa-','') %>" onclick="selectIcon(this,'<%= ic.replace('fa-','') %>')" style="width:44px;height:44px;border-radius:10px;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.2s;background:var(--card);font-size:18px;color:var(--text);"><i class="fas <%= ic %>"></i></div>
+          <% }); %>
+        </div>
+        <input type="hidden" id="courseIcon" value="fa-book">
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">اختر الأيقونة المناسبة للفرع</div>
+      </div>
       <div class="form-group"><label>اللون</label><input type="color" id="courseColor" value="#A07200"></div>
       <div class="form-group"><label>الفصل الدراسي</label><select id="courseSemester"><option value="all">الكل</option><option value="first">الفصل الدراسي الأول</option><option value="second">الفصل الدراسي الثاني</option></select></div>
       <button class="btn btn-primary" onclick="saveCourse()" style="width:100%;"><i class="fas fa-save"></i> حفظ</button>
@@ -413,9 +438,15 @@
         <label>المدة</label>
         <input id="lessonDuration" placeholder="مثال: 45:30">
       </div>
-      <div class="form-group">
-        <label>الباب</label>
-        <select id="lessonSectionId"><option value="">بدون باب</option></select>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="form-group">
+          <label>الترتيب</label>
+          <input id="lessonOrder" type="number" min="0" placeholder="0">
+        </div>
+        <div class="form-group">
+          <label>الباب</label>
+          <select id="lessonSectionId"><option value="">بدون باب</option></select>
+        </div>
       </div>
       <button class="btn btn-primary" onclick="saveLesson()" style="width:100%;margin-top:8px;"><i class="fas fa-save"></i> حفظ</button>
     </div>
@@ -525,7 +556,15 @@
       <div class="form-group"><label>عنوان المراجعة</label><input id="crTitle" placeholder="مثال: مراجعة النحو الشاملة"></div>
       <div class="form-group"><label>الوصف</label><textarea id="crDescription" rows="2" placeholder="وصف المراجعة"></textarea></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-        <div class="form-group"><label>أيقونة</label><input id="crIcon" value="fa-book-open"></div>
+        <div class="form-group"><label>أيقونة المراجعة</label>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;" id="crIconPicker">
+            <% var crIcons = ['fa-book-open','fa-star','fa-feather','fa-pen','fa-scroll','fa-quote-right','fa-brain','fa-lightbulb','fa-gem','fa-crown','fa-list','fa-layer-group','fa-shapes','fa-sync-alt','fa-redo','fa-history']; %>
+            <% crIcons.forEach(function(ic) { %>
+            <div class="cr-icon-option" data-icon="<%= ic.replace('fa-','') %>" onclick="selectCrIcon(this,'<%= ic.replace('fa-','') %>')" style="width:40px;height:40px;border-radius:8px;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.2s;background:var(--card);font-size:16px;color:var(--text);"><i class="fas <%= ic %>"></i></div>
+            <% }); %>
+          </div>
+          <input type="hidden" id="crIcon" value="fa-book-open">
+        </div>
         <div class="form-group"><label>اللون</label><input type="color" id="crColor" value="#A07200"></div>
       </div>
       <div id="crVideosSection">
@@ -628,16 +667,26 @@ function openCourseModal(course) {
   document.getElementById('courseTitle').value = course ? course.title : '';
   document.getElementById('courseSubtitle').value = course ? (course.subtitle || '') : '';
   document.getElementById('courseDescription').value = course ? (course.description || '') : '';
-  document.getElementById('courseIcon').value = course ? (course.icon || 'fa-book') : 'fa-book';
+  var icon = course ? (course.icon || 'fa-book') : 'fa-book';
+  document.getElementById('courseIcon').value = icon;
   document.getElementById('courseColor').value = course ? (course.color || '#A07200') : '#A07200';
   document.getElementById('courseSemester').value = course ? (course.semester || 'all') : 'all';
   if (!course) {
-    document.getElementById('courseStage').value = '<%= stage %>';
-    document.getElementById('courseGrade').value = '<%= grade %>';
+    if ('<%= stage %>' && '<%= stage %>' !== 'all') document.getElementById('courseStage').value = '<%= stage %>';
+    if ('<%= grade %>') document.getElementById('courseGrade').value = '<%= grade %>';
   }
+  // Highlight selected icon
+  document.querySelectorAll('.icon-option').forEach(function(o) { o.style.borderColor = 'var(--border)'; o.style.transform = ''; });
+  var sel = document.querySelector('.icon-option[data-icon="' + icon.replace('fa-','') + '"]');
+  if (sel) { sel.style.borderColor = 'var(--accent)'; sel.style.transform = 'scale(1.15)'; }
   document.getElementById('courseModal').classList.add('show');
 }
 function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+function selectIcon(el, icon) {
+  document.querySelectorAll('.icon-option').forEach(function(o) { o.style.borderColor = 'var(--border)'; o.style.transform = ''; });
+  el.style.borderColor = 'var(--accent)'; el.style.transform = 'scale(1.15)';
+  document.getElementById('courseIcon').value = 'fa-' + icon;
+}
 function saveCourse() {
   const id = document.getElementById('courseId').value;
   const data = {
@@ -712,6 +761,7 @@ function openLessonModal(course, lesson) {
   document.getElementById('lessonIsFree').checked = lesson ? !!lesson.isFree : false;
   document.getElementById('lessonGuestVisible').checked = lesson ? !!lesson.guestVisible : false;
   document.getElementById('lessonDuration').value = lesson ? (lesson.duration || '') : '';
+  document.getElementById('lessonOrder').value = lesson ? (lesson.order !== undefined ? lesson.order : 0) : 0;
   var sel = document.getElementById('lessonSectionId');
   sel.innerHTML = '<option value="">بدون باب</option>';
   if (course.sections) {
@@ -771,6 +821,7 @@ function saveLesson() {
     videos: videos,
     pdfFiles: pdfFiles,
     duration: document.getElementById('lessonDuration').value,
+    order: parseInt(document.getElementById('lessonOrder').value) || 0,
     isFree: document.getElementById('lessonIsFree').checked,
     guestVisible: document.getElementById('lessonGuestVisible').checked,
     sectionId: document.getElementById('lessonSectionId').value
@@ -911,6 +962,11 @@ function deleteNote(id) {
     .then(function(r){ return r.json(); }).then(function(d){ if (d.success) location.reload(); else alert(d.error); });
 }
 
+function selectCrIcon(el, icon) {
+  document.querySelectorAll('.cr-icon-option').forEach(function(o) { o.style.borderColor = 'var(--border)'; o.style.transform = ''; });
+  el.style.borderColor = 'var(--accent)'; el.style.transform = 'scale(1.15)';
+  document.getElementById('crIcon').value = 'fa-' + icon;
+}
 // ===== COURSE REVIEWS CRUD (within course page) =====
 function openCourseReviewModal(courseId, r) {
   document.getElementById('courseReviewModalTitle').textContent = r ? 'تعديل المراجعة' : 'إضافة مراجعة';
@@ -918,11 +974,15 @@ function openCourseReviewModal(courseId, r) {
   document.getElementById('crCourseId').value = courseId;
   document.getElementById('crTitle').value = r ? r.title : '';
   document.getElementById('crDescription').value = r ? (r.desc || '') : '';
-  document.getElementById('crIcon').value = r ? (r.icon || 'fa-book-open') : 'fa-book-open';
+  var crIcon = r ? (r.icon || 'fa-book-open') : 'fa-book-open';
+  document.getElementById('crIcon').value = crIcon;
   document.getElementById('crColor').value = r ? (r.color || '#A07200') : '#A07200';
   document.getElementById('crIsFree').checked = r ? !!r.isFree : false;
   document.getElementById('crOrder').value = r ? (r.order || 0) : 0;
-  var vc = document.getElementById('crVideosContainer');
+  // Highlight selected icon
+  document.querySelectorAll('.cr-icon-option').forEach(function(o) { o.style.borderColor = 'var(--border)'; o.style.transform = ''; });
+  var sel = document.querySelector('.cr-icon-option[data-icon="' + crIcon.replace('fa-','') + '"]');
+  if (sel) { sel.style.borderColor = 'var(--accent)'; sel.style.transform = 'scale(1.15)'; }
   vc.innerHTML = '';
   var videos = (r && r.videos) || [];
   videos.forEach(function(v){ addCrVideoField(v.title, v.url); });

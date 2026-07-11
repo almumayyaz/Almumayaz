@@ -112,7 +112,7 @@
     </div>
   </div>
 
-  <% if (course.quiz) { %>
+  <% if (course.quiz && !isGuest) { %>
   <div class="welcome-banner" style="padding:12px 16px;margin-top:20px;">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
       <i class="fas fa-question-circle" style="color:var(--accent);font-size:14px;"></i>
