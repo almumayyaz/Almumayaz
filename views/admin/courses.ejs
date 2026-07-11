@@ -27,10 +27,6 @@
         <%= secCourses.reduce(function(a,c){return a+(c.lessons||[]).length;},0) %> محاضرة — <%= secCourses.length %> فرع
       </p>
     </a>
-    <a href="/admin/courses?stage=all" style="display:block;text-decoration:none;padding:40px 24px;background:linear-gradient(135deg,#7c3aed,#a78bfa);border-radius:var(--radius-xl);color:#fff;text-align:center;transition:var(--transition);" onmouseover="this.style.transform='scale(1.03)'" onmouseout="this.style.transform='scale(1)'">
-      <h2 style="font-size:28px;font-weight:700;margin:0;">كل المحاضرات</h2>
-      <p style="font-size:14px;opacity:0.9;margin-top:8px;"><%= allCourses.reduce(function(a,c){return a+(c.lessons||[]).length;},0) %> محاضرة — <%= allCourses.length %> فرع</p>
-    </a>
   </div>
 
 <% } else if (!grade) { %>

@@ -1,4 +1,9 @@
   <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <a href="/admin" class="sidebar-logo">المُميز</a>
+      <button class="sidebar-close-btn" id="sidebarClose"><i class="fas fa-times"></i></button>
+      <button class="sidebar-toggle-btn" id="sidebarToggle"><i class="fas fa-bars"></i></button>
+    </div>
     <div class="sidebar-user">
       <div class="sidebar-avatar"><%= user ? user.name.charAt(0) : 'م' %></div>
       <div class="sidebar-user-info">
@@ -52,14 +57,12 @@
     </nav>
   </aside>
   <div class="sidebar-overlay" id="sidebarOverlay"></div>
-  <button class="sidebar-mobile-toggle" id="sidebarMobileToggle">
-  </button>
   <script>
     (function() {
       var sidebar = document.getElementById('sidebar');
-      var mobileToggle = document.getElementById('sidebarMobileToggle');
       var overlay = document.getElementById('sidebarOverlay');
-      if (!sidebar) return;
+      var closeBtn = document.getElementById('sidebarClose');
+      var toggleBtn = document.getElementById('sidebarToggle');
 
       function openSidebar() {
         sidebar.classList.add('open');
@@ -72,10 +75,26 @@
         document.body.style.overflow = '';
       }
 
-      if (mobileToggle) mobileToggle.addEventListener('click', function(e) {
-        e.stopPropagation();
+      var toggleState = localStorage.getItem('admin-sidebar-toggle');
+      if (toggleState === 'collapsed' && window.innerWidth > 768) {
+        sidebar.classList.add('collapsed');
+      }
+
+      if (toggleBtn) toggleBtn.addEventListener('click', function(e) {
         if (sidebar.classList.contains('open')) closeSidebar();
-        else openSidebar();
+        else {
+          if (window.innerWidth > 768) {
+            sidebar.classList.toggle('collapsed');
+            localStorage.setItem('admin-sidebar-toggle', sidebar.classList.contains('collapsed') ? 'collapsed' : '');
+          } else {
+            openSidebar();
+          }
+        }
+        e.stopPropagation();
+      });
+
+      if (closeBtn) closeBtn.addEventListener('click', function() {
+        if (window.innerWidth <= 768) closeSidebar();
       });
 
       if (overlay) overlay.addEventListener('click', closeSidebar);
