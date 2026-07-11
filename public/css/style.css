@@ -1661,17 +1661,17 @@ h3 { font-size: 18px; font-weight: 900; }
 .bottom-tabs {
   display: none;
   position: fixed;
-  bottom: 12px;
-  left: 12px;
-  right: 12px;
+  bottom: 0;
+  left: 0;
+  right: 0;
   z-index: 999;
   background: var(--card);
-  border: 1px solid var(--border);
-  padding: 6px 0 0;
+  border-top: 1px solid var(--border);
+  padding: 6px 0 env(safe-area-inset-bottom, 6px);
   justify-content: space-around;
   direction: rtl;
   box-shadow: 0 -4px 16px rgba(0,0,0,0.12);
-  border-radius: 16px;
+  border-radius: 16px 16px 0 0;
 }
 .bottom-tab {
   display: flex;
