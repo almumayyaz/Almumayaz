@@ -127,32 +127,6 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
-  /* ===== BACK TO TOP ===== */
-  const backToTop = document.createElement('button');
-  backToTop.innerHTML = '<i class="fas fa-arrow-up"></i>';
-  backToTop.style.cssText = `
-    position:fixed;bottom:24px;right:24px;z-index:999;width:48px;height:48px;
-    border-radius:50%;background:var(--accent);color:var(--primary);
-    border:none;font-size:18px;cursor:pointer;
-    box-shadow:0 4px 15px rgba(212,160,23,0.3);
-    transition:all 0.3s ease;opacity:0;transform:translateY(20px);
-    pointer-events:none;display:flex;align-items:center;justify-content:center;
-  `;
-  backToTop.onmouseenter = function () { this.style.transform = 'translateY(-3px)'; };
-  backToTop.onmouseleave = function () { this.style.transform = ''; };
-  backToTop.onclick = () => window.scrollTo({ top: 0, behavior: 'smooth' });
-  document.body.appendChild(backToTop);
-
-  window.addEventListener('scroll', () => {
-    if (window.scrollY > 400) {
-      backToTop.style.opacity = '1'; backToTop.style.transform = 'translateY(0)';
-      backToTop.style.pointerEvents = 'auto';
-    } else {
-      backToTop.style.opacity = '0'; backToTop.style.transform = 'translateY(20px)';
-      backToTop.style.pointerEvents = 'none';
-    }
-  });
-
   /* ===== LESSON SAVE ===== */
   document.querySelectorAll('.btn-save-lesson').forEach(btn => {
     btn.addEventListener('click', function () {
