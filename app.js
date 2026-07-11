@@ -1128,9 +1128,62 @@ app.put('/api/admin/courses/:id/lessons/:lessonId', requireAdmin, async (req, re
 
 app.post('/api/admin/migrate-seed', requireAdmin, async (req, res) => {
   try {
-    const { migrateSeedData } = require('./firebase-admin');
+    const { migrateSeedData, fbDb } = require('./firebase-admin');
     await migrateSeedData();
     res.json({ success: true, message: 'تم ترحيل البيانات بنجاح' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/admin/force-migrate', requireAdmin, async (req, res) => {
+  try {
+    const { fbDb } = require('./firebase-admin');
+    const localStore = require('./data-store');
+    const keys = ['courses', 'announcements', 'subscriptions', 'reviews'];
+    const results = {};
+    for (const key of keys) {
+      const local = await localStore.readData(key);
+      if (local && fbDb) {
+        const data = Array.isArray(local) ? local : Object.values(local);
+        await fbDb.ref(key).set(data);
+        results[key] = Array.isArray(local) ? local.length : Object.keys(local).length;
+        console.log('Force-migrated', key, 'to Firebase');
+      }
+    }
+    // Also migrate courses one by one to ensure lessons are included
+    const localCourses = await localStore.readData('courses');
+    if (Array.isArray(localCourses) && fbDb) {
+      await fbDb.ref('courses').set(localCourses);
+      results.courses = localCourses.length + ' courses with lessons';
+    }
+    res.json({ success: true, message: 'تم فرض الترحيل', results });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/admin/diagnose', requireAdmin, async (req, res) => {
+  try {
+    const { fbDb } = require('./firebase-admin');
+    if (!fbDb) return res.json({ firebase: 'غير متاح' });
+    const snap = await fbDb.ref('courses').once('value');
+    const val = snap.val();
+    const info = {
+      type: typeof val,
+      isArray: Array.isArray(val),
+      isNull: val === null,
+      keys: val && typeof val === 'object' && !Array.isArray(val) ? Object.keys(val).slice(0, 5) : [],
+      sampleKeys: val && typeof val === 'object' ? Object.keys(val).slice(0, 3) : [],
+      length: Array.isArray(val) ? val.length : (val && typeof val === 'object' ? Object.keys(val).length : 'N/A')
+    };
+    if (Array.isArray(val)) {
+      info.firstId = val[0]?.id;
+      info.firstTitle = val[0]?.title;
+      info.firstHasLessons = Array.isArray(val[0]?.lessons);
+      info.lessonCount = val[0]?.lessons?.length;
+    }
+    res.json(info);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

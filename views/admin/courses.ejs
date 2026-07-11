@@ -93,7 +93,7 @@
       </div>
     </div>
     <div style="display:flex;gap:8px;align-items:center;">
-      <button class="btn btn-outline" onclick="migrateSeed()" style="font-size:12px;" title="ترحيل البيانات من الملفات المحلية إلى قاعدة البيانات"><i class="fas fa-database"></i></button>
+      <button class="btn btn-outline" onclick="migrateSeed()" style="font-size:12px;color:var(--danger);border-color:var(--danger);" title="فرض ترحيل كل المحتوى من الملفات إلى قاعدة البيانات (يستبدل أي بيانات موجودة)"><i class="fas fa-database"></i></button>
       <button class="btn btn-primary" onclick="openCourseModal()"><i class="fas fa-plus"></i> إضافة فرع</button>
     </div>
   </div>
@@ -664,7 +664,7 @@ function migrateSeed() {
   if (!confirm('هل أنت متأكد من ترحيل البيانات من الملفات المحلية إلى قاعدة البيانات؟')) return;
   var btn = event.target.closest('button');
   btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-  fetch('/api/admin/migrate-seed', { method: 'POST' })
+  fetch('/api/admin/force-migrate', { method: 'POST' })
     .then(function(r){ return r.json(); })
     .then(function(d){ alert(d.success ? 'تم ترحيل البيانات بنجاح' : d.error); if (d.success) location.reload(); })
     .catch(function(e){ alert('خطأ: ' + e.message); })
