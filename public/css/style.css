@@ -1180,7 +1180,8 @@ h3 { font-size: 18px; font-weight: 900; }
 
 .footer-about .nav-logo { margin-bottom: 20px; justify-content: flex-start; }
 .footer-about .nav-logo { color: var(--accent-light); background: none; -webkit-text-fill-color: var(--accent-light); }
-.footer-about p { font-size: 14px; line-height: 1.9; opacity: 0.6; }
+.footer-about p { font-size: 14px; line-height: 1.9; color: rgba(255, 255, 255, 0.55); }
+[data-theme="light"] .footer-about p { color: rgba(255, 255, 255, 0.75); }
 
 .footer h4 {
   color: var(--accent);
