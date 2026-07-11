@@ -113,32 +113,15 @@ async function readData(key) {
     try {
       const snap = await fbDb.ref(key).once('value');
       let val = snap.val();
-      if (val !== null && val !== undefined) {
-        // Merge seed data into Firebase courses if lessons/sections are missing
-        if (key === 'courses' && Array.isArray(val)) {
-          const seed = await localStore.readData('courses');
-          if (Array.isArray(seed)) {
-            let changed = false;
-            val.forEach(function(c) {
-              const seedCourse = seed.find(function(sc) { return sc.id === c.id; });
-              if (seedCourse) {
-                if ((!c.lessons || c.lessons.length === 0) && seedCourse.lessons && seedCourse.lessons.length > 0) {
-                  c.lessons = seedCourse.lessons; changed = true;
-                }
-                if ((!c.sections || c.sections.length === 0) && seedCourse.sections && seedCourse.sections.length > 0) {
-                  c.sections = seedCourse.sections; changed = true;
-                }
-                if ((!c.quiz || Object.keys(c.quiz).length === 0) && seedCourse.quiz) {
-                  c.quiz = seedCourse.quiz; changed = true;
-                }
-              }
-            });
-            if (changed) {
-              fbDb.ref(key).set(val).catch(function(){});
-              localStore.writeData(key, val).catch(function(){});
-            }
-          }
+      // Firebase returns stored arrays as objects with numeric keys - normalize to array
+      if (val && typeof val === 'object' && !Array.isArray(val)) {
+        const keys2 = Object.keys(val);
+        if (keys2.length > 0 && keys2.every(k => !isNaN(parseInt(k)))) {
+          val = keys2.sort((a,b) => parseInt(a)-parseInt(b)).map(k => val[k]);
         }
+      }
+      if (val !== null && val !== undefined) {
+        localStore.writeData(key, val).catch(function(){});
         return val;
       }
     } catch (e) {
@@ -279,4 +262,57 @@ async function sendFCMToRole(role, title, body, url) {
   }
 }
 
-module.exports = { db: fbDb, fbAuth, readData, writeData, pushData, fbRead, fbSet, fbPush, fbRemove, restGet, restPut, sendFCM, sendFCMToRole, admin };
+module.exports = { db: fbDb, fbAuth, readData, writeData, pushData, fbRead, fbSet, fbPush, fbRemove, restGet, restPut, sendFCM, sendFCMToRole, admin, migrateSeedData };
+
+// Startup: migrate seed data to Firebase if missing
+async function migrateSeedData() {
+  if (!fbDb) return;
+  const keys = ['courses', 'announcements', 'subscriptions', 'reviews', 'users'];
+  for (const key of keys) {
+    try {
+      const snap = await fbDb.ref(key).once('value');
+      let val = snap.val();
+      // Firebase returns arrays as objects with numeric keys - normalize
+      if (val && typeof val === 'object' && !Array.isArray(val)) {
+        const keys2 = Object.keys(val);
+        if (keys2.length > 0 && keys2.every(k => !isNaN(parseInt(k)))) {
+          val = keys2.sort((a,b) => parseInt(a)-parseInt(b)).map(k => val[k]);
+        }
+      }
+      if (val === null || val === undefined || (Array.isArray(val) && val.length === 0)) {
+        const local = await localStore.readData(key);
+        if (local && (Array.isArray(local) ? local.length > 0 : Object.keys(local).length > 0)) {
+          await fbDb.ref(key).set(local);
+          console.log('Migrated seed data to Firebase:', key);
+        }
+      } else if (key === 'courses' && Array.isArray(val)) {
+        // Merge missing lessons/sections from seed
+        const seed = await localStore.readData('courses');
+        if (Array.isArray(seed)) {
+          let changed = false;
+          for (const c of val) {
+            const sc = seed.find(s => s.id === c.id);
+            if (!sc) continue;
+            if ((!c.lessons || c.lessons.length === 0) && sc.lessons?.length) {
+              c.lessons = sc.lessons; changed = true;
+            }
+            if ((!c.sections || c.sections.length === 0) && sc.sections?.length) {
+              c.sections = sc.sections; changed = true;
+            }
+            if ((!c.quiz || Object.keys(c.quiz).length === 0) && sc.quiz) {
+              c.quiz = sc.quiz; changed = true;
+            }
+          }
+          if (changed) {
+            await fbDb.ref(key).set(val);
+            console.log('Merged missing lessons/sections into Firebase courses');
+          }
+        }
+      }
+    } catch (e) {
+      console.error('migrateSeedData error for', key, e.message);
+    }
+  }
+}
+// Run migration on startup (fire-and-forget, resolves before first request)
+migrateSeedData();
