@@ -300,7 +300,7 @@
       loadServerProgress();
     });
 
-    // Time update - save local progress every 5 seconds
+    // Time update - save local progress every 1 second (exact position)
     player.on('timeupdate', function() {
       var ct = player.currentTime || 0;
       var dur = player.duration || 1;
@@ -314,8 +314,8 @@
         updateUI(100, true);
       }
 
-      // Save to localStorage every 5 seconds
-      if (Math.floor(ct) % 5 === 0 && Math.floor(ct) !== Math.floor(savedSecond)) {
+      // Save to localStorage every 1 second (exact position, not rounded)
+      if (Math.floor(ct) !== Math.floor(savedSecond)) {
         savedSecond = Math.floor(ct);
         saveLocalProgress(savedSecond, pct, false);
         updateUI(pct, false);
