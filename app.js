@@ -893,8 +893,14 @@ app.get('/admin/subscriptions', requireAdmin, async (req, res) => {
 });
 
 app.get('/admin/payments', requireAdmin, async (req, res) => {
-  const payments = await readData('payments') || [];
-  res.render('admin/payments', { payments, title: 'المدفوعات - الإدارة' });
+  try {
+    const payments = await readData('payments') || [];
+    var totalRevenue = payments.filter(p => p.status === 'approved').reduce(function(sum, p) { return sum + (Number(p.amount) || 0); }, 0);
+    res.render('admin/payments', { payments, totalRevenue, title: 'المدفوعات - الإدارة' });
+  } catch(e) {
+    console.error('Admin payments error:', e);
+    res.status(500).send('خطأ في تحميل المدفوعات: ' + e.message);
+  }
 });
 
 app.get('/admin/charge-codes', requireAdmin, async (req, res) => {
