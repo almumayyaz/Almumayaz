@@ -11,7 +11,7 @@
   <div class="admin-table">
     <table>
       <thead>
-        <tr><th>#</th><th>اسم الباقة</th><th>السعر</th><th>المدة</th><th>المميزات</th><th>الحالة</th><th>الإجراءات</th></tr>
+        <tr><th>#</th><th>اسم الباقة</th><th>السعر</th><th>المدة</th><th>المرحلة</th><th>المميزات</th><th>الحالة</th><th>الإجراءات</th></tr>
       </thead>
       <tbody>
         <% subscriptions.forEach(function(s, i) { %>
@@ -20,6 +20,7 @@
           <td><strong><%= s.name %></strong></td>
           <td><%= s.price %> <%= s.currency %></td>
           <td><%= s.period %></td>
+          <td><%= s.stage || 'جميع المراحل' %></td>
           <td><%= s.features.length %> ميزة</td>
           <td><span class="status-badge <%= s.popular ? 'active' : 'pending' %>"><%= s.popular ? 'الأكثر طلباً' : 'متاح' %></span></td>
           <td>
@@ -49,7 +50,16 @@
         <div class="form-group"><label>السعر</label><input id="subPrice" placeholder="200"></div>
         <div class="form-group"><label>العملة</label><input id="subCurrency" value="جنيه"></div>
       </div>
-      <div class="form-group"><label>المدة</label><input id="subPeriod" placeholder="شهرياً"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="form-group"><label>المدة</label><input id="subPeriod" placeholder="شهرياً"></div>
+        <div class="form-group"><label>المرحلة</label>
+          <select id="subStage" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
+            <option value="">كل المراحل</option>
+            <option value="إعدادية">إعدادية</option>
+            <option value="ثانوية">ثانوية</option>
+          </select>
+        </div>
+      </div>
       <div class="form-group">
         <label style="display:flex;align-items:center;gap:8px;">
           <input type="checkbox" id="subPopular"> الباقة الأكثر طلباً
@@ -72,6 +82,7 @@ function openSubModal(sub) {
   document.getElementById('subPrice').value = sub ? sub.price : '';
   document.getElementById('subCurrency').value = sub ? (sub.currency || 'جنيه') : 'جنيه';
   document.getElementById('subPeriod').value = sub ? sub.period : '';
+  document.getElementById('subStage').value = sub ? (sub.stage || '') : '';
   document.getElementById('subPopular').checked = sub ? !!sub.popular : false;
   document.getElementById('subFeatures').value = sub ? (sub.features ? sub.features.join('\n') : '') : '';
   document.getElementById('subModal').classList.add('show');
@@ -85,6 +96,7 @@ function saveSub() {
     name: document.getElementById('subName').value,
     price: document.getElementById('subPrice').value,
     currency: document.getElementById('subCurrency').value,
+    stage: document.getElementById('subStage').value,
     period: document.getElementById('subPeriod').value,
     popular: document.getElementById('subPopular').checked,
     features

@@ -8,6 +8,11 @@
       </a>
       <h1><%= course.title %></h1>
       <p><%= course.subtitle %></p>
+      <% if (course.semester && course.semester !== 'all') { %>
+        <span style="display:inline-block;background:rgba(99,102,241,0.1);color:var(--accent);font-size:12px;padding:3px 10px;border-radius:4px;font-weight:600;margin-top:6px;">
+          <i class="fas fa-calendar-alt"></i> <%= course.semester === 'first' ? 'الترم الأول' : 'الترم الثاني' %>
+        </span>
+      <% } %>
     </div>
   </div>
 

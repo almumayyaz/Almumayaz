@@ -1,0 +1,94 @@
+<%- include('../partials/header', { title: title, bodyClass: 'admin-body' }) %>
+<%- include('../partials/admin-sidebar') %>
+<main class="admin-content">
+  <div class="page-header">
+    <div>
+      <h1>الإعدادات</h1>
+      <p>التحكم في إعدادات المنصة</p>
+    </div>
+  </div>
+
+  <div style="max-width:600px;">
+    <div class="form-card">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+        <i class="fas fa-calendar-alt" style="color:var(--accent);font-size:20px;"></i>
+        <h3 style="font-size:16px;font-weight:700;margin:0;">الترم الدراسي الظاهر للطلاب</h3>
+      </div>
+      <p style="font-size:13px;color:var(--text-light);margin-bottom:16px;">اختر الترم الذي يظهر محتواه للطلاب حالياً. المحتوى سيتم تصفيته حسب هذا الاختيار.</p>
+      <div class="form-group">
+        <select id="currentSemester" class="form-input" style="font-size:15px;padding:12px;">
+          <option value="all" <%= currentSemester === 'all' ? 'selected' : '' %>>الترمين معاً</option>
+          <option value="first" <%= currentSemester === 'first' ? 'selected' : '' %>>الترم الأول</option>
+          <option value="second" <%= currentSemester === 'second' ? 'selected' : '' %>>الترم الثاني</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" onclick="saveSettings()" id="saveBtn"><i class="fas fa-save"></i> حفظ الإعدادات</button>
+      <div id="saveMsg" style="display:none;margin-top:12px;padding:12px;border-radius:8px;text-align:center;font-size:13px;font-weight:600;"></div>
+    </div>
+
+    <div class="form-card" style="margin-top:20px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+        <i class="fas fa-phone" style="color:var(--accent);font-size:20px;"></i>
+        <h3 style="font-size:16px;font-weight:700;margin:0;">بيانات الدفع</h3>
+      </div>
+      <div class="form-group"><label>رقم فودافون كاش</label><input id="vodafoneCash" class="form-input" value="<%= vodafoneCash %>" placeholder="01000000000"></div>
+      <div class="form-group"><label>حساب إنستا باي</label><input id="instaPay" class="form-input" value="<%= instaPay %>" placeholder="example@instapay"></div>
+      <button class="btn btn-primary" onclick="savePaymentSettings()"><i class="fas fa-save"></i> حفظ بيانات الدفع</button>
+    </div>
+  </div>
+</main>
+
+<script>
+function saveSettings() {
+  var btn = document.getElementById('saveBtn');
+  var msg = document.getElementById('saveMsg');
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحفظ...';
+  msg.style.display = 'none';
+  fetch('/api/admin/settings', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ currentSemester: document.getElementById('currentSemester').value })
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.success) {
+      msg.style.display = 'block'; msg.style.background = 'rgba(22,163,74,0.1)'; msg.style.color = 'var(--success)'; msg.innerHTML = '<i class="fas fa-check-circle"></i> تم حفظ الإعدادات';
+    } else {
+      msg.style.display = 'block'; msg.style.background = 'rgba(220,38,38,0.1)'; msg.style.color = 'var(--danger)'; msg.textContent = d.error || 'حدث خطأ';
+    }
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> حفظ الإعدادات';
+  }).catch(function() {
+    msg.style.display = 'block'; msg.style.background = 'rgba(220,38,38,0.1)'; msg.style.color = 'var(--danger)'; msg.textContent = 'حدث خطأ في الاتصال';
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> حفظ الإعدادات';
+  });
+}
+
+function savePaymentSettings() {
+  var btn = event.target;
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحفظ...';
+  fetch('/api/admin/settings', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      vodafoneCash: document.getElementById('vodafoneCash').value,
+      instaPay: document.getElementById('instaPay').value
+    })
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.success) {
+      alert('تم حفظ بيانات الدفع');
+    } else {
+      alert(d.error || 'حدث خطأ');
+    }
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> حفظ بيانات الدفع';
+  }).catch(function() {
+    alert('حدث خطأ في الاتصال');
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> حفظ بيانات الدفع';
+  });
+}
+</script>
+
+<style>
+.form-card { background:var(--card); border-radius:var(--radius-lg); padding:24px; box-shadow:var(--shadow); border:1px solid var(--border); }
+.form-card label { display:block; font-size:13px; font-weight:600; margin-bottom:6px; color:var(--text); }
+.form-card .form-group { margin-bottom:16px; }
+</style>
+</body>
+</html>

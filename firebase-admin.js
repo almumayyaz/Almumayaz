@@ -275,7 +275,7 @@ module.exports = { db: fbDb, fbAuth, readData, writeData, pushData, fbRead, fbSe
 // Startup: ensure seed data exists in Firebase
 async function migrateSeedData() {
   if (!fbDb) return;
-  const keys = ['courses', 'announcements', 'subscriptions', 'reviews', 'users'];
+  const keys = ['courses', 'announcements', 'subscriptions', 'reviews', 'users', 'settings'];
   for (const key of keys) {
     try {
       const local = await localStore.readData(key);

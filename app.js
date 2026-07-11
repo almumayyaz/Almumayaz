@@ -89,7 +89,7 @@ app.get('/parent-login', (req, res) => {
   res.render('auth/login', { title: 'تسجيل دخول ولي الأمر - المُميز', error: null, parentLogin: true });
 });
 
-app.use((req, res, next) => {
+app.use(async (req, res, next) => {
   res.locals.user = req.session.user || null;
   res.locals.currentPath = req.path;
   res.locals.darkMode = req.session.darkMode || false;
@@ -104,8 +104,22 @@ app.use((req, res, next) => {
     appId: stripBOM(process.env.FIREBASE_APP_ID || '')
   };
   res.locals.vapidKey = stripBOM(process.env.FIREBASE_VAPID_KEY || '');
-  res.locals.vodafoneCash = stripBOM(process.env.VODAFONE_CASH || '01000000000');
-  res.locals.instaPay = stripBOM(process.env.INSTAPAY || 'example@instapay.com');
+  try {
+    var appSettings = await readData('settings');
+    if (appSettings && typeof appSettings === 'object') {
+      res.locals.vodafoneCash = appSettings.vodafoneCash || stripBOM(process.env.VODAFONE_CASH || '01000000000');
+      res.locals.instaPay = appSettings.instaPay || stripBOM(process.env.INSTAPAY || 'example@instapay.com');
+      res.locals.currentSemester = appSettings.currentSemester || 'all';
+    } else {
+      res.locals.vodafoneCash = stripBOM(process.env.VODAFONE_CASH || '01000000000');
+      res.locals.instaPay = stripBOM(process.env.INSTAPAY || 'example@instapay.com');
+      res.locals.currentSemester = 'all';
+    }
+  } catch (e) {
+    res.locals.vodafoneCash = stripBOM(process.env.VODAFONE_CASH || '01000000000');
+    res.locals.instaPay = stripBOM(process.env.INSTAPAY || 'example@instapay.com');
+    res.locals.currentSemester = 'all';
+  }
   next();
 });
 
@@ -407,8 +421,12 @@ app.get('/student', requireStudentOrGuest, async (req, res) => {
   const isGuest = req.session.demoMode;
   var userStage = (user && user.stage) || '';
   var userGrade = (user && user.grade) || '';
+  var subscriptionStage = (user && user.subscribedStage) || '';
+  if (subscriptionStage) userStage = subscriptionStage;
   if (userStage) courses = courses.filter(function(c) { return c.stage === userStage || c.stage === 'all'; });
   if (userGrade) courses = courses.filter(function(c) { return c.grade === userGrade || !c.grade; });
+  var currentSemester = res.locals.currentSemester || 'all';
+  if (currentSemester !== 'all') courses = courses.filter(function(c) { return c.semester === currentSemester || c.semester === 'all'; });
   const announcements = await readData('announcements');
   let progress = {};
   if (!isGuest && req.session.user) {
@@ -424,9 +442,14 @@ app.get('/student/courses', requireStudentOrGuest, async (req, res) => {
   const user = req.session.user;
   var userStage = (user && user.stage) || '';
   var userGrade = (user && user.grade) || '';
+  var subscriptionStage = (user && user.subscribedStage) || '';
+  if (subscriptionStage) userStage = subscriptionStage;
   // Filter by student's stage and grade
   if (userStage) courses = courses.filter(function(c) { return c.stage === userStage || c.stage === 'all'; });
   if (userGrade) courses = courses.filter(function(c) { return c.grade === userGrade || !c.grade; });
+  // Filter by current semester
+  var currentSemester = res.locals.currentSemester || 'all';
+  if (currentSemester !== 'all') courses = courses.filter(function(c) { return c.semester === currentSemester || c.semester === 'all'; });
   res.render('student/courses', { courses, userStage, userGrade, title: 'المحاضرات - المُميز' });
 });
 
@@ -438,9 +461,10 @@ app.get('/student/course/:id', requireStudentOrGuest, async (req, res) => {
   const user = req.session.user;
   const isGuest = req.session.demoMode;
   const isSubscribed = !isGuest && user.subscriptionStatus === 'active' && (!user.subscriptionEnd || new Date(user.subscriptionEnd) > new Date());
+  const currentSemester = res.locals.currentSemester || 'all';
 
   res.render('student/course-detail', {
-    course, user, isGuest, isSubscribed,
+    course, user, isGuest, isSubscribed, currentSemester,
     title: `${course.title} - المُميز`
   });
 });
@@ -546,7 +570,9 @@ app.get('/student/subscription', requireAuth, async (req, res) => {
   const subscriptions = await readData('subscriptions');
   const user = req.session.user;
   const isGuest = req.session.demoMode;
-  res.render('student/subscription', { subscriptions, user, isGuest, title: 'الاشتراك - المُميز' });
+  const userStage = user && user.stage;
+  const filtered = subscriptions.filter(s => !s.stage || s.stage === userStage);
+  res.render('student/subscription', { subscriptions: filtered, user, isGuest, title: 'الاشتراك - المُميز' });
 });
 
 app.get('/student/payment', requireAuth, async (req, res) => {
@@ -656,6 +682,7 @@ app.post('/api/student/subscribe', requireAuth, async (req, res) => {
       userPhone: req.session.user.phone || '',
       planName, price, transactionId, paymentMethod: paymentMethod || 'vodafone-cash',
       planId: sub ? sub.id : '',
+      planStage: sub ? (sub.stage || '') : '',
       durationDays: sub ? (sub.durationDays || 30) : 30,
       status: 'pending',
       date: new Date().toISOString(),
@@ -695,6 +722,7 @@ app.put('/api/admin/sub-requests/:id', requireAdmin, async (req, res) => {
         users[uidx].subscriptionStart = new Date().toISOString();
         const durDays = parseInt(subRequests[idx].durationDays) || 30;
         users[uidx].subscriptionEnd = new Date(Date.now() + durDays * 24 * 60 * 60 * 1000).toISOString();
+        if (subRequests[idx].planStage) users[uidx].subscribedStage = subRequests[idx].planStage;
         await writeData('users', users);
       }
       // Record the payment for revenue tracking
@@ -918,6 +946,16 @@ app.get('/admin/payments', requireAdmin, async (req, res) => {
     console.error('Admin payments error:', e);
     res.status(500).send('خطأ في تحميل المدفوعات: ' + e.message);
   }
+});
+
+app.get('/admin/settings', requireAdmin, async (req, res) => {
+  var settings = await readData('settings') || {};
+  res.render('admin/settings', {
+    currentSemester: settings.currentSemester || 'all',
+    vodafoneCash: settings.vodafoneCash || process.env.VODAFONE_CASH || '01000000000',
+    instaPay: settings.instaPay || process.env.INSTAPAY || 'example@instapay.com',
+    title: 'الإعدادات - الإدارة'
+  });
 });
 
 app.get('/admin/charge-codes', requireAdmin, async (req, res) => {
@@ -1370,7 +1408,7 @@ app.delete('/api/admin/question-banks/:id', requireAdmin, async (req, res) => {
 app.post('/api/admin/subscriptions', requireAdmin, async (req, res) => {
   try {
     const subscriptions = await readData('subscriptions');
-    const { name, price, currency, period, features, popular } = req.body;
+    const { name, price, currency, period, features, popular, stage, durationDays } = req.body;
     const newSub = {
       id: Date.now().toString(),
       name: name || 'باقة جديدة',
@@ -1378,7 +1416,9 @@ app.post('/api/admin/subscriptions', requireAdmin, async (req, res) => {
       currency: currency || 'جنيه',
       period: period || 'شهرياً',
       features: features || [],
-      popular: popular || false
+      popular: popular || false,
+      stage: stage || '',
+      durationDays: parseInt(durationDays) || 30
     };
     subscriptions.push(newSub);
     await writeData('subscriptions', subscriptions);
@@ -1409,6 +1449,19 @@ app.delete('/api/admin/subscriptions/:id', requireAdmin, async (req, res) => {
     subscriptions.splice(idx, 1);
     await writeData('subscriptions', subscriptions);
     res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/* ===================== ADMIN API: SETTINGS ===================== */
+
+app.post('/api/admin/settings', requireAdmin, async (req, res) => {
+  try {
+    var settings = await readData('settings') || {};
+    Object.assign(settings, req.body);
+    await writeData('settings', settings);
+    res.json({ success: true, settings });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -1499,13 +1552,14 @@ app.put('/api/admin/students/:id/subscription', requireAdmin, async (req, res) =
     const users = await readData('users');
     const idx = users.findIndex(u => u.id === req.params.id);
     if (idx === -1) return res.status(404).json({ error: 'الطالب غير موجود' });
-    const { action, durationDays } = req.body;
+    const { action, durationDays, stage } = req.body;
 
     switch (action) {
       case 'activate':
         users[idx].subscriptionStatus = 'active';
         users[idx].subscriptionStart = new Date().toISOString();
         users[idx].subscriptionEnd = new Date(Date.now() + (durationDays || 30) * 24 * 60 * 60 * 1000).toISOString();
+        if (stage) users[idx].subscribedStage = stage;
         break;
       case 'deactivate':
         users[idx].subscriptionStatus = 'inactive';
