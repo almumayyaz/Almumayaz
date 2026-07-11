@@ -1,191 +1,677 @@
-<%- include('../partials/header', { title: title }) %>
+<%- include('../partials/header', { title: title, bodyClass: 'landing-body' }) %>
 
-<section class="hero">
-  <div class="hero-bg">
-    <div class="hero-glow hero-glow-1"></div>
-    <div class="hero-glow hero-glow-2"></div>
+<style>
+/* ===== LANDING PAGE — COMPLETELY NEW LAYOUT ===== */
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;900&display=swap');
+
+.landing-body {
+  font-family: 'Cairo', sans-serif;
+  background: #FFFFFF;
+  color: #111111;
+}
+.landing-body .navbar {
+  background: rgba(255,255,255,0.85);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid #E8E8E8;
+}
+[data-theme="dark"] .landing-body .navbar {
+  background: rgba(15,23,42,0.85);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.landing-body .nav-logo { background: linear-gradient(135deg,#F59E0B,#EA8C00); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+.landing-body .nav-logo::after { display:none; }
+.landing-body .nav-links a { color: #666666; font-family: 'Cairo', sans-serif; font-weight: 500; }
+.landing-body .nav-links a:hover,
+.landing-body .nav-links a.active { color: #F59E0B; background: rgba(245,158,11,0.08); }
+.landing-body .btn-primary { background: #F59E0B; border: none; box-shadow: 0 4px 14px rgba(245,158,11,0.35); border-radius: 14px; font-family: 'Cairo', sans-serif; font-weight: 700; padding: 14px 32px; font-size: 15px; transition: all 0.3s cubic-bezier(0.22,1,0.36,1); }
+.landing-body .btn-primary:hover { background: #EA8C00; transform: translateY(-2px); box-shadow: 0 8px 24px rgba(245,158,11,0.4); }
+.landing-body .btn-outline { background: transparent; border: 1.5px solid #E8E8E8; border-radius: 14px; font-family: 'Cairo', sans-serif; font-weight: 600; padding: 14px 32px; font-size: 15px; color: #111111; transition: all 0.3s; }
+.landing-body .btn-outline:hover { border-color: #F59E0B; color: #F59E0B; transform: translateY(-2px); }
+
+/* ===== HERO ===== */
+.lp-hero {
+  min-height: 90vh;
+  display: flex;
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+  padding: 60px 0 80px;
+}
+.lp-hero-bg {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, #FFF9F1 0%, #FFFFFF 50%, #FFF9F1 100%);
+}
+[data-theme="dark"] .lp-hero-bg { background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%); }
+.lp-hero-glow {
+  position: absolute;
+  width: 600px;
+  height: 600px;
+  border-radius: 50%;
+  filter: blur(120px);
+  pointer-events: none;
+}
+.lp-hero-glow-1 { top: -200px; right: -100px; background: rgba(245,158,11,0.12); }
+.lp-hero-glow-2 { bottom: -200px; left: -100px; background: rgba(245,158,11,0.08); }
+.lp-hero .container { position: relative; z-index: 2; }
+.lp-hero-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 60px;
+  align-items: center;
+}
+.lp-hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(245,158,11,0.1);
+  color: #F59E0B;
+  padding: 8px 18px;
+  border-radius: 100px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 24px;
+  border: 1px solid rgba(245,158,11,0.2);
+}
+.lp-hero-badge::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  background: #F59E0B;
+  border-radius: 50%;
+  animation: lp-pulse 2s ease-in-out infinite;
+}
+@keyframes lp-pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+.lp-hero h1 {
+  font-size: clamp(40px, 5vw, 64px);
+  font-weight: 900;
+  line-height: 1.15;
+  margin-bottom: 16px;
+  color: #111111;
+}
+[data-theme="dark"] .lp-hero h1 { color: #fff; }
+.lp-hero h1 span {
+  background: linear-gradient(135deg, #F59E0B, #EA8C00);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.lp-hero p {
+  font-size: clamp(16px, 1.4vw, 20px);
+  line-height: 1.8;
+  color: #666666;
+  margin-bottom: 32px;
+  max-width: 520px;
+}
+[data-theme="dark"] .lp-hero p { color: rgba(255,255,255,0.7); }
+.lp-hero-actions {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.lp-hero-visual {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.lp-hero-card {
+  background: #FFFFFF;
+  border-radius: 20px;
+  padding: 40px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.08);
+  border: 1px solid #E8E8E8;
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+}
+[data-theme="dark"] .lp-hero-card { background: #1E293B; border-color: rgba(255,255,255,0.06); box-shadow: none; }
+.lp-hero-card-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.lp-subject-card {
+  background: #FFF9F1;
+  border-radius: 16px;
+  padding: 22px 18px;
+  text-align: center;
+  transition: all 0.3s cubic-bezier(0.22,1,0.36,1);
+  border: 1px solid rgba(245,158,11,0.1);
+  cursor: default;
+}
+[data-theme="dark"] .lp-subject-card { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.06); }
+.lp-subject-card:hover { transform: translateY(-4px); box-shadow: 0 12px 32px rgba(245,158,11,0.15); }
+.lp-subject-card i { font-size: 28px; color: #F59E0B; margin-bottom: 8px; display: block; }
+.lp-subject-card span { font-size: 14px; font-weight: 700; color: #111111; display: block; }
+[data-theme="dark"] .lp-subject-card span { color: #fff; }
+.lp-hero-stat {
+  position: absolute;
+  background: #FFFFFF;
+  border-radius: 16px;
+  padding: 16px 20px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+  border: 1px solid #E8E8E8;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  animation: lp-float 6s ease-in-out infinite;
+}
+[data-theme="dark"] .lp-hero-stat { background: #1E293B; border-color: rgba(255,255,255,0.06); }
+.lp-hero-stat:nth-child(2) { top: -20px; left: -40px; animation-delay: -2s; }
+.lp-hero-stat:nth-child(3) { bottom: -20px; right: -30px; animation-delay: -4s; }
+.lp-hero-stat-icon {
+  width: 44px;
+  height: 44px;
+  background: rgba(245,158,11,0.1);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #F59E0B;
+  font-size: 18px;
+}
+.lp-hero-stat-text { text-align: right; }
+.lp-hero-stat-num { font-size: 18px; font-weight: 900; color: #111111; line-height: 1.2; }
+[data-theme="dark"] .lp-hero-stat-num { color: #fff; }
+.lp-hero-stat-label { font-size: 12px; color: #666666; font-weight: 500; }
+@keyframes lp-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+
+/* ===== SUBJECTS SECTION ===== */
+.lp-section { padding: 100px 0; }
+.lp-section-alt { background: #FFF9F1; }
+[data-theme="dark"] .lp-section-alt { background: #1E293B; }
+.lp-section-tag {
+  display: inline-block;
+  background: rgba(245,158,11,0.1);
+  color: #F59E0B;
+  padding: 6px 16px;
+  border-radius: 100px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  border: 1px solid rgba(245,158,11,0.2);
+}
+.lp-section-title {
+  font-size: clamp(28px, 3.2vw, 40px);
+  font-weight: 900;
+  color: #111111;
+  margin-bottom: 12px;
+  line-height: 1.2;
+}
+[data-theme="dark"] .lp-section-title { color: #fff; }
+.lp-section-desc {
+  font-size: 16px;
+  color: #666666;
+  line-height: 1.7;
+  max-width: 560px;
+}
+[data-theme="dark"] .lp-section-desc { color: rgba(255,255,255,0.6); }
+
+.lp-subjects-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-top: 48px;
+}
+.lp-subject-item {
+  background: #FFFFFF;
+  border-radius: 20px;
+  padding: 32px 28px;
+  border: 1px solid #E8E8E8;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.04);
+  transition: all 0.4s cubic-bezier(0.22,1,0.36,1);
+  text-align: center;
+}
+[data-theme="dark"] .lp-subject-item { background: #0F172A; border-color: rgba(255,255,255,0.06); }
+.lp-subject-item:hover { transform: translateY(-6px); box-shadow: 0 16px 48px rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.2); }
+.lp-subject-icon {
+  width: 64px;
+  height: 64px;
+  background: rgba(245,158,11,0.1);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+  font-size: 26px;
+  color: #F59E0B;
+}
+.lp-subject-item h3 { font-size: 18px; font-weight: 800; color: #111111; margin-bottom: 8px; }
+[data-theme="dark"] .lp-subject-item h3 { color: #fff; }
+.lp-subject-item p { font-size: 14px; color: #666666; line-height: 1.7; }
+[data-theme="dark"] .lp-subject-item p { color: rgba(255,255,255,0.6); }
+
+/* ===== STATS ===== */
+.lp-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+  margin-top: 24px;
+}
+.lp-stat {
+  text-align: center;
+  padding: 32px 20px;
+  background: #FFFFFF;
+  border-radius: 20px;
+  border: 1px solid #E8E8E8;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.04);
+}
+[data-theme="dark"] .lp-stat { background: #0F172A; border-color: rgba(255,255,255,0.06); }
+.lp-stat-num {
+  font-size: 40px;
+  font-weight: 900;
+  background: linear-gradient(135deg, #F59E0B, #EA8C00);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1.1;
+}
+.lp-stat-label { font-size: 14px; color: #666666; font-weight: 600; margin-top: 6px; }
+[data-theme="dark"] .lp-stat-label { color: rgba(255,255,255,0.6); }
+
+/* ===== HOW IT WORKS ===== */
+.lp-steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 32px;
+  margin-top: 48px;
+  position: relative;
+}
+.lp-steps::before {
+  content: '';
+  position: absolute;
+  top: 44px;
+  left: 15%;
+  right: 15%;
+  height: 2px;
+  background: linear-gradient(90deg, #F59E0B 0%, rgba(245,158,11,0.2) 100%);
+  z-index: 0;
+}
+[data-theme="dark"] .lp-steps::before { background: linear-gradient(90deg, #F59E0B 0%, rgba(245,158,11,0.1) 100%); }
+.lp-step {
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+.lp-step-num {
+  width: 56px;
+  height: 56px;
+  background: #F59E0B;
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 900;
+  margin: 0 auto 20px;
+  box-shadow: 0 8px 24px rgba(245,158,11,0.3);
+}
+.lp-step h3 { font-size: 18px; font-weight: 800; color: #111111; margin-bottom: 8px; }
+[data-theme="dark"] .lp-step h3 { color: #fff; }
+.lp-step p { font-size: 14px; color: #666666; line-height: 1.7; max-width: 280px; margin: 0 auto; }
+[data-theme="dark"] .lp-step p { color: rgba(255,255,255,0.6); }
+
+/* ===== TEACHER ===== */
+.lp-teacher-wrapper {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 60px;
+  align-items: center;
+  margin-top: 24px;
+}
+.lp-teacher-avatar {
+  width: 100%;
+  max-width: 320px;
+  aspect-ratio: 1;
+  background: linear-gradient(135deg, #FFF9F1, rgba(245,158,11,0.08));
+  border-radius: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+  border: 1px solid rgba(245,158,11,0.15);
+  position: relative;
+}
+[data-theme="dark"] .lp-teacher-avatar { background: linear-gradient(135deg, #1E293B, rgba(245,158,11,0.05)); }
+.lp-teacher-avatar i { font-size: 80px; color: #F59E0B; opacity: 0.5; }
+.lp-teacher-info h2 { font-size: 32px; font-weight: 900; color: #111111; margin-bottom: 4px; }
+[data-theme="dark"] .lp-teacher-info h2 { color: #fff; }
+.lp-teacher-info h3 { font-size: 18px; color: #F59E0B; font-weight: 600; margin-bottom: 16px; }
+.lp-teacher-quote {
+  font-size: 18px;
+  line-height: 1.9;
+  color: #666666;
+  padding: 24px 0;
+  position: relative;
+}
+[data-theme="dark"] .lp-teacher-quote { color: rgba(255,255,255,0.7); }
+.lp-teacher-quote::before {
+  content: '"';
+  font-size: 60px;
+  color: #F59E0B;
+  opacity: 0.3;
+  position: absolute;
+  top: -10px;
+  right: 0;
+  font-weight: 900;
+  line-height: 1;
+}
+.lp-teacher-badges {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.lp-teacher-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(245,158,11,0.08);
+  padding: 8px 16px;
+  border-radius: 100px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #111111;
+  border: 1px solid rgba(245,158,11,0.15);
+}
+[data-theme="dark"] .lp-teacher-badge { color: #fff; }
+.lp-teacher-badge i { color: #F59E0B; font-size: 14px; }
+
+/* ===== TESTIMONIALS ===== */
+.lp-testimonials-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-top: 48px;
+}
+.lp-testimonial {
+  background: #FFFFFF;
+  border-radius: 20px;
+  padding: 32px 28px;
+  border: 1px solid #E8E8E8;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.04);
+}
+[data-theme="dark"] .lp-testimonial { background: #0F172A; border-color: rgba(255,255,255,0.06); }
+.lp-testimonial-stars { color: #F59E0B; font-size: 14px; margin-bottom: 12px; }
+.lp-testimonial-text { font-size: 14px; line-height: 1.8; color: #666666; margin-bottom: 16px; }
+[data-theme="dark"] .lp-testimonial-text { color: rgba(255,255,255,0.6); }
+.lp-testimonial-author { display: flex; align-items: center; gap: 12px; }
+.lp-testimonial-avatar {
+  width: 40px;
+  height: 40px;
+  background: rgba(245,158,11,0.1);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #F59E0B;
+  font-weight: 700;
+  font-size: 16px;
+}
+.lp-testimonial-name { font-size: 14px; font-weight: 700; color: #111111; }
+[data-theme="dark"] .lp-testimonial-name { color: #fff; }
+.lp-testimonial-grade { font-size: 12px; color: #666666; }
+
+/* ===== CTA ===== */
+.lp-cta {
+  background: linear-gradient(135deg, #0F172A, #1E293B);
+  border-radius: 24px;
+  padding: 80px 60px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+[data-theme="light"] .lp-cta { background: linear-gradient(135deg, #0F172A, #1E293B); }
+.lp-cta::before {
+  content: '';
+  position: absolute;
+  width: 400px;
+  height: 400px;
+  background: rgba(245,158,11,0.06);
+  border-radius: 50%;
+  top: -100px;
+  left: -100px;
+  filter: blur(80px);
+}
+.lp-cta h2 { font-size: 36px; font-weight: 900; color: #fff; margin-bottom: 12px; position: relative; }
+.lp-cta p { font-size: 16px; color: rgba(255,255,255,0.7); margin-bottom: 32px; max-width: 480px; margin-left: auto; margin-right: auto; position: relative; line-height: 1.7; }
+.lp-cta .btn-primary { font-size: 17px; padding: 16px 40px; position: relative; }
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 992px) {
+  .lp-hero-grid { grid-template-columns: 1fr; gap: 40px; }
+  .lp-hero-visual { order: -1; }
+  .lp-hero p { max-width: 100%; }
+  .lp-subjects-grid { grid-template-columns: repeat(2, 1fr); }
+  .lp-stats { grid-template-columns: repeat(2, 1fr); }
+  .lp-steps { grid-template-columns: 1fr; gap: 32px; }
+  .lp-steps::before { display: none; }
+  .lp-teacher-wrapper { grid-template-columns: 1fr; text-align: center; }
+  .lp-teacher-info { text-align: center; }
+  .lp-teacher-badges { justify-content: center; }
+  .lp-testimonials-grid { grid-template-columns: 1fr; }
+  .lp-cta { padding: 60px 32px; border-radius: 16px; }
+}
+@media (max-width: 576px) {
+  .lp-subjects-grid { grid-template-columns: 1fr; }
+  .lp-stats { grid-template-columns: 1fr; }
+  .lp-hero-stat { display: none; }
+  .lp-section { padding: 60px 0; }
+}
+</style>
+
+<!-- ===== HERO ===== -->
+<section class="lp-hero">
+  <div class="lp-hero-bg">
+    <div class="lp-hero-glow lp-hero-glow-1"></div>
+    <div class="lp-hero-glow lp-hero-glow-2"></div>
   </div>
   <div class="container">
-    <div class="hero-content">
-      <div class="hero-badge">
-        <span class="hero-badge-dot"></span>
-        منصة تعليمية متخصصة
-      </div>
-      <h1>محمد <span class="title-accent text-gold">عفيفي</span></h1>
-      <h2>مدرس اللغة العربية للثانوية العامة</h2>
-      <div class="hero-tags">
-        <span><i class="fas fa-chalkboard-teacher"></i> شرح مبسط</span>
-        <span><i class="fas fa-sync-alt"></i> مراجعات قوية</span>
-        <span><i class="fas fa-tasks"></i> اختبارات متخصصة</span>
-      </div>
-      <div class="hero-stats-row">
-        <div class="hero-stat-item">
-          <span class="hero-stat-item-num">+15</span>
-          <span class="hero-stat-item-label">عاماً من الخبرة</span>
-        </div>
-        <div class="hero-stat-item">
-          <span class="hero-stat-item-num">+50</span>
-          <span class="hero-stat-item-label">محاضرة مسجلة</span>
-        </div>
-        <div class="hero-stat-item">
-          <span class="hero-stat-item-num">+95%</span>
-          <span class="hero-stat-item-label">نسبة النجاح</span>
+    <div class="lp-hero-grid">
+      <div class="lp-hero-content">
+        <div class="lp-hero-badge">متاح الآن التسجيل للعام الدراسي</div>
+        <h1>أتقن اللغة العربية مع <span>محمد عفيفي</span></h1>
+        <p>منصة تعليمية متخصصة لطلاب الثانوية العامة. شرح مبسط، مراجعات قوية، واختبارات تفاعلية لضمان التفوق والتميز.</p>
+        <div class="lp-hero-actions">
+          <a href="/subscriptions" class="btn btn-primary">ابدأ رحلة التفوق <i class="fas fa-arrow-left" style="margin-right:8px;"></i></a>
+          <a href="/demo" class="btn btn-outline"><i class="fas fa-eye" style="margin-left:8px;"></i> تجربة مجانية</a>
         </div>
       </div>
-      <div class="hero-buttons">
-        <a href="/subscriptions" class="btn btn-primary btn-lg">اشترك الآن</a>
-        <a href="/demo" class="btn btn-outline btn-lg"><i class="fas fa-user-guest"></i> تسجيل كضيف</a>
-      </div>
-    </div>
-    <div class="hero-visual">
-      <div class="hero-teacher-card">
-        <div class="hero-teacher-glow"></div>
-        <div class="hero-teacher-avatar">
-          <i class="fas fa-chalkboard-teacher"></i>
-        </div>
-        <div class="hero-teacher-name">
-          <span>الأستاذ</span>
-          <strong>محمد عفيفي</strong>
-        </div>
-        <div class="hero-teacher-title">اللغة العربية - الثانوية العامة</div>
-        <div class="hero-teacher-line"></div>
-        <div class="hero-teacher-badge">
-          <i class="fas fa-graduation-cap"></i>
-          <span>خبرة +15 عاماً</span>
-        </div>
-      </div>
-      <div class="hero-float-item hero-float-1">
-        <i class="fas fa-book-open"></i>
-        <span>النحو</span>
-      </div>
-      <div class="hero-float-item hero-float-2">
-        <i class="fas fa-feather-alt"></i>
-        <span>البلاغة</span>
-      </div>
-      <div class="hero-float-item hero-float-3">
-        <i class="fas fa-pen-fancy"></i>
-        <span>الأدب</span>
-      </div>
-      <div class="hero-float-item hero-float-4">
-        <i class="fas fa-quote-right"></i>
-        <span>النصوص</span>
-      </div>
-      <div class="hero-float-icon hero-float-icon-1">ن</div>
-      <div class="hero-float-icon hero-float-icon-2">ب</div>
-      <div class="hero-float-icon hero-float-icon-3">أ</div>
-      <div class="hero-float-icon hero-float-icon-4">ت</div>
-    </div>
-  </div>
-</section>
-
-<section class="section">
-  <div class="container">
-    <div class="section-header">
-      <span class="tag">مميزاتنا</span>
-      <h2>لماذا المُميز؟</h2>
-      <p>منصة تعليمية متكاملة تقدم كل ما يحتاجه طالب الثانوية العامة لتحقيق التفوق</p>
-    </div>
-    <div class="features-grid">
-      <div class="feature-card animate-in">
-        <div class="feature-icon"><i class="fas fa-chalkboard"></i></div>
-        <h3>شرح كامل</h3>
-        <p>فيديوهات شرح وافرة لجميع أجزاء المنهج بأسلوب مبسط ومتدرج</p>
-      </div>
-      <div class="feature-card animate-in animate-in-d1">
-        <div class="feature-icon"><i class="fas fa-file-pdf"></i></div>
-        <h3>مذكرات PDF</h3>
-        <p>مذكرات شاملة ومنظمة للتحميل والطباعة لجميع فروع اللغة العربية</p>
-      </div>
-      <div class="feature-card animate-in animate-in-d2">
-        <div class="feature-icon"><i class="fas fa-tasks"></i></div>
-        <h3>اختبارات</h3>
-        <p>اختبارات إلكترونية تفاعلية مع تصحيح فوري ونتائج مباشرة</p>
-      </div>
-      <div class="feature-card animate-in animate-in-d3">
-        <div class="feature-icon"><i class="fas fa-question-circle"></i></div>
-        <h3>بنك أسئلة</h3>
-        <p>آلاف الأسئلة المصممة خصيصاً وفقاً لنظام الثانوية العامة</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-
-<section class="section">
-  <div class="container">
-    <div class="section-header">
-      <span class="tag">الباقات</span>
-      <h2>خطط الاشتراك</h2>
-      <p>اختر الخطة المناسبة لك وابدأ التعلم اليوم</p>
-    </div>
-    <div class="subscriptions-grid">
-      <% var subs = typeof subscriptions !== 'undefined' ? subscriptions : []; %>
-      <% subs.forEach(function(sub) { %>
-      <div class="sub-card <%= sub.popular ? 'popular' : '' %>">
-        <% if (sub.popular) { %><div class="sub-badge">الأكثر طلباً</div><% } %>
-        <div class="sub-header">
-          <h3><%= sub.name %></h3>
-          <div class="sub-price">
-            <span class="amount"><%= sub.price %></span>
-            <span class="currency"><%= sub.currency %></span>
+      <div class="lp-hero-visual">
+        <div class="lp-hero-card">
+          <div class="lp-hero-card-grid">
+            <div class="lp-subject-card"><i class="fas fa-book-open"></i><span>النحو</span></div>
+            <div class="lp-subject-card"><i class="fas fa-feather-alt"></i><span>البلاغة</span></div>
+            <div class="lp-subject-card"><i class="fas fa-pen-fancy"></i><span>الأدب</span></div>
+            <div class="lp-subject-card"><i class="fas fa-quote-right"></i><span>النصوص</span></div>
+            <div class="lp-subject-card"><i class="fas fa-pencil-alt"></i><span>التعبير</span></div>
+            <div class="lp-subject-card"><i class="fas fa-book-reader"></i><span>القراءة</span></div>
           </div>
-          <div class="sub-period"><%= sub.period %></div>
         </div>
-        <ul class="sub-features">
-          <% sub.features.forEach(function(f) { %>
-          <li><i class="fas fa-check"></i> <%= f %></li>
-          <% }) %>
-        </ul>
-        <a href="/register" class="btn btn-primary">اشترك الآن</a>
+        <div class="lp-hero-stat">
+          <div class="lp-hero-stat-icon"><i class="fas fa-users"></i></div>
+          <div class="lp-hero-stat-text"><div class="lp-hero-stat-num">+5000</div><div class="lp-hero-stat-label">طالب مسجل</div></div>
+        </div>
+        <div class="lp-hero-stat">
+          <div class="lp-hero-stat-icon"><i class="fas fa-video"></i></div>
+          <div class="lp-hero-stat-text"><div class="lp-hero-stat-num">+50</div><div class="lp-hero-stat-label">محاضرة</div></div>
+        </div>
       </div>
-      <% }) %>
     </div>
   </div>
 </section>
 
-<section class="section section-alt">
+<!-- ===== SUBJECTS ===== -->
+<section class="lp-section">
   <div class="container">
-    <div class="section-header">
-      <span class="tag">FAQ</span>
-      <h2>الأسئلة الشائعة</h2>
-      <p>إجابات لأكثر الأسئلة التي تهم طلابنا</p>
+    <div class="lp-section-tag">المنهج كاملاً</div>
+    <h2 class="lp-section-title">كل فروع اللغة العربية في مكان واحد</h2>
+    <p class="lp-section-desc">منهج متكامل يغطي جميع فروع اللغة العربية لطلاب الثانوية العامة، مع شرح وافٍ وتدريبات مكثفة على كل فرع.</p>
+    <div class="lp-subjects-grid">
+      <div class="lp-subject-item">
+        <div class="lp-subject-icon"><i class="fas fa-book-open"></i></div>
+        <h3>النحو</h3>
+        <p>شرح شامل لقواعد النحو والإعراب مع تطبيقات عملية وأسئلة شامل على كل باب</p>
+      </div>
+      <div class="lp-subject-item">
+        <div class="lp-subject-icon"><i class="fas fa-feather-alt"></i></div>
+        <h3>البلاغة</h3>
+        <p>تبسيط علم البيان والمعاني والبديع بأسلوب عصري مع أمثلة من القرآن والشعر</p>
+      </div>
+      <div class="lp-subject-item">
+        <div class="lp-subject-icon"><i class="fas fa-pen-fancy"></i></div>
+        <h3>الأدب</h3>
+        <p>رحاب العصور الأدبية والنصوص المقررة مع تحليل شامل لكل عصر وأعلامه</p>
+      </div>
+      <div class="lp-subject-item">
+        <div class="lp-subject-icon"><i class="fas fa-quote-right"></i></div>
+        <h3>النصوص</h3>
+        <p>تحليل وشرح النصوص المقررة مع معاني الكلمات والأسئلة المتوقعة في الامتحان</p>
+      </div>
+      <div class="lp-subject-item">
+        <div class="lp-subject-icon"><i class="fas fa-pencil-alt"></i></div>
+        <h3>التعبير</h3>
+        <p>تقنيات وأساليب الكتابة الإبداعية والوظيفية لتحقيق الدرجة النهائية</p>
+      </div>
+      <div class="lp-subject-item">
+        <div class="lp-subject-icon"><i class="fas fa-book-reader"></i></div>
+        <h3>القراءة</h3>
+        <p>مهارات القراءة المتخصصة والاستيعاب مع تدريبات على فهم النصوص</p>
+      </div>
     </div>
-    <div class="faq-list">
-      <div class="faq-item active">
-        <div class="faq-question">
-          كيف يمكنني الاشتراك في المنصة؟
-          <i class="fas fa-chevron-down"></i>
-        </div>
-        <div class="faq-answer">يمكنك الاشتراك من خلال الضغط على زر "اشترك الآن" واختيار الخطة المناسبة لك، ثم إنشاء حساب وبدء التعلم فوراً.</div>
+  </div>
+</section>
+
+<!-- ===== STATS ===== -->
+<section class="lp-section lp-section-alt">
+  <div class="container">
+    <div style="text-align:center;">
+      <div class="lp-section-tag">إحصائيات</div>
+      <h2 class="lp-section-title">أرقام تتحدث عن نفسها</h2>
+      <p class="lp-section-desc" style="margin:0 auto;">سنوات من العطاء والتفوق في تدريس اللغة العربية لطلاب الثانوية العامة</p>
+    </div>
+    <div class="lp-stats">
+      <div class="lp-stat">
+        <div class="lp-stat-num">+15</div>
+        <div class="lp-stat-label">عاماً من الخبرة</div>
       </div>
-      <div class="faq-item">
-        <div class="faq-question">
-          هل المحاضرات مسجلة أم مباشرة؟
-          <i class="fas fa-chevron-down"></i>
-        </div>
-        <div class="faq-answer">جميع المحاضرات مسجلة بجودة عالية ويمكنك مشاهدتها في أي وقت يناسبك. كما نوفر مراجعات مباشرة دورية.</div>
+      <div class="lp-stat">
+        <div class="lp-stat-num">+5000</div>
+        <div class="lp-stat-label">طالباً وطالبة</div>
       </div>
-      <div class="faq-item">
-        <div class="faq-question">
-          هل يمكنني تحميل المذكرات؟
-          <i class="fas fa-chevron-down"></i>
-        </div>
-        <div class="faq-answer">نعم، جميع المذكرات متاحة للتحميل بصيغة PDF مع كل محاضرة.</div>
+      <div class="lp-stat">
+        <div class="lp-stat-num">+95%</div>
+        <div class="lp-stat-label">نسبة النجاح</div>
       </div>
-      <div class="faq-item">
-        <div class="faq-question">
-          ما هي طرق الدفع المتاحة؟
-          <i class="fas fa-chevron-down"></i>
-        </div>
-        <div class="faq-answer">يمكن الدفع عبر فودافون كاش أو تحويل بنكي أو بطاقات الائتمان.</div>
+      <div class="lp-stat">
+        <div class="lp-stat-num">+50</div>
+        <div class="lp-stat-label">محاضرة مسجلة</div>
       </div>
-      <div class="faq-item">
-        <div class="faq-question">
-          هل يمكنني استرداد المبلغ إذا لم تعجبني الخدمة؟
-          <i class="fas fa-chevron-down"></i>
-        </div>
-        <div class="faq-answer">نوفر ضمان استرداد كامل خلال أول 7 أيام من الاشتراك إذا لم تكن راضياً عن الخدمة.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== HOW IT WORKS ===== -->
+<section class="lp-section">
+  <div class="container">
+    <div style="text-align:center;">
+      <div class="lp-section-tag">خطوات بسيطة</div>
+      <h2 class="lp-section-title">كيف تبدأ رحلة التفوق؟</h2>
+      <p class="lp-section-desc" style="margin:0 auto;">ثلاث خطوات فقط تفصلك عن عالم من التميز في اللغة العربية</p>
+    </div>
+    <div class="lp-steps">
+      <div class="lp-step">
+        <div class="lp-step-num">١</div>
+        <h3>اختر خطتك</h3>
+        <p>تصفح باقات الاشتراك واختر ما يناسب احتياجاتك وميزانيتك</p>
       </div>
+      <div class="lp-step">
+        <div class="lp-step-num">٢</div>
+        <h3>أنشئ حسابك</h3>
+        <p>سجل بياناتك بسهولة وتمتع بتجربة تعليمية مخصصة</p>
+      </div>
+      <div class="lp-step">
+        <div class="lp-step-num">٣</div>
+        <h3>ابدأ التعلم</h3>
+        <p>تصفح المحاضرات، حل الأسئلة، وتابع تقدمك خطوة بخطوة</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== TEACHER ===== -->
+<section class="lp-section lp-section-alt">
+  <div class="container">
+    <div style="text-align:center;">
+      <div class="lp-section-tag">المدرس</div>
+      <h2 class="lp-section-title">تعرف على أستاذك</h2>
+    </div>
+    <div class="lp-teacher-wrapper">
+      <div class="lp-teacher-avatar">
+        <i class="fas fa-chalkboard-teacher"></i>
+      </div>
+      <div class="lp-teacher-info">
+        <h2>محمد عفيفي</h2>
+        <h3>مدرس اللغة العربية للثانوية العامة</h3>
+        <div class="lp-teacher-quote">
+          التعليم ليس مجرد نقل للمعلومات، بل بناء للعقول وصقل للمهارات. هدفي أن أحبب طلابي في اللغة العربية وأجعلهم يتقنونها بإتقان.
+        </div>
+        <div class="lp-teacher-badges">
+          <div class="lp-teacher-badge"><i class="fas fa-graduation-cap"></i> +15 عاماً خبرة</div>
+          <div class="lp-teacher-badge"><i class="fas fa-star"></i> أعلى نسب نجاح</div>
+          <div class="lp-teacher-badge"><i class="fas fa-heart"></i> آلاف الطلاب</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== TESTIMONIALS ===== -->
+<section class="lp-section">
+  <div class="container">
+    <div style="text-align:center;">
+      <div class="lp-section-tag">آراء الطلاب</div>
+      <h2 class="lp-section-title">ماذا يقول طلابنا؟</h2>
+      <p class="lp-section-desc" style="margin:0 auto;">تجارب حقيقية لطلاب حققوا التفوق مع منصة المُميز</p>
+    </div>
+    <div class="lp-testimonials-grid">
+      <div class="lp-testimonial">
+        <div class="lp-testimonial-stars"><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i></div>
+        <div class="lp-testimonial-text">بفضل الله ثم بفضل شرح الأستاذ محمد عفيفي، قدرت أحصل على الدرجة النهائية في اللغة العربية. أسلوبه مبسط وطريقته في الشرح تخلي أي حاجة صعبة سهلة.</div>
+        <div class="lp-testimonial-author">
+          <div class="lp-testimonial-avatar">أ</div>
+          <div><div class="lp-testimonial-name">أحمد عبدالله</div><div class="lp-testimonial-grade">الثالث الثانوي - 2025</div></div>
+        </div>
+      </div>
+      <div class="lp-testimonial">
+        <div class="lp-testimonial-stars"><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i></div>
+        <div class="lp-testimonial-text">المنصة حلوة جداً والمحاضرات واضحة ومنظمة. بنك الأسئلة ساعدني كتير في التدريب على شكل الامتحان. الحمد لله جبت ٤٨ من ٥٠ في العربى.</div>
+        <div class="lp-testimonial-author">
+          <div class="lp-testimonial-avatar">م</div>
+          <div><div class="lp-testimonial-name">مريم عمرو</div><div class="lp-testimonial-grade">الثالث الثانوي - 2025</div></div>
+        </div>
+      </div>
+      <div class="lp-testimonial">
+        <div class="lp-testimonial-stars"><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i></div>
+        <div class="lp-testimonial-text">أفضل منصة عربية تعليمية جربتها. المذكرات PDF والمراجعات النهائية ساعدوني أجمع المنهج في وقت قياسي. أنصح أي طالب ثانوية عامة يجربها.</div>
+        <div class="lp-testimonial-author">
+          <div class="lp-testimonial-avatar">ي</div>
+          <div><div class="lp-testimonial-name">يوسف محمود</div><div class="lp-testimonial-grade">الثالث الثانوي - 2024</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== CTA ===== -->
+<section class="lp-section">
+  <div class="container">
+    <div class="lp-cta">
+      <h2>جهز نفسك للتفوق في اللغة العربية</h2>
+      <p>انضم إلى آلاف الطلاب الذين وثقوا في منصة المُميز وحققوا أعلى الدرجات. ابدأ رحلة التفوق اليوم.</p>
+      <a href="/register" class="btn btn-primary">أنشئ حسابك مجاناً <i class="fas fa-arrow-left" style="margin-right:8px;"></i></a>
     </div>
   </div>
 </section>
