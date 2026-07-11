@@ -983,6 +983,11 @@ app.get('/admin/announcements', requireAdmin, async (req, res) => {
   res.render('admin/announcements', { announcements, title: 'الإعلانات - الإدارة' });
 });
 
+app.get('/admin/quotes', requireAdmin, async (req, res) => {
+  const quotes = await readData('quotes');
+  res.render('admin/quotes', { quotes, title: 'الجمل التحفيزية - الإدارة' });
+});
+
 app.get('/admin/send-notification', requireAdmin, (req, res) => {
   res.render('admin/send-notification', { title: 'إرسال إشعار - الإدارة' });
 });
@@ -1530,6 +1535,65 @@ app.delete('/api/admin/announcements/:id', requireAdmin, async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+/* ===================== ADMIN API: QUOTES ===================== */
+
+app.get('/api/admin/quotes', requireAdmin, async (req, res) => {
+  const quotes = await readData('quotes');
+  res.json(quotes);
+});
+
+app.post('/api/admin/quotes', requireAdmin, async (req, res) => {
+  try {
+    const quotes = await readData('quotes');
+    const quote = {
+      id: 'quote-' + Date.now(),
+      text: req.body.text,
+      author: req.body.author || 'الأستاذ محمد عفيفي'
+    };
+    quotes.push(quote);
+    await writeData('quotes', quotes);
+    res.json({ success: true, quote });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.put('/api/admin/quotes/:id', requireAdmin, async (req, res) => {
+  try {
+    const quotes = await readData('quotes');
+    const idx = quotes.findIndex(q => q.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'الجملة غير موجودة' });
+    quotes[idx].text = req.body.text || quotes[idx].text;
+    quotes[idx].author = req.body.author || quotes[idx].author;
+    await writeData('quotes', quotes);
+    res.json({ success: true, quote: quotes[idx] });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/admin/quotes/:id', requireAdmin, async (req, res) => {
+  try {
+    const quotes = await readData('quotes');
+    const idx = quotes.findIndex(q => q.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'الجملة غير موجودة' });
+    quotes.splice(idx, 1);
+    await writeData('quotes', quotes);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/* ===================== STUDENT API: QUOTE ===================== */
+
+app.get('/api/student/quote', requireStudentOrGuest, async (req, res) => {
+  const quotes = await readData('quotes');
+  if (!quotes || quotes.length === 0) return res.json({ text: 'النجاح يبدأ بخطوة، وأنت على الطريق الصحيح', author: 'المُميز' });
+  const q = quotes[Math.floor(Math.random() * quotes.length)];
+  res.json(q);
 });
 
 /* ===================== ADMIN API: STUDENTS ===================== */

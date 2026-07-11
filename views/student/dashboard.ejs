@@ -8,6 +8,20 @@
     </div>
   </div>
 
+  <div id="quoteBanner" style="background:linear-gradient(135deg,var(--accent-glow),transparent);border:1px solid color-mix(in srgb, var(--accent) 25%, transparent);border-radius:var(--radius-lg);padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:12px;">
+    <i class="fas fa-quote-right" style="color:var(--accent);font-size:20px;flex-shrink:0;"></i>
+    <div style="flex:1;">
+      <div id="quoteText" style="font-size:14px;font-weight:600;color:var(--text);line-height:1.6;"></div>
+      <div id="quoteAuthor" style="font-size:12px;color:var(--text-light);margin-top:4px;"></div>
+    </div>
+  </div>
+  <script>
+  fetch('/api/student/quote').then(function(r){return r.json()}).then(function(q){
+    document.getElementById('quoteText').textContent = '📖 ' + q.text;
+    document.getElementById('quoteAuthor').textContent = '— ' + q.author;
+  }).catch(function(){document.getElementById('quoteBanner').style.display='none'});
+  </script>
+
   <% if (!isGuest) { %>
   <% if (user.subscriptionStatus === 'active') { %>
   <div style="background:linear-gradient(135deg,var(--success-glow),transparent);border:1px solid var(--success);border-radius:var(--radius-lg);padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:12px;">

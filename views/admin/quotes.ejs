@@ -1,0 +1,81 @@
+<%- include('../partials/header', { title: title, bodyClass: 'admin-body' }) %>
+<%- include('../partials/admin-sidebar') %>
+<main class="admin-content">
+  <div class="page-header">
+    <div>
+      <h1>الجمل التحفيزية</h1>
+      <p>إدارة الجمل التي تظهر للطلاب عند فتح المنصة</p>
+    </div>
+    <button class="btn btn-primary" onclick="openQuoteModal()"><i class="fas fa-plus"></i> جملة جديدة</button>
+  </div>
+  <div class="admin-table">
+    <table>
+      <thead>
+        <tr><th>#</th><th>الجملة</th><th>الكاتب</th><th>الإجراءات</th></tr>
+      </thead>
+      <tbody>
+        <% if (quotes.length > 0) { %>
+          <% quotes.forEach(function(q, i) { %>
+          <tr>
+            <td><%= i + 1 %></td>
+            <td style="max-width:400px;"><%= q.text %></td>
+            <td><%= q.author %></td>
+            <td>
+              <div class="admin-actions">
+                <button class="edit" onclick='openQuoteModal(<%= JSON.stringify(q) %>)'><i class="fas fa-edit"></i></button>
+                <button class="delete" onclick="deleteQuote('<%= q.id %>')"><i class="fas fa-trash"></i></button>
+              </div>
+            </td>
+          </tr>
+          <% }) %>
+        <% } else { %>
+          <tr><td colspan="4" style="text-align:center;color:var(--text-light);">لا توجد جمل تحفيزية</td></tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<!-- Quote Modal -->
+<div class="modal-overlay" id="quoteModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="quoteModalTitle">جملة تحفيزية جديدة</h3>
+      <button class="modal-close" onclick="closeQuoteModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="quoteId">
+      <div class="form-group"><label>الجملة</label><textarea id="quoteText" rows="3" placeholder="اكتب الجملة التحفيزية"></textarea></div>
+      <div class="form-group"><label>الكاتب</label><input id="quoteAuthor" placeholder="الأستاذ محمد عفيفي"></div>
+      <button class="btn btn-primary" onclick="saveQuote()" style="width:100%;"><i class="fas fa-save"></i> حفظ</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function openQuoteModal(q) {
+  document.getElementById('quoteModalTitle').textContent = q ? 'تعديل الجملة' : 'جملة تحفيزية جديدة';
+  document.getElementById('quoteId').value = q ? q.id : '';
+  document.getElementById('quoteText').value = q ? q.text : '';
+  document.getElementById('quoteAuthor').value = q ? q.author : '';
+  document.getElementById('quoteModal').classList.add('show');
+}
+function closeQuoteModal() { document.getElementById('quoteModal').classList.remove('show'); }
+function saveQuote() {
+  const id = document.getElementById('quoteId').value;
+  const data = { text: document.getElementById('quoteText').value, author: document.getElementById('quoteAuthor').value };
+  if (!data.text) return alert('يرجى كتابة الجملة التحفيزية');
+  const url = id ? '/api/admin/quotes/' + id : '/api/admin/quotes';
+  const method = id ? 'PUT' : 'POST';
+  fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) })
+    .then(r => r.json()).then(d => { if (d.success) location.reload(); else alert(d.error); });
+}
+function deleteQuote(id) {
+  if (!confirm('هل أنت متأكد من حذف هذه الجملة؟')) return;
+  fetch('/api/admin/quotes/' + id, { method: 'DELETE' })
+    .then(r => r.json()).then(d => { if (d.success) location.reload(); else alert(d.error); });
+}
+document.getElementById('quoteModal').addEventListener('click', function(e) { if (e.target === this) this.classList.remove('show'); });
+</script>
+</body>
+</html>
