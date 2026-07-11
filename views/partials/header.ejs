@@ -43,6 +43,7 @@ function toggleTheme(){fetch('/api/toggle-dark-mode',{method:'POST'}).then(r=>r.
         </button>
         <a href="/" class="nav-logo">المُميز</a>
       </div>
+      <% if (!user || user.role !== 'student') { %>
       <div class="nav-links">
         <a href="/" class="<%= currentPath === '/' || currentPath === '/student' ? 'active' : '' %>">الرئيسية</a>
         <a href="/courses" class="<%= (currentPath === '/courses' || currentPath.startsWith('/student/course')) && currentPath !== '/reviews' ? 'active' : '' %>">المحاضرات</a>
@@ -50,6 +51,7 @@ function toggleTheme(){fetch('/api/toggle-dark-mode',{method:'POST'}).then(r=>r.
         <a href="/student/subscription" class="<%= currentPath === '/student/subscription' || currentPath === '/subscriptions' ? 'active' : '' %>">الاشتراكات</a>
         <a href="/contact" class="<%= currentPath === '/contact' ? 'active' : '' %>">تواصل معنا</a>
       </div>
+      <% } %>
       <div class="nav-left">
         <span class="nav-page-title"><%= typeof navPageTitle !== 'undefined' ? navPageTitle : '' %></span>
         <button class="theme-toggle" onclick="spinTheme(this);toggleTheme()" title="الوضع الليلي/النهاري">
