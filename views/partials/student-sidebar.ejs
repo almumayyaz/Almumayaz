@@ -58,6 +58,24 @@
   </nav>
 </aside>
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
+<nav class="bottom-tabs">
+  <a href="/student" class="bottom-tab <%= currentPath === '/student' ? 'active' : '' %>">
+    <i class="fas fa-home"></i>
+    <span>الرئيسية</span>
+  </a>
+  <a href="/student/courses" class="bottom-tab <%= currentPath.startsWith('/student/course') || currentPath === '/student/courses' ? 'active' : '' %>">
+    <i class="fas fa-video"></i>
+    <span>المحاضرات</span>
+  </a>
+  <a href="/student/reviews" class="bottom-tab <%= currentPath.startsWith('/student/review') ? 'active' : '' %>">
+    <i class="fas fa-sync-alt"></i>
+    <span>المراجعات</span>
+  </a>
+  <a href="/student/profile" class="bottom-tab <%= currentPath === '/student/profile' ? 'active' : '' %>">
+    <i class="fas fa-user"></i>
+    <span>حسابي</span>
+  </a>
+</nav>
 <script>
 (function(){
   var sidebar = document.getElementById('sidebar');

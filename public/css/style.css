@@ -1657,6 +1657,58 @@ h3 { font-size: 18px; font-weight: 900; }
 
 .page-header p { color: var(--text-light); font-size: 15px; }
 
+/* ===== BOTTOM TABS ===== */
+.bottom-tabs {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 999;
+  background: var(--card);
+  border-top: 1px solid var(--border);
+  padding: 6px 0 env(safe-area-inset-bottom, 6px);
+  justify-content: space-around;
+  direction: rtl;
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
+}
+.bottom-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 12px;
+  text-decoration: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  transition: 0.2s;
+  border-radius: 12px;
+  position: relative;
+}
+.bottom-tab i {
+  font-size: 20px;
+  transition: 0.2s;
+}
+.bottom-tab.active {
+  color: var(--accent);
+}
+.bottom-tab.active i {
+  transform: scale(1.1);
+}
+.bottom-tab.active::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  width: 24px;
+  height: 3px;
+  background: var(--accent);
+  border-radius: 2px;
+}
+[data-theme="light"] .bottom-tab.active {
+  color: #C48A22;
+}
+
 .welcome-banner {
   background: var(--card);
   border-radius: var(--radius-xl);
@@ -2720,6 +2772,7 @@ h3 { font-size: 18px; font-weight: 900; }
   .hero-float-item { display: none; }
   .hero-float-icon { display: none; }
 
+
   .section { padding: 60px 0; }
   .section-header { margin-bottom: 40px; }
   .section-header h2 { font-size: 28px; }
@@ -2737,8 +2790,9 @@ h3 { font-size: 18px; font-weight: 900; }
 
   .footer-grid { grid-template-columns: 1fr; }
   .auth-card { padding: 32px 24px; }
+  .bottom-tabs { display: flex; }
+  .main-content { padding: 16px 16px 80px; }
   .student-body { display:block; }
-  .main-content { padding: 20px; }
   .sidebar { position:fixed; top:0; right:-300px; width:280px !important; min-width:280px; transition:right .4s cubic-bezier(.22,1,.36,1); border-radius:20px 0 0 20px; height:100vh; z-index:1001; background:rgba(11,16,32,0.92); backdrop-filter:blur(20px); border-left:1px solid rgba(255,255,255,0.06); display:flex; flex-direction:column; }
   .sidebar.collapsed { width:280px !important; padding:0; border-left:1px solid rgba(255,255,255,0.06); right:-300px; }
   [data-theme="light"] .sidebar { background:rgba(255,255,255,0.92); border-left:1px solid rgba(0,0,0,0.06); }
