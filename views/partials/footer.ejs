@@ -74,7 +74,9 @@
       function initFCM() {
         try {
           var messaging = firebase.messaging();
-          messaging.getToken()
+          var vapidKey = '<%= (typeof vapidKey !== 'undefined' && vapidKey) ? vapidKey : '' %>';
+          var getTokenOpts = vapidKey ? {vapidKey: vapidKey} : {};
+          messaging.getToken(getTokenOpts)
             .then(function(token) {
               if (token) {
                 fetch('/api/fcm/register', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({fcmToken: token}) })

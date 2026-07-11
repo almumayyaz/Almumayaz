@@ -103,6 +103,7 @@ app.use((req, res, next) => {
     messagingSenderId: stripBOM(process.env.FIREBASE_MESSAGING_SENDER_ID || ''),
     appId: stripBOM(process.env.FIREBASE_APP_ID || '')
   };
+  res.locals.vapidKey = stripBOM(process.env.FIREBASE_VAPID_KEY || '');
   res.locals.vodafoneCash = stripBOM(process.env.VODAFONE_CASH || '01000000000');
   res.locals.instaPay = stripBOM(process.env.INSTAPAY || 'example@instapay.com');
   next();
