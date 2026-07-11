@@ -280,28 +280,33 @@ async function migrateSeedData() {
     try {
       const snap = await fbDb.ref(key).once('value');
       let val = snap.val();
-      // Firebase returns arrays as objects with numeric keys - normalize
+      // Normalize any object to array if it looks like a stored array
       if (val && typeof val === 'object' && !Array.isArray(val)) {
-        const keys2 = Object.keys(val);
-        if (keys2.length > 0) {
-          if (keys2.every(k => !isNaN(parseInt(k)))) {
-            val = keys2.sort((a,b) => parseInt(a)-parseInt(b)).map(k => val[k]);
+        const k2 = Object.keys(val);
+        if (k2.length > 0) {
+          if (k2.every(k => !isNaN(parseInt(k)))) {
+            val = k2.sort((a,b) => parseInt(a)-parseInt(b)).map(k => val[k]);
           } else {
-            const first = val[keys2[0]];
+            const first = val[k2[0]];
             if (first && typeof first === 'object' && first.id) {
-              val = keys2.map(k => val[k]);
+              val = k2.map(k => val[k]);
             }
           }
         }
       }
-      if (val === null || val === undefined || (Array.isArray(val) && val.length === 0)) {
+      // Check if Firebase has no data or is empty
+      const isEmpty = val === null || val === undefined ||
+        (Array.isArray(val) && val.length === 0) ||
+        (typeof val === 'object' && !Array.isArray(val) && Object.keys(val).length === 0);
+
+      if (isEmpty) {
         const local = await localStore.readData(key);
         if (local && (Array.isArray(local) ? local.length > 0 : Object.keys(local).length > 0)) {
-          await fbDb.ref(key).set(local);
+          await fbDb.ref(key).set(Array.isArray(local) ? local : Object.values(local));
           console.log('Migrated seed data to Firebase:', key);
         }
       } else if (key === 'courses' && Array.isArray(val)) {
-        // Merge missing lessons/sections from seed
+        // Merge missing lessons/sections/quiz from seed into existing courses
         const seed = await localStore.readData('courses');
         if (Array.isArray(seed)) {
           let changed = false;
@@ -314,13 +319,17 @@ async function migrateSeedData() {
             if ((!c.sections || c.sections.length === 0) && sc.sections?.length) {
               c.sections = sc.sections; changed = true;
             }
-            if ((!c.quiz || Object.keys(c.quiz).length === 0) && sc.quiz) {
+            if ((!c.quiz || typeof c.quiz !== 'object' || Object.keys(c.quiz).length === 0) && sc.quiz) {
               c.quiz = sc.quiz; changed = true;
             }
+            // Copy any missing fields from seed
+            ['subtitle','description','icon','color','gradient','stage','grade','semester'].forEach(function(f) {
+              if (!c[f] && sc[f]) { c[f] = sc[f]; changed = true; }
+            });
           }
           if (changed) {
             await fbDb.ref(key).set(val);
-            console.log('Merged missing lessons/sections into Firebase courses');
+            console.log('Merged missing data into Firebase courses');
           }
         }
       }
@@ -329,5 +338,5 @@ async function migrateSeedData() {
     }
   }
 }
-// Run migration on startup (fire-and-forget, resolves before first request)
+// Run migration on startup (fire-and-forget)
 migrateSeedData();
