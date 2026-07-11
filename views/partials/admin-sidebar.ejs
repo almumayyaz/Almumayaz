@@ -1,8 +1,9 @@
+  <button class="sidebar-floating-toggle" id="sidebarFloatingToggle"><i class="fas fa-bars"></i></button>
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
       <a href="/admin" class="sidebar-logo">المُميز</a>
       <button class="sidebar-close-btn" id="sidebarClose"><i class="fas fa-times"></i></button>
-      <button class="sidebar-toggle-btn" id="sidebarToggle"><i class="fas fa-bars"></i></button>
+      <button class="sidebar-toggle-btn" id="sidebarToggle"><i class="fas fa-chevron-right"></i></button>
     </div>
     <div class="sidebar-user">
       <div class="sidebar-avatar"><%= user ? user.name.charAt(0) : 'م' %></div>
@@ -57,14 +58,45 @@
     </nav>
   </aside>
   <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <style>
+    .sidebar-floating-toggle {
+      position: fixed;
+      top: 80px;
+      left: 0;
+      z-index: 99;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      width: 36px;
+      height: 36px;
+      border-radius: 0 10px 10px 0;
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 2px 2px 8px rgba(0,0,0,0.2);
+      transition: 0.3s;
+    }
+    .sidebar-floating-toggle:hover {
+      background: var(--accent-hover);
+    }
+    .sidebar.collapsed ~ .sidebar-floating-toggle {
+      display: flex;
+    }
+  </style>
   <script>
     (function() {
       var sidebar = document.getElementById('sidebar');
       var overlay = document.getElementById('sidebarOverlay');
       var closeBtn = document.getElementById('sidebarClose');
       var toggleBtn = document.getElementById('sidebarToggle');
+      var floatingToggle = document.getElementById('sidebarFloatingToggle');
+
+      var isMobile = function() { return window.innerWidth <= 768; };
 
       function openSidebar() {
+        sidebar.classList.remove('collapsed');
         sidebar.classList.add('open');
         if (overlay) overlay.classList.add('show');
         document.body.style.overflow = 'hidden';
@@ -74,39 +106,44 @@
         if (overlay) overlay.classList.remove('show');
         document.body.style.overflow = '';
       }
+      function toggleCollapse() {
+        sidebar.classList.toggle('collapsed');
+        if (!sidebar.classList.contains('collapsed')) {
+          localStorage.removeItem('admin-sidebar-toggle');
+        } else {
+          localStorage.setItem('admin-sidebar-toggle', 'collapsed');
+        }
+      }
 
       var toggleState = localStorage.getItem('admin-sidebar-toggle');
-      if (toggleState === 'collapsed' && window.innerWidth > 768) {
+      if (toggleState === 'collapsed' && !isMobile()) {
         sidebar.classList.add('collapsed');
       }
 
-      if (toggleBtn) toggleBtn.addEventListener('click', function(e) {
-        if (sidebar.classList.contains('open')) closeSidebar();
-        else {
-          if (window.innerWidth > 768) {
-            sidebar.classList.toggle('collapsed');
-            localStorage.setItem('admin-sidebar-toggle', sidebar.classList.contains('collapsed') ? 'collapsed' : '');
-          } else {
-            openSidebar();
-          }
-        }
+      function handleToggle(e) {
+        if (sidebar.classList.contains('open')) { closeSidebar(); return; }
+        if (isMobile()) { openSidebar(); }
+        else { toggleCollapse(); }
         e.stopPropagation();
-      });
+      }
+
+      if (toggleBtn) toggleBtn.addEventListener('click', handleToggle);
+      if (floatingToggle) floatingToggle.addEventListener('click', handleToggle);
 
       if (closeBtn) closeBtn.addEventListener('click', function() {
-        if (window.innerWidth <= 768) closeSidebar();
+        if (isMobile()) closeSidebar();
       });
 
       if (overlay) overlay.addEventListener('click', closeSidebar);
 
       sidebar.querySelectorAll('.sidebar-nav a').forEach(function(link) {
         link.addEventListener('click', function() {
-          if (window.innerWidth <= 768) closeSidebar();
+          if (isMobile()) closeSidebar();
         });
       });
 
       window.addEventListener('resize', function() {
-        if (window.innerWidth > 768) closeSidebar();
+        if (!isMobile()) closeSidebar();
       });
     })();
   </script>
