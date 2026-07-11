@@ -18,6 +18,9 @@
   background: rgba(15,23,42,0.85);
   border-bottom: 1px solid rgba(255,255,255,0.06);
 }
+[data-theme="dark"] .landing-body .nav-links a { color: rgba(255,255,255,0.7); }
+[data-theme="dark"] .landing-body .nav-links a:hover,
+[data-theme="dark"] .landing-body .nav-links a.active { color: #FBBF24; }
 .landing-body .nav-logo { background: linear-gradient(135deg,#F59E0B,#EA8C00); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
 .landing-body .nav-logo::after { display:none; }
 .landing-body .nav-links a { color: #666666; font-family: 'Cairo', sans-serif; font-weight: 500; }
@@ -145,6 +148,7 @@
 .lp-subject-card i { font-size: 28px; color: #F59E0B; margin-bottom: 8px; display: block; }
 .lp-subject-card span { font-size: 14px; font-weight: 700; color: #111111; display: block; }
 [data-theme="dark"] .lp-subject-card span { color: #fff; }
+[data-theme="dark"] .lp-hero-card-desc { color: rgba(255,255,255,0.6) !important; }
 .lp-hero-stat {
   position: absolute;
   background: #FFFFFF;
@@ -481,6 +485,10 @@
       </div>
       <div class="lp-hero-visual">
         <div class="lp-hero-card">
+          <div style="text-align:center;margin-bottom:20px;">
+            <div style="font-size:20px;font-weight:900;color:#F59E0B;">اتقن اللغة العربية</div>
+            <div class="lp-hero-card-desc" style="font-size:13px;color:#666666;margin-top:2px;">6 فروع - شرح كامل - أسئلة شاملة</div>
+          </div>
           <div class="lp-hero-card-grid">
             <div class="lp-subject-card"><i class="fas fa-book-open"></i><span>النحو</span></div>
             <div class="lp-subject-card"><i class="fas fa-feather-alt"></i><span>البلاغة</span></div>
