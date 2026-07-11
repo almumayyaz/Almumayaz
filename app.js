@@ -450,7 +450,7 @@ app.get('/student/courses', requireStudentOrGuest, async (req, res) => {
   // Filter by current semester
   var currentSemester = res.locals.currentSemester || 'all';
   if (currentSemester !== 'all') courses = courses.filter(function(c) { return c.semester === currentSemester || c.semester === 'all'; });
-  res.render('student/courses', { courses, userStage, userGrade, title: 'المحاضرات - المُميز' });
+  res.render('student/courses', { courses, userStage, userGrade, currentSemester: res.locals.currentSemester, title: 'المحاضرات - المُميز' });
 });
 
 app.get('/student/course/:id', requireStudentOrGuest, async (req, res) => {

@@ -515,7 +515,7 @@
       ]
     },
     "grade": "الثالث الثانوي",
-    "semester": "all"
+    "semester": "first"
   },
   {
     "id": "3",
@@ -779,7 +779,7 @@
       ]
     },
     "grade": "الثالث الثانوي",
-    "semester": "all"
+    "semester": "first"
   },
   {
     "id": "4",
@@ -1018,7 +1018,7 @@
       ]
     },
     "grade": "الثالث الثانوي",
-    "semester": "all"
+    "semester": "second"
   },
   {
     "id": "5",
