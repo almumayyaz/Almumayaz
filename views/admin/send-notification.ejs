@@ -27,7 +27,8 @@
     </div>
     <div class="form-group" id="targetValueGroup" style="display:none;">
       <label id="targetValueLabel">القيمة</label>
-      <input id="notifTargetValue" class="form-input" placeholder="...">
+      <select id="notifTargetValueSelect" class="form-input" style="display:none;"></select>
+      <input id="notifTargetValue" class="form-input" placeholder="..." style="display:none;">
     </div>
     <button class="btn btn-primary" onclick="sendPush()" id="sendBtn" style="width:100%;"><i class="fas fa-paper-plane"></i> إرسال الإشعار</button>
     <div id="notifResult" style="display:none;margin-top:16px;padding:12px;border-radius:8px;text-align:center;font-weight:600;"></div>
@@ -39,23 +40,37 @@ function toggleTargetValue() {
   var t = document.getElementById('notifTarget').value;
   var g = document.getElementById('targetValueGroup');
   var l = document.getElementById('targetValueLabel');
-  var v = document.getElementById('notifTargetValue');
+  var sel = document.getElementById('notifTargetValueSelect');
+  var inp = document.getElementById('notifTargetValue');
   if (t === 'all') { g.style.display = 'none'; return; }
   g.style.display = 'block';
-  if (t === 'stage') { l.textContent = 'المرحلة (إعدادية / ثانوية)'; v.placeholder = 'إعدادية'; }
-  else if (t === 'grade') { l.textContent = 'الصف الدراسي'; v.placeholder = 'الأول الثانوي'; }
-   else if (t === 'student') { l.textContent = 'معرف الطالب (من جدول الطلاب)'; v.placeholder = 'مثال: u1'; }
+  if (t === 'stage') {
+    l.textContent = 'المرحلة الدراسية';
+    sel.style.display = 'block'; inp.style.display = 'none';
+    sel.innerHTML = '<option value="">اختر المرحلة</option><option value="إعدادية">إعدادية</option><option value="ثانوية">ثانوية</option>';
+  } else if (t === 'grade') {
+    l.textContent = 'الصف الدراسي';
+    sel.style.display = 'block'; inp.style.display = 'none';
+    sel.innerHTML = '<option value="">اختر الصف</option><option value="الأول الإعدادي">الأول الإعدادي</option><option value="الثاني الإعدادي">الثاني الإعدادي</option><option value="الثالث الإعدادي">الثالث الإعدادي</option><option value="الأول الثانوي">الأول الثانوي</option><option value="الثاني الثانوي">الثاني الثانوي</option><option value="الثالث الثانوي">الثالث الثانوي</option>';
+  } else if (t === 'student') {
+    l.textContent = 'معرف الطالب (من جدول الطلاب)';
+    sel.style.display = 'none'; inp.style.display = 'block';
+    inp.placeholder = 'مثال: u1';
+  }
 }
 
 function sendPush() {
   var btn = document.getElementById('sendBtn');
   btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الإرسال...';
   var target = document.getElementById('notifTarget').value;
+  var sel = document.getElementById('notifTargetValueSelect');
+  var inp = document.getElementById('notifTargetValue');
+  var targetValue = target === 'all' ? '' : (sel.style.display !== 'none' ? sel.value : inp.value);
   var data = {
     title: document.getElementById('notifTitle').value,
     body: document.getElementById('notifBody').value,
     target: target,
-    targetValue: target === 'all' ? '' : document.getElementById('notifTargetValue').value
+    targetValue: targetValue
   };
   fetch('/api/admin/send-notification', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) })
     .then(function(r) { return r.json(); })
