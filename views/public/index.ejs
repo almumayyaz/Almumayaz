@@ -9,6 +9,7 @@
   background: #FFFFFF;
   color: #111111;
 }
+[data-theme="dark"] .landing-body { background: #0F172A; }
 .landing-body .navbar {
   background: rgba(255,255,255,0.85);
   backdrop-filter: blur(20px);
@@ -29,7 +30,9 @@
 .landing-body .btn-primary { background: #F59E0B; border: none; box-shadow: 0 4px 14px rgba(245,158,11,0.35); border-radius: 14px; font-family: 'Cairo', sans-serif; font-weight: 700; padding: 14px 32px; font-size: 15px; transition: all 0.3s cubic-bezier(0.22,1,0.36,1); }
 .landing-body .btn-primary:hover { background: #EA8C00; transform: translateY(-2px); box-shadow: 0 8px 24px rgba(245,158,11,0.4); }
 .landing-body .btn-outline { background: transparent; border: 1.5px solid #E8E8E8; border-radius: 14px; font-family: 'Cairo', sans-serif; font-weight: 600; padding: 14px 32px; font-size: 15px; color: #111111; transition: all 0.3s; }
+[data-theme="dark"] .landing-body .btn-outline { border-color: rgba(255,255,255,0.2); color: #F1F5F9; }
 .landing-body .btn-outline:hover { border-color: #F59E0B; color: #F59E0B; transform: translateY(-2px); }
+[data-theme="dark"] .landing-body .btn-outline:hover { border-color: #FBBF24; color: #FBBF24; }
 
 /* ===== HERO ===== */
 .lp-hero {
@@ -148,7 +151,6 @@
 .lp-subject-card i { font-size: 28px; color: #F59E0B; margin-bottom: 8px; display: block; }
 .lp-subject-card span { font-size: 14px; font-weight: 700; color: #111111; display: block; }
 [data-theme="dark"] .lp-subject-card span { color: #fff; }
-[data-theme="dark"] .lp-hero-card-desc { color: rgba(255,255,255,0.6) !important; }
 .lp-hero-stat {
   position: absolute;
   background: #FFFFFF;
@@ -183,6 +185,8 @@
 
 /* ===== SUBJECTS SECTION ===== */
 .lp-section { padding: 100px 0; }
+.lp-section { background: #FFFFFF; }
+[data-theme="dark"] .lp-section { background: #0F172A; }
 .lp-section-alt { background: #FFF9F1; }
 [data-theme="dark"] .lp-section-alt { background: #1E293B; }
 .lp-section-tag {
@@ -482,13 +486,7 @@
           <a href="/subscriptions" class="btn btn-primary">ابدأ رحلة التفوق <i class="fas fa-arrow-left" style="margin-right:8px;"></i></a>
           <a href="/demo" class="btn btn-outline"><i class="fas fa-eye" style="margin-left:8px;"></i> تجربة مجانية</a>
         </div>
-      </div>
-      <div class="lp-hero-visual">
-        <div class="lp-hero-card">
-          <div style="text-align:center;margin-bottom:20px;">
-            <div style="font-size:20px;font-weight:900;color:#F59E0B;">اتقن اللغة العربية</div>
-            <div class="lp-hero-card-desc" style="font-size:13px;color:#666666;margin-top:2px;">6 فروع - شرح كامل - أسئلة شاملة</div>
-          </div>
+        <div class="lp-hero-card" style="margin-top:32px;">
           <div class="lp-hero-card-grid">
             <div class="lp-subject-card"><i class="fas fa-book-open"></i><span>النحو</span></div>
             <div class="lp-subject-card"><i class="fas fa-feather-alt"></i><span>البلاغة</span></div>
@@ -498,6 +496,8 @@
             <div class="lp-subject-card"><i class="fas fa-book-reader"></i><span>القراءة</span></div>
           </div>
         </div>
+      </div>
+      <div class="lp-hero-visual">
         <div class="lp-hero-stat">
           <div class="lp-hero-stat-icon"><i class="fas fa-users"></i></div>
           <div class="lp-hero-stat-text"><div class="lp-hero-stat-num">+5000</div><div class="lp-hero-stat-label">طالب مسجل</div></div>
