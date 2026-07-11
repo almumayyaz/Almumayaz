@@ -15,11 +15,10 @@
     </div>
   </div>
 
+  <!-- Plyr Video Player -->
   <% if (lesson.videos && lesson.videos.length > 0) { %>
     <% if (lesson.videos.length === 1) { %>
-    <div class="video-container" oncontextmenu="return false;" data-video="<%= lesson.videos[0].url %>">
-      <div class="yt-player-wrap"><div class="yt-player" id="yt0"></div><button class="yt-play-btn"><i class="fas fa-play"></i></button></div>
-    </div>
+    <div class="plyr-container" data-video="<%= lesson.videos[0].url %>"></div>
     <% } else { %>
     <div style="display:flex;flex-direction:column;gap:20px;margin-bottom:28px;">
       <% lesson.videos.forEach(function(video, vi) { %>
@@ -28,22 +27,39 @@
           <span style="background:var(--accent);color:#fff;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;"><%= vi + 1 %></span>
           <span style="font-weight:600;font-size:14px;"><%= video.title || ('الجزء ' + (vi + 1)) %></span>
         </div>
-        <div class="video-container" style="margin-bottom:0;" oncontextmenu="return false;" data-video="<%= video.url %>">
-          <div class="yt-player-wrap"><div class="yt-player" id="yt<%= vi %>"></div><button class="yt-play-btn"><i class="fas fa-play"></i></button></div>
-        </div>
+        <div class="plyr-container" data-video="<%= video.url %>"></div>
       </div>
       <% }) %>
     </div>
     <% } %>
   <% } else if (lesson.videoUrl) { %>
-    <div class="video-container" oncontextmenu="return false;" data-video="<%= lesson.videoUrl %>">
-      <div class="yt-player-wrap"><div class="yt-player" id="yt0"></div><button class="yt-play-btn"><i class="fas fa-play"></i></button></div>
-    </div>
+    <div class="plyr-container" data-video="<%= lesson.videoUrl %>"></div>
   <% } else { %>
     <div style="text-align:center;padding:40px;background:var(--glass-bg);border-radius:var(--radius-xl);margin-bottom:28px;border:1px solid var(--border);">
       <i class="fas fa-video-slash" style="font-size:36px;color:var(--border);display:block;margin-bottom:12px;"></i>
       <p style="color:var(--text-muted);">لا يوجد فيديو لهذا الدرس بعد</p>
     </div>
+  <% } %>
+
+  <!-- Lesson Info Bar (below player) -->
+  <% if (lesson.videos || lesson.videoUrl) { %>
+  <div id="lessonInfoBar" style="display:none;align-items:center;gap:12px;padding:12px 16px;background:var(--card);border-radius:var(--radius-lg);border:1px solid var(--border);margin-bottom:20px;flex-wrap:wrap;">
+    <% if (lesson.pdfFiles && lesson.pdfFiles.length > 0) { %>
+    <a href="#pdfSection" style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--danger);text-decoration:none;font-weight:600;padding:6px 10px;background:rgba(239,68,68,0.05);border-radius:8px;">
+      <i class="fas fa-file-pdf"></i> <%= lesson.pdfFiles.length %> ملف<%= lesson.pdfFiles.length > 1 ? 'ات' : '' %> PDF
+    </a>
+    <% } %>
+    <% if (course.quiz && !isGuest) { %>
+    <a href="/student/exam/<%= course.id %>" style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--accent);text-decoration:none;font-weight:600;padding:6px 10px;background:var(--accent-glow);border-radius:8px;">
+      <i class="fas fa-pen"></i> الاختبار
+    </a>
+    <% } %>
+    <div style="margin-right:auto;display:flex;align-items:center;gap:8px;">
+      <span id="watchStatus" style="font-size:12px;color:var(--text-muted);">
+        <i class="fas fa-circle" style="color:var(--text-muted);font-size:8px;"></i> لم تشاهد بعد
+      </span>
+    </div>
+  </div>
   <% } %>
 
   <div class="lesson-content">
@@ -60,7 +76,7 @@
 
     <!-- PDF Files -->
     <% if (lesson.pdfFiles && lesson.pdfFiles.length > 0) { %>
-    <div style="margin-bottom:24px;">
+    <div id="pdfSection" style="margin-bottom:24px;">
       <h3 style="font-size:16px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
         <i class="fas fa-file-pdf" style="color:var(--accent);"></i> المذكرات
       </h3>
@@ -79,8 +95,7 @@
     <% } %>
 
     <% if (lesson.pdfUrl) { %>
-    <!-- Legacy single PDF support -->
-    <div style="margin-bottom:24px;">
+    <div id="pdfSection" style="margin-bottom:24px;">
       <h3 style="font-size:16px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
         <i class="fas fa-file-pdf" style="color:var(--accent);"></i> المذكرة
       </h3>
@@ -129,13 +144,38 @@
 
 </main>
 
+<script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
 <script>
 (function() {
   var courseId = '<%= course.id %>';
   var lessonId = '<%= lesson.id %>';
-  loadProgress();
+  var isGuest = <%= isGuest ? 'true' : 'false' %>;
+  var players = [];
+  var progressInterval = null;
+  var savedSecond = 0;
+  var autoHideTimer = null;
 
-  function loadProgress() {
+  // Load saved progress from localStorage
+  var storageKey = 'lughati-progress-' + courseId + '-' + lessonId;
+  function loadLocalProgress() {
+    try {
+      var saved = JSON.parse(localStorage.getItem(storageKey) || '{}');
+      savedSecond = saved.lastSecond || 0;
+      return saved;
+    } catch(e) { return {}; }
+  }
+  function saveLocalProgress(lastSecond, pct, completed) {
+    try {
+      var data = JSON.parse(localStorage.getItem(storageKey) || '{}');
+      if (lastSecond !== undefined) data.lastSecond = lastSecond;
+      if (pct !== undefined) data.percentage = pct;
+      if (completed !== undefined) data.completed = completed;
+      localStorage.setItem(storageKey, JSON.stringify(data));
+    } catch(e) {}
+  }
+
+  // Load server progress and update UI
+  function loadServerProgress() {
     fetch('/api/student/progress/' + courseId)
       .then(function(r) { return r.json(); })
       .then(function(d) {
@@ -143,25 +183,27 @@
           var pct = d.progress.percentage || 0;
           var completed = (d.progress.completedLessons || []).includes(lessonId);
           updateUI(pct, completed);
+          if (completed) {
+            saveLocalProgress(undefined, pct, true);
+            updateInfoBar(true);
+          }
         }
       });
   }
 
-  window.markLessonComplete = function() {
+  // Save progress to server
+  function saveServerProgress(pct, completed) {
     fetch('/api/student/progress', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ courseId: courseId, lessonId: lessonId, completed: true, percentage: 100 })
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(d) {
-      if (d.success) {
+      body: JSON.stringify({ courseId: courseId, lessonId: lessonId, completed: completed || false, percentage: pct })
+    }).then(function(r) { return r.json(); }).then(function(d) {
+      if (d.success && completed) {
         updateUI(100, true);
-        var btn = document.getElementById('completeBtnText');
-        if (btn) btn.textContent = '✅ تم الإنهاء';
+        document.getElementById('completeBtnText').textContent = '✅ تم الإنهاء';
       }
     });
-  };
+  }
 
   function updateUI(pct, completed) {
     var bar = document.getElementById('progressBar');
@@ -170,95 +212,244 @@
     if (bar) bar.style.width = pct + '%';
     if (label) label.textContent = pct + '%';
     if (btn && completed) btn.textContent = '✅ تم الإنهاء';
+    updateInfoBar(completed);
   }
+
+  function updateInfoBar(completed) {
+    var bar = document.getElementById('lessonInfoBar');
+    if (!bar) return;
+    bar.style.display = 'flex';
+    var status = document.getElementById('watchStatus');
+    if (!status) return;
+    if (completed) {
+      status.innerHTML = '<i class="fas fa-check-circle" style="color:var(--success);font-size:12px;"></i> <span style="color:var(--success);">مكتمل</span>';
+    } else {
+      status.innerHTML = '<i class="fas fa-play-circle" style="color:var(--accent);font-size:12px;"></i> قيد المشاهدة';
+    }
+  }
+
+  window.markLessonComplete = function() {
+    saveServerProgress(100, true);
+    updateUI(100, true);
+  };
+
+  // Initialize Plyr players
+  document.querySelectorAll('.plyr-container[data-video]').forEach(function(container) {
+    var url = container.getAttribute('data-video');
+    var match = url.match(/(?:youtube\.com\/(?:embed\/|watch\?v=)|youtu\.be\/)([a-zA-Z0-9_-]+)/);
+    if (!match) return;
+    var videoId = match[1];
+
+    var player = new Plyr(container, {
+      type: 'youtube',
+      videoId: videoId,
+      controls: ['play-large', 'play', 'progress', 'current-time', 'duration', 'mute', 'volume', 'settings', 'pip', 'fullscreen'],
+      settings: ['speed'],
+      speed: { selected: 1, options: [0.5, 0.75, 1, 1.25, 1.5, 2] },
+      youtube: { noCookie: true, rel: 0, modestbranding: 1, iv_load_policy: 3 },
+      tooltips: { controls: true, seek: true },
+      keyboard: { focused: true, global: false },
+      clickToPlay: true,
+      hideControls: true,
+      resetOnEnd: false
+    });
+    players.push(player);
+
+      // Add custom rewind/forward buttons after player is ready
+    player.on('ready', function() {
+      var controlsEl = container.querySelector('.plyr__controls');
+      if (!controlsEl) return;
+
+      // Add skip buttons before progress bar
+      var rewindBtn = document.createElement('button');
+      rewindBtn.className = 'plyr__controls__item plyr__control plyr__skip-btn';
+      rewindBtn.setAttribute('type', 'button');
+      rewindBtn.setAttribute('title', 'رجوع 10 ثوان');
+      rewindBtn.innerHTML = '<i class="fas fa-backward" style="font-size:14px;"></i>';
+      rewindBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        player.currentTime = Math.max((player.currentTime || 0) - 10, 0);
+      });
+
+      var forwardBtn = document.createElement('button');
+      forwardBtn.className = 'plyr__controls__item plyr__control plyr__skip-btn';
+      forwardBtn.setAttribute('type', 'button');
+      forwardBtn.setAttribute('title', 'تقديم 10 ثوان');
+      forwardBtn.innerHTML = '<i class="fas fa-forward" style="font-size:14px;"></i>';
+      forwardBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        player.currentTime = Math.min((player.currentTime || 0) + 10, player.duration || 9999);
+      });
+
+      var progressBar = controlsEl.querySelector('.plyr__progress');
+      if (progressBar) {
+        controlsEl.insertBefore(rewindBtn, progressBar);
+        controlsEl.insertBefore(forwardBtn, progressBar);
+      } else {
+        var playBtnContainer = controlsEl.querySelector('[data-plyr="play"]');
+        if (playBtnContainer && playBtnContainer.parentNode) {
+          playBtnContainer.parentNode.insertBefore(rewindBtn, playBtnContainer.nextSibling);
+          playBtnContainer.parentNode.insertBefore(forwardBtn, rewindBtn.nextSibling);
+        }
+      }
+
+      // Restore previous position from localStorage
+      var local = loadLocalProgress();
+      if (local.lastSecond > 1 && !local.completed) {
+        player.currentTime = local.lastSecond;
+        // Brief notice
+        var notice = document.createElement('div');
+        notice.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.7);color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;z-index:20;pointer-events:none;text-align:center;animation:fadeOut 3s ease forwards;';
+        notice.textContent = 'استكمال من ' + Math.floor(local.lastSecond / 60) + ':' + String(Math.floor(local.lastSecond % 60)).padStart(2, '0');
+        container.appendChild(notice);
+        setTimeout(function() { notice.remove(); }, 3000);
+      }
+
+      // Show info bar
+      updateInfoBar(local.completed || false);
+      updateUI(local.percentage || 0, local.completed || false);
+      loadServerProgress();
+    });
+
+    // Time update - save local progress every 5 seconds
+    player.on('timeupdate', function() {
+      var ct = player.currentTime || 0;
+      var dur = player.duration || 1;
+      var pct = Math.min(Math.round((ct / dur) * 100), 100);
+
+      // Save to localStorage every 5 seconds
+      if (Math.floor(ct) % 5 === 0 && Math.floor(ct) !== Math.floor(savedSecond)) {
+        savedSecond = Math.floor(ct);
+        saveLocalProgress(savedSecond, pct, false);
+        // Update progress bar in real-time
+        updateUI(pct, false);
+      }
+    });
+
+    // Save on pause
+    player.on('pause', function() {
+      var ct = player.currentTime || 0;
+      var dur = player.duration || 1;
+      var pct = Math.min(Math.round((ct / dur) * 100), 100);
+      saveLocalProgress(Math.floor(ct), pct, false);
+      saveServerProgress(pct, false);
+    });
+
+    // Play started
+    player.on('play', function() {
+      updateInfoBar(false);
+    });
+
+    // Video ended - mark complete
+    player.on('ended', function() {
+      saveLocalProgress(0, 100, true);
+      saveServerProgress(100, true);
+      updateUI(100, true);
+    });
+  });
+
+  // Save on page unload (user closes tab/app)
+  window.addEventListener('beforeunload', function() {
+    players.forEach(function(p) {
+      var ct = p.currentTime || 0;
+      var dur = p.duration || 1;
+      var pct = Math.min(Math.round((ct / dur) * 100), 100);
+      saveLocalProgress(Math.floor(ct), pct, false);
+    });
+  });
+
+  // Auto-hide controls after 3 seconds of no interaction
+  // (Plyr has built-in hideControls, but we add extra touch/click hide)
+  document.addEventListener('click', function() {
+    players.forEach(function(p) {
+      var ctrl = p.elements && p.elements.controls;
+      if (ctrl) {
+        ctrl.classList.remove('plyr__controls--hidden');
+        clearTimeout(autoHideTimer);
+        autoHideTimer = setTimeout(function() {
+          if (p.playing) ctrl.classList.add('plyr__controls--hidden');
+        }, 3000);
+      }
+    });
+  });
+
+  // Initial load
+  var local = loadLocalProgress();
+  loadServerProgress();
+
 })();
 </script>
 
 <style>
-.yt-player-wrap { position:relative; width:100%; aspect-ratio:16/9; background:#000; border-radius:12px; overflow:hidden; cursor:pointer; }
-.yt-player-wrap .yt-player { width:100%; height:100%; position:absolute; top:0; left:0; }
-.yt-player-wrap iframe { pointer-events:none; }
-.yt-player-wrap::after {
-  content:''; position:absolute; bottom:0; right:0;
-  width:90px; height:22px; background:#000; z-index:6;
+/* Plyr container styles */
+.plyr-container {
+  border-radius: 14px;
+  overflow: hidden;
+  margin-bottom: 20px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  background: #000;
+  aspect-ratio: 16/9;
+  position: relative;
 }
-.yt-player-wrap .yt-play-btn {
-  position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
-  width:70px; height:70px; border-radius:50%; border:none;
-  background:rgba(0,0,0,0.7); color:#fff; font-size:28px;
-  cursor:pointer; display:flex; align-items:center; justify-content:center;
-  padding:0 0 0 5px; z-index:10; transition:all 0.3s;
+.plyr-container .plyr {
+  border-radius: 14px;
+  height: 100%;
 }
-.yt-player-wrap .yt-play-btn:hover { background:rgba(200,0,0,0.9); transform:translate(-50%,-50%) scale(1.1); }
-.yt-player-wrap.playing .yt-play-btn { opacity:0; pointer-events:none; }
-.yt-player-wrap.paused .yt-play-btn { opacity:1; pointer-events:auto; }
+.plyr-container .plyr--video {
+  border-radius: 14px;
+}
+.plyr__control--overlaid {
+  background: var(--accent) !important;
+  border-radius: 50% !important;
+  padding: 18px !important;
+  transition: transform 0.3s ease !important;
+}
+.plyr__control--overlaid:hover {
+  transform: scale(1.1);
+  background: var(--accent) !important;
+}
+.plyr__control--overlaid svg {
+  width: 24px;
+  height: 24px;
+}
+.plyr__controls {
+  background: linear-gradient(transparent, rgba(0,0,0,0.85)) !important;
+  padding: 8px 12px !important;
+}
+.plyr__controls .plyr__controls__item.plyr__skip-btn {
+  background: transparent;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  padding: 4px 8px;
+  opacity: 0.8;
+  transition: opacity 0.2s;
+}
+.plyr__controls .plyr__controls__item.plyr__skip-btn:hover {
+  opacity: 1;
+}
+.plyr--full-ui .plyr__progress__buffer { background: rgba(255,255,255,0.15); }
+.plyr--full-ui input[type=range] { color: var(--accent); }
+.plyr--video .plyr__control.plyr__tab-focus,
+.plyr--video .plyr__control:hover,
+.plyr--video .plyr__control[aria-expanded=true] {
+  background: var(--accent);
+}
+.plyr__menu__container .plyr__control[role=menuitemradio][aria-checked=true]::before {
+  background: var(--accent);
+}
+@keyframes fadeOut {
+  0% { opacity: 1; }
+  70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@media (max-width: 768px) {
+  .plyr-container { border-radius: 10px; margin-bottom: 14px; }
+  .plyr__control--overlaid { padding: 14px !important; }
+  .plyr__control--overlaid svg { width: 20px; height: 20px; }
+}
 </style>
 
-<script>
-var tag = document.createElement('script');
-tag.src = 'https://www.youtube.com/iframe_api';
-var firstScriptTag = document.getElementsByTagName('script')[0];
-firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-
-var ytPlayers = {};
-var playerIndex = 0;
-
-function onYouTubeIframeAPIReady() {
-  document.querySelectorAll('.video-container[data-video]').forEach(function(container) {
-    var url = container.getAttribute('data-video');
-    var match = url.match(/(?:youtube\.com\/embed\/|youtu\.be\/|youtube\.com\/watch\?v=)([a-zA-Z0-9_-]+)/);
-    if (!match) return;
-    var videoId = match[1];
-    var wrap = container.querySelector('.yt-player-wrap');
-    var playerDiv = container.querySelector('.yt-player');
-    var playBtn = container.querySelector('.yt-play-btn');
-    var idx = playerIndex++;
-
-    ytPlayers[idx] = new YT.Player(playerDiv, {
-      height: wrap.offsetHeight || 360, width: wrap.offsetWidth || 640,
-      videoId: videoId,
-      playerVars: {
-        controls: 0, modestbranding: 1, rel: 0, iv_load_policy: 3,
-        playsinline: 1, enablejsapi: 1, disablekb: 1, fs: 0
-      },
-      events: {
-        onReady: function() {
-          function togglePlay() {
-            var state = ytPlayers[idx].getPlayerState();
-            if (state === YT.PlayerState.PLAYING) {
-              ytPlayers[idx].pause();
-              wrap.classList.remove('playing');
-              wrap.classList.add('paused');
-              playBtn.innerHTML = '<i class="fas fa-play"></i>';
-            } else {
-              ytPlayers[idx].playVideo();
-              wrap.classList.add('playing');
-              wrap.classList.remove('paused');
-              playBtn.innerHTML = '<i class="fas fa-pause"></i>';
-            }
-          }
-          playBtn.addEventListener('click', function(e) { e.stopPropagation(); togglePlay(); });
-          wrap.addEventListener('click', togglePlay);
-        },
-        onStateChange: function(e) {
-          if (e.data === YT.PlayerState.PLAYING) {
-            wrap.classList.add('playing');
-            wrap.classList.remove('paused');
-            playBtn.innerHTML = '<i class="fas fa-pause"></i>';
-          } else if (e.data === YT.PlayerState.PAUSED) {
-            wrap.classList.remove('playing');
-            wrap.classList.add('paused');
-            playBtn.innerHTML = '<i class="fas fa-play"></i>';
-          } else if (e.data === YT.PlayerState.ENDED) {
-            wrap.classList.remove('playing');
-            wrap.classList.add('paused');
-            playBtn.innerHTML = '<i class="fas fa-redo"></i>';
-          }
-        }
-      }
-    });
-  });
-}
-</script>
 </body>
 </html>
