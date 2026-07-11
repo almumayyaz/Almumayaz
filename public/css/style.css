@@ -1145,6 +1145,7 @@ h3 { font-size: 18px; font-weight: 900; }
   position: relative;
   overflow: hidden;
 }
+[data-theme="light"] .footer { background: #1E293B; }
 
 .footer::before {
   content: '';
