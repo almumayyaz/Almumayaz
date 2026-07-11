@@ -1017,6 +1017,8 @@ app.get('/api/admin/chats', requireAdmin, async (req, res) => {
     Object.keys(allChats).forEach(function(chatId) {
       const chat = allChats[chatId];
       if (!chat || !chat.messages) return;
+      // Show only per-student chats (student-XXXX), skip general/lughati/guest chats
+      if (!chatId.startsWith('student-')) return;
       const msgKeys = Object.keys(chat.messages);
       const lastMsg = chat.messages[msgKeys[msgKeys.length - 1]];
       let unreadCount = 0;
