@@ -145,6 +145,11 @@ function handleRegister(e) {
   }
 
   try {
+    if (typeof firebase === 'undefined' || !firebase.auth) {
+      // Fallback: submit form directly without Firebase Auth
+      document.getElementById('registerForm').submit();
+      return false;
+    }
     firebase.auth().createUserWithEmailAndPassword(email, password)
       .then(function(cred) {
         return cred.user.getIdToken();

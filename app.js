@@ -228,11 +228,13 @@ app.post('/api/auth/firebase-login', async (req, res) => {
 
 app.post('/api/auth/firebase-register', async (req, res) => {
   try {
+    if (!fbAuth) return res.status(503).json({ error: 'خدمة المصادقة غير متاحة حالياً' });
     const { idToken, name, email, phone, parentPhone, grade, stage, governorate, referralCode } = req.body;
     const decoded = await fbAuth.verifyIdToken(idToken);
     const uid = decoded.uid;
 
-    const users = await readData('users');
+    let users = await readData('users');
+    if (!Array.isArray(users)) users = users ? Object.values(users) : [];
     if (users.find(u => u.email === email)) {
       return res.status(409).json({ error: 'البريد الإلكتروني مسجل بالفعل' });
     }
@@ -344,18 +346,29 @@ app.get('/register', (req, res) => {
 });
 
 app.post('/register', async (req, res) => {
-  const { name, email, phone, parentPhone, grade, stage, governorate, password } = req.body;
+  const { name, email, phone, parentPhone, grade, stage, governorate, password, referralCode } = req.body;
   const users = await readData('users');
   if (users.find(u => u.email === email)) return res.render('auth/register', { title: 'إنشاء حساب - المُميز', error: 'البريد الإلكتروني مسجل بالفعل' });
+  const uid = uuidv4();
   const newUser = {
-    id: uuidv4(), name, email, phone: phone || '', parentPhone: parentPhone || '',
-    grade, stage: stage || '', governorate: governorate || '', password, role: 'student',
+    id: uid, uid, name, email, phone: phone || '', parentPhone: parentPhone || '',
+    grade, stage: stage || '', governorate: governorate || '', role: 'student',
     subscriptionStatus: 'inactive', subscriptionStart: null, subscriptionEnd: null,
-      referralCode: 'REF-' + Math.random().toString(36).substr(2, 8).toUpperCase(),
-      referredBy: '',
-      referralDiscount: 0,
-      fcmToken: '', createdAt: new Date().toISOString(), lastLogin: new Date().toISOString(), progress: {}
+    referralCode: 'REF-' + Math.random().toString(36).substr(2, 8).toUpperCase(),
+    referredBy: referralCode || '',
+    referralDiscount: 0,
+    fcmToken: '', createdAt: new Date().toISOString(), lastLogin: new Date().toISOString(), progress: {}
   };
+  if (referralCode) {
+    const referrer = users.find(u => u.referralCode === referralCode);
+    if (referrer) {
+      newUser.referredBy = referrer.id;
+      if (!referrer.referrals) referrer.referrals = [];
+      referrer.referrals.push({ userId: uid, discount: 25, date: new Date().toISOString() });
+      const ri = users.findIndex(u => u.referralCode === referralCode);
+      if (ri !== -1) users[ri] = referrer;
+    }
+  }
   users.push(newUser);
   await writeData('users', users);
   req.session.user = newUser;
