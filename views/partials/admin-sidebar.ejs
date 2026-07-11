@@ -63,26 +63,27 @@
       position: fixed;
       top: 80px;
       left: 0;
-      z-index: 99;
-      background: var(--accent);
+      z-index: 999;
+      background: #D6A23D;
       color: #fff;
-      border: none;
-      width: 36px;
-      height: 36px;
-      border-radius: 0 10px 10px 0;
-      font-size: 16px;
+      border: 2px solid #fff;
+      width: 40px;
+      height: 40px;
+      border-radius: 0 12px 12px 0;
+      font-size: 18px;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 2px 2px 8px rgba(0,0,0,0.2);
+      box-shadow: 3px 3px 12px rgba(0,0,0,0.3);
       transition: 0.3s;
     }
-    .sidebar-floating-toggle:hover {
-      background: var(--accent-hover);
+    [data-theme="light"] .sidebar-floating-toggle {
+      background: #C48A22;
     }
-    .sidebar.collapsed ~ .sidebar-floating-toggle {
-      display: flex;
+    .sidebar-floating-toggle:hover {
+      transform: scale(1.05);
+      box-shadow: 4px 4px 16px rgba(0,0,0,0.4);
     }
   </style>
   <script>
