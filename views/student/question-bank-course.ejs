@@ -22,7 +22,7 @@
     <% if (bank.description) { %><p style="font-size:14px;color:var(--text-light);margin-bottom:16px;"><%= bank.description %></p><% } %>
 
     <% (bank.questions||[]).forEach(function(q, qi) { %>
-    <div class="quiz-question" data-correct="<%= q.correct %>" data-bank="<%= bi %>">
+    <div class="quiz-question" data-correct="<%= q.correct %>" data-bank="<%= bi %>" data-wrong-msg="<%= (q.wrongAnswerMessage || '').replace(/\n/g,' ').replace(/"/g,'&quot;') %>">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
         <span style="background:var(--gold-gradient);color:var(--primary);width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;"><%= qi + 1 %></span>
         <h3 style="margin-bottom:0;font-size:16px;"><%= q.question %></h3>
@@ -99,7 +99,17 @@ document.querySelectorAll('.btn-submit-bank').forEach(function(btn) {
         o.style.background = oi === correct ? 'rgba(5,150,105,0.08)' : '';
       });
       if (selIdx === correct) { score++; }
-      else { selected.closest('.quiz-option').style.borderColor = '#DC2626'; }
+      else {
+        selected.closest('.quiz-option').style.borderColor = '#DC2626';
+        var wrongMsg = q.dataset.wrongMsg || 'إجابة غير صحيحة، راجع الدرس ثم حاول مرة أخرى.';
+        if (!q.querySelector('.wrong-msg-card')) {
+          var card = document.createElement('div');
+          card.className = 'wrong-msg-card';
+          card.style.cssText = 'margin-top:12px;padding:12px 14px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:10px;font-size:13px;color:#D97706;display:flex;align-items:center;gap:10px;line-height:1.6;';
+          card.innerHTML = '<i class="fas fa-exclamation-triangle" style="font-size:16px;flex-shrink:0;"></i><span>' + wrongMsg + '</span>';
+          q.appendChild(card);
+        }
+      }
     });
 
     if (!allAnswered) { alert('يرجى الإجابة على جميع الأسئلة أولاً'); return; }
