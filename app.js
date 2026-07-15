@@ -929,6 +929,28 @@ app.get('/student/lesson/:courseId/:lessonId', requireStudentOrGuest, async (req
   });
 });
 
+app.get('/student/lesson-quiz/:courseId/:lessonId', requireStudentOrGuest, async (req, res) => {
+  const courses = await readData('courses');
+  const course = courses.find(c => c.id === req.params.courseId);
+  if (!course) return res.redirect('/student/courses');
+  const lesson = (course.lessons||[]).find(l => l.id === req.params.lessonId);
+  if (!lesson) return res.redirect(`/student/course/${course.id}`);
+  if (!lesson.quiz || !lesson.quiz.enabled) return res.redirect(`/student/lesson/${course.id}/${lesson.id}`);
+
+  const user = req.session.user;
+  const isGuest = req.session.demoMode;
+  const isSubscribed = !isGuest && user.subscriptionStatus === 'active' && (!user.subscriptionEnd || new Date(user.subscriptionEnd) > new Date());
+  const isFree = lesson.isFree === true;
+  if (!isFree && !isSubscribed && !(isGuest && lesson.guestVisible)) {
+    return res.render('student/subscription-locked', { title: 'الاشتراك مطلوب - المُميز', isGuest });
+  }
+
+  res.render('student/lesson-quiz', {
+    course, lesson, isGuest,
+    title: `اختبار ${lesson.title} - المُميز`
+  });
+});
+
 // Render the PDF.js viewer for a stored entry. The page itself contains NO direct
 // file link - it is given a same-origin `tokenUrl`; its JS fetches a short-lived
 // Supabase signed URL (after the server re-checks permissions) and feeds it to PDF.js.
