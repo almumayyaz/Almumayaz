@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; img-src * data: blob:; media-src * blob:; connect-src * wss:; worker-src * blob:; child-src * blob:;">
+
 <title><%= session.title %></title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
@@ -50,20 +50,17 @@ var isStudent = <%= isStudent %>;
 <% if (isStudent) { %>
 function hideZoomControls() {
   var selectors = [
-    '[class*="header"]', '[class*="toolbar"]', '[class*="footer"]',
     '[class*="meeting-info"]', '[class*="invite"]', '[class*="participants"]',
     '[class*="chat"]', '[class*="apps"]', '[class*="reaction"]',
     '[class*="more"]', '[class*="security"]', '[class*="fullscreen"]',
     '[class*="copy-link"]', '[class*="passcode"]', '[class*="meeting-id"]',
     '[class*="logo"]', '[class*="floating"]', '[class*="waiting"]',
-    '[class*="raise-hand"]', '[class*="share"]',
-    '[class*="screen"]', '[class*="record"]', '[class*="caption"]',
+    '[class*="raise-hand"]',
+    '[class*="record"]', '[class*="caption"]',
     '[class*="poll"]', '[class*="whiteboard"]', '[class*="breakout"]',
     '[class*="notification"]', '[class*="alert"]',
-    '[class*="banner"]', '[class*="top"]', '[class*="bottom"]',
-    '[class*="side"]', '[class*="panel"]', '[class*="sidebar"]',
-    '[class*="tabs"]', '[class*="nav"]', '[class*="status"]',
-    '.footer__btn', '.join-audio-container',
+    '[class*="banner"]',
+    '.footer__btn__leave', '.join-audio-container',
     '.preview-video-container', '.audio-preview-container'
   ];
   selectors.forEach(function(sel) {
@@ -74,10 +71,10 @@ function hideZoomControls() {
   });
 }
 
-var observer = new MutationObserver(function() {
-  hideZoomControls();
-});
-observer.observe(document.documentElement, { childList: true, subtree: true, attributes: false });
+setTimeout(hideZoomControls, 1000);
+setTimeout(hideZoomControls, 3000);
+setTimeout(hideZoomControls, 5000);
+setTimeout(hideZoomControls, 10000);
 <% } %>
 
 if (!mn) {
