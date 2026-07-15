@@ -33,11 +33,8 @@ let ready = false;
 try {
   const sa = loadServiceAccount();
   if (sa && dbUrl) {
-    const initOpts = { credential: cert(sa), databaseURL: dbUrl };
-    if (sa.project_id) initOpts.projectId = sa.project_id;
-    if (sa.storageBucket) initOpts.storageBucket = sa.storageBucket;
     if (!getApps().length) {
-      initializeApp(initOpts);
+      initializeApp({ credential: cert(sa), databaseURL: dbUrl });
     }
     fbAuth = getAuth();
     fbDb = admin.database();

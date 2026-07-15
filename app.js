@@ -4132,6 +4132,15 @@ app.get('/api/admin/test-send-raw-fcm', requireAdmin, async (req, res) => {
 });
 
 app.get('/api/admin/test-send-fcm', requireAdmin, async (req, res) => {
+  try {
+    const users = await readData('users');
+    const adminUser = users.find(u => u.role === 'admin' && u.fcmToken);
+    if (!adminUser) return res.json({ success: false, error: 'Admin has no FCM token' });
+    const message = { token: adminUser.fcmToken, data: { title: 'Test', body: 'This is a test notification', url: '/' } };
+    try {
+      const result = await admin.messaging().send(message);
+      res.json({ success: true, result: result });
+    } catch (e) {
       res.json({ success: false, error: e.code || e.message, fullError: e.message });
     }
   } catch (e) {
