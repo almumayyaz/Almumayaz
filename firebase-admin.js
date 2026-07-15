@@ -106,53 +106,150 @@ function restPost(path, data) {
 
 const localStore = require('./data-store');
 let useLocalFallback = !ready;
+const perf = require('./perf');
+
+/* ===================== READ-THROUGH CACHE (TTL) ===================== */
+// Stage 2 / 6 / 13 / 14: in-memory cache with per-key TTL.
+// Static collections are cached for 60s; `users` is cached for a SHORT 10s window
+// (stage 1) so the per-request middleware no longer hits Firebase on every request,
+// while auth/subscription changes stay fresh. Every write invalidates the key.
+const STATIC_TTL_MS = 60000;
+const USER_TTL_MS = 10000;
+const CACHEABLE = new Set(['courses', 'settings', 'notes', 'questionBanks', 'reviews', 'announcements', 'users']);
+const _cache = new Map(); // key -> { value, expires }
+
+function cacheTtl(key) { return key === 'users' ? USER_TTL_MS : STATIC_TTL_MS; }
+function cacheGet(key) {
+  const e = _cache.get(key);
+  if (!e) { perf.trackCacheMiss(); return undefined; }
+  if (Date.now() > e.expires) { _cache.delete(key); perf.trackCacheMiss(); return undefined; }
+  perf.trackCacheHit();
+  return e.value;
+}
+function cacheSet(key, val) {
+  if (!CACHEABLE.has(key)) return;
+  _cache.set(key, { value: val, expires: Date.now() + cacheTtl(key) });
+}
+function cacheInvalidate(key) { _cache.delete(key); }
+
+function clone(o) {
+  if (o === null || o === undefined) return o;
+  try { return JSON.parse(JSON.stringify(o)); } catch (e) { return o; }
+}
+
+function normalizeSnapshot(val) {
+  // Firebase returns stored arrays as objects with numeric keys - normalize to array
+  if (val && typeof val === 'object' && !Array.isArray(val)) {
+    const keys2 = Object.keys(val);
+    if (keys2.length > 0) {
+      if (keys2.every(k => !isNaN(parseInt(k)))) {
+        return keys2.sort((a, b) => parseInt(a) - parseInt(b)).map(k => val[k]);
+      } else {
+        const first = val[keys2[0]];
+        if (first && typeof first === 'object' && first.id) {
+          return keys2.map(k => val[k]);
+        }
+      }
+    }
+  }
+  return val;
+}
 
 async function readData(key) {
+  // Read-through cache for cacheable top-level collections (stage 2/6/13/14).
+  // A cache hit performs ZERO Firebase reads.
+  if (CACHEABLE.has(key)) {
+    const cached = cacheGet(key);
+    if (cached !== undefined) return clone(cached);
+  }
+  let val;
+  let readFromFirebase = false;
   // Try Firebase first (authoritative source - persists across instances)
   if (fbDb) {
     try {
+      perf.trackRead();
+      readFromFirebase = true;
       const snap = await fbDb.ref(key).once('value');
-      let val = snap.val();
-      // Firebase returns stored arrays as objects with numeric keys - normalize to array
-      if (val && typeof val === 'object' && !Array.isArray(val)) {
-        const keys2 = Object.keys(val);
-        if (keys2.length > 0) {
-          if (keys2.every(k => !isNaN(parseInt(k)))) {
-            val = keys2.sort((a,b) => parseInt(a)-parseInt(b)).map(k => val[k]);
-          } else {
-            // Object with non-numeric keys - check if it looks like a stored array (has id field)
-            const first = val[keys2[0]];
-            if (first && typeof first === 'object' && first.id) {
-              val = keys2.map(k => val[k]);
-            }
-          }
-        }
-      }
-      if (val !== null && val !== undefined) {
-        localStore.writeData(key, val).catch(function(){});
-        return val;
-      }
+      val = normalizeSnapshot(snap.val());
     } catch (e) {
       console.error('Firebase read error, using local store:', e.message);
+      val = undefined;
     }
   }
-  // Fallback: read from local store
-  const local = await localStore.readData(key);
-  return local;
+  if (val === null || val === undefined) {
+    if (!readFromFirebase) perf.trackRead();
+    val = await localStore.readData(key);
+  }
+  if (val !== null && val !== undefined && CACHEABLE.has(key)) cacheSet(key, val);
+  return clone(val);
 }
 
 async function writeData(key, data) {
   // Write to local store first (always works)
   await localStore.writeData(key, data);
+  // Invalidate any cached copy so subsequent reads see the fresh write immediately.
+  cacheInvalidate(key);
   // Also write to Firebase Admin SDK (persistent across instances)
   if (fbDb) {
     try {
+      perf.trackWrite();
       await fbDb.ref(key).set(data);
     } catch (e) {
       console.error('Firebase Admin write error:', e.message);
     }
   }
   return data;
+}
+
+// Stage 1/4: read a single user by id WITHOUT loading the whole `users` collection.
+// Uses the (cached) users collection; falls back to a full read only when not found.
+async function readUserById(id) {
+  if (!id) return null;
+  const users = await readData('users');
+  const list = Array.isArray(users) ? users : (users ? Object.values(users) : []);
+  return list.find(u => u.id === id || u.uid === id) || null;
+}
+
+// Stage 4/5: shallow-merge `partial` into the node at `path` (keyed collections only,
+// e.g. studentAnalytics/<uid>). On Firebase this is an atomic `update()`; locally it
+// merges into the stored object. Much cheaper than rewriting the whole node.
+async function updateData(path, partial) {
+  perf.trackWrite();
+  if (fbDb) {
+    try {
+      await fbDb.ref(path).update(partial);
+      cacheInvalidate(path.split('/')[0]);
+      return partial;
+    } catch (e) {
+      console.error('Firebase Admin update error:', e.message);
+    }
+  }
+  // Local fallback: the leaf document at `path` is stored as `<path>.json` by
+  // writeData, so merge the partial into that same document and write it back.
+  const leaf = await localStore.readData(path);
+  const node = Object.assign((leaf == null) ? {} : clone(leaf), partial);
+  await localStore.writeData(path, node);
+  cacheInvalidate(path.split('/')[0]);
+  return partial;
+}
+
+// Stage 5: atomic read-modify-write transaction at `path`.
+async function transactionData(path, mutate) {
+  perf.trackWrite();
+  if (fbDb) {
+    try {
+      await fbDb.ref(path).transaction(current => mutate(current));
+      cacheInvalidate(path.split('/')[0]);
+      return;
+    } catch (e) {
+      console.error('Firebase Admin transaction error:', e.message);
+    }
+  }
+  // Local fallback (single instance): read leaf document -> mutate -> write back.
+  const leaf = await localStore.readData(path);
+  const node = mutate(leaf == null ? null : clone(leaf));
+  await localStore.writeData(path, node);
+  cacheInvalidate(path.split('/')[0]);
 }
 
 async function pushData(key, item) {
@@ -212,8 +309,7 @@ async function fbRemove(path) {
 
 async function sendFCM(userId, title, body, url) {
   try {
-    const users = await readData('users');
-    const user = users.find(u => u.id === userId);
+    const user = await readUserById(userId);
     if (!user || !user.fcmToken) { console.log('sendFCM: no user or no fcmToken for', userId); return false; }
     if (!admin.messaging) { console.error('sendFCM: admin.messaging not available'); return false; }
         const message = {
@@ -240,24 +336,33 @@ async function sendFCMToRole(role, title, body, url) {
     const recipients = users.filter(u => u.role === role && u.fcmToken);
     console.log('sendFCMToRole: found', recipients.length, 'recipients for role', role);
     if (!admin.messaging) { console.error('sendFCMToRole: admin.messaging not available'); return 0; }
-    let sent = 0;
-    for (const u of recipients) {
+    const toClear = [];
+    // Stage 10: send all notifications concurrently instead of serial await.
+    await Promise.allSettled(recipients.map(async (u) => {
       try {
         const message = {
           token: u.fcmToken,
           data: { title: title, body: body, url: url || '/', click_action: 'FLUTTER_NOTIFICATION_CLICK' }
         };
         await admin.messaging().send(message);
-        sent++;
       } catch (e) {
         console.error('sendFCMToRole: error for', u.id, e.code || e.message);
         if (e.code === 'messaging/invalid-registration-token' || e.code === 'messaging/registration-token-not-registered') {
-          const idx = users.findIndex(x => x.id === u.id);
-          if (idx !== -1) { users[idx].fcmToken = ''; }
+          toClear.push(u.id);
         }
       }
+    }));
+    let sent = recipients.length - toClear.length;
+    // Persist cleared tokens once, after all sends have settled.
+    if (toClear.length) {
+      const fresh = await readData('users');
+      let changed = false;
+      toClear.forEach(id => {
+        const idx = fresh.findIndex(x => x.id === id);
+        if (idx !== -1 && fresh[idx].fcmToken) { fresh[idx].fcmToken = ''; changed = true; }
+      });
+      if (changed) await writeData('users', fresh);
     }
-    if (recipients.some(u => !u.fcmToken)) await writeData('users', users);
     console.log('sendFCMToRole: sent', sent, 'out of', recipients.length);
     return sent;
   } catch (e) {
@@ -266,7 +371,7 @@ async function sendFCMToRole(role, title, body, url) {
   }
 }
 
-module.exports = { db: fbDb, fbAuth, readData, writeData, pushData, fbRead, fbSet, fbPush, fbRemove, restGet, restPut, sendFCM, sendFCMToRole, admin, migrateSeedData };
+module.exports = { db: fbDb, fbAuth, readData, writeData, updateData, transactionData, readUserById, pushData, fbRead, fbSet, fbPush, fbRemove, restGet, restPut, sendFCM, sendFCMToRole, admin, migrateSeedData };
 
 // Startup: ensure seed data exists in Firebase
 async function migrateSeedData() {

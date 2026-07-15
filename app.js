@@ -11,8 +11,10 @@ const nodemailer = require('nodemailer');
 const { readData, writeData, fbAuth, sendFCM, sendFCMToRole, admin } = require('./firebase-admin');
 const supabaseStorage = require('./supabase-storage');
 const crypto = require('crypto');
+const zlib = require('zlib');
 const zoom = require('./zoom-oauth');
 const analytics = require('./analytics-engine');
+const perf = require('./perf');
 
 const app = express();
 
@@ -55,7 +57,10 @@ async function verifyPassword(stored, plain) {
     if (parts.length !== 3) return false;
     const salt = Buffer.from(parts[1], 'hex');
     const expected = Buffer.from(parts[2], 'hex');
-    const derived = crypto.scryptSync(String(plain), salt, SCRYPT_KEYLEN, { N: SCRYPT_N, r: SCRYPT_r, p: SCRYPT_p });
+    // Stage 7: async scrypt (no longer blocks the Node event loop on every login).
+    const derived = await new Promise((resolve, reject) => {
+      crypto.scrypt(String(plain), salt, SCRYPT_KEYLEN, { N: SCRYPT_N, r: SCRYPT_r, p: SCRYPT_p }, (err, d) => err ? reject(err) : resolve(d));
+    });
     return crypto.timingSafeEqual(derived, expected);
   }
   // Legacy plaintext fallback (transitional; rehashed on successful login)
@@ -90,6 +95,59 @@ app.use((req, res, next) => {
   next();
 });
 
+// ===== Stage 8: response compression (built-in zlib, no extra deps) =====
+// Compresses text-like responses (HTML, JSON, JS, CSS, SVG) when the client advertises
+// support. Binary streams (PDF, images) are passed through untouched.
+const COMPRESSIBLE_RE = /text\/|application\/(json|javascript|xml|x-www-form-urlencoded)|\+json|\+xml|image\/svg\+xml/;
+function compressionMiddleware(req, res, next) {
+  if (req.method === 'HEAD' || req.method === 'OPTIONS') return next();
+  if (res.getHeader('Content-Encoding')) return next();
+  const ae = (req.headers['accept-encoding'] || '').toLowerCase();
+  let encoding = null;
+  if (ae.indexOf('br') !== -1) encoding = 'br';
+  else if (ae.indexOf('gzip') !== -1) encoding = 'gzip';
+  else if (ae.indexOf('deflate') !== -1) encoding = 'deflate';
+  if (!encoding) return next();
+
+  const origWrite = res.write.bind(res);
+  const origEnd = res.end.bind(res);
+  const origWriteHead = res.writeHead ? res.writeHead.bind(res) : null;
+  let stream = null;
+  let replaced = false;
+
+  function ensureStream() {
+    if (stream) return;
+    const ct = (res.getHeader('Content-Type') || '').toLowerCase();
+    if (!COMPRESSIBLE_RE.test(ct)) return; // not worth compressing / binary
+    replaced = true;
+    res.removeHeader('Content-Length');
+    res.setHeader('Content-Encoding', encoding);
+    if (encoding === 'gzip') stream = zlib.createGzip();
+    else if (encoding === 'deflate') stream = zlib.createDeflate();
+    else stream = zlib.createBrotliCompress();
+    stream.on('data', c => { origWrite(c); });
+    stream.on('end', () => { origEnd(); });
+    stream.on('error', () => { /* swallow; response already partial */ });
+  }
+
+  res.write = function (chunk, ...args) {
+    ensureStream();
+    if (stream && replaced) { stream.write(chunk); return true; }
+    return origWrite(chunk, ...args);
+  };
+  res.end = function (chunk, ...args) {
+    ensureStream();
+    if (stream && replaced) {
+      if (chunk) stream.write(chunk);
+      stream.end();
+      return res;
+    }
+    return origEnd(chunk, ...args);
+  };
+  next();
+}
+app.use(compressionMiddleware);
+
 // ===== CSRF / same-origin check for state-changing requests =====
 app.use((req, res, next) => {
   if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
@@ -117,11 +175,18 @@ function rateLimit({ windowMs = 15 * 60 * 1000, max = 30, keyFn } = {}) {
   };
 }
 const AUTH_LIMIT = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, keyFn: (req) => getClientIp(req) + ':' + (req.path || '') });
+// Stage 9: analytics endpoints can be polled by the dashboard, so allow a higher
+// ceiling than the strict auth limiter while still protecting against abuse.
+const ANALYTICS_LIMIT = rateLimit({ windowMs: 15 * 60 * 1000, max: 400, keyFn: (req) => getClientIp(req) + ':' + (req.path || '') });
 app.use((req, res, next) => {
   const p = req.path || '';
-  if (p.startsWith('/api/auth') || p === '/login' || p === '/register' || p.startsWith('/api/parent')) return AUTH_LIMIT(req, res, next);
+  if (p.startsWith('/api/auth') || p === '/login' || p === '/register' || p === '/forgot-password' || p.startsWith('/api/parent')) return AUTH_LIMIT(req, res, next);
+  if (p.startsWith('/api/analytics')) return ANALYTICS_LIMIT(req, res, next);
   next();
 });
+
+// Stage 15: attach per-request performance context (reads/writes/cache hit-miss/timing).
+app.use(perf.middleware);
 
 if (process.env.NODE_ENV === 'production') {
   app.set('trust proxy', 1);
@@ -265,16 +330,30 @@ app.use(async (req, res, next) => {
   // Re-attach heavy fields (avatar/progress) from the DB for views.
   // These are NOT stored in the session cookie (would overflow the ~4KB limit).
   if (res.locals.user && res.locals.user.uid) {
-    try {
-      const _us = await readData('users');
-      const _list = Array.isArray(_us) ? _us : (_us ? Object.values(_us) : []);
-      const _full = _list.find(u => u.uid === res.locals.user.uid);
-      if (_full) {
-        res.locals.user.avatar = _full.avatar || '';
-        res.locals.user.progress = _full.progress || {};
-        res.locals.user.referrals = _full.referrals || [];
-      }
-    } catch (e) {}
+    // Stage 1: if these view fields are already present in the (cookie) session,
+    // there is no need to touch the database at all. The session is refreshed by
+    // refreshSession()/login, so these stay current without a per-request read.
+    const haveSessionFields = res.locals.user.avatar !== undefined &&
+      res.locals.user.progress !== undefined && res.locals.user.referrals !== undefined;
+    if (!haveSessionFields) {
+      try {
+        // readData('users') is served from the short-TTL cache (stage 1/6), so this
+        // is normally a cache hit with zero Firebase reads.
+        const _us = await readData('users');
+        const _list = Array.isArray(_us) ? _us : (_us ? Object.values(_us) : []);
+        const _full = _list.find(u => u.uid === res.locals.user.uid);
+        if (_full) {
+          res.locals.user.avatar = _full.avatar || '';
+          res.locals.user.progress = _full.progress || {};
+          res.locals.user.referrals = _full.referrals || [];
+        }
+      } catch (e) {}
+    } else {
+      // Normalise in case a stale cookie is missing a field.
+      if (res.locals.user.avatar === undefined) res.locals.user.avatar = '';
+      if (res.locals.user.progress === undefined) res.locals.user.progress = {};
+      if (res.locals.user.referrals === undefined) res.locals.user.referrals = [];
+    }
   }
   res.locals.currentPath = req.path;
   res.locals.darkMode = req.session.darkMode || false;
@@ -1112,12 +1191,29 @@ function makePdfStream(kind, authMiddleware, requireSubscription) {
       if (!supabaseStorage.isConfigured()) return res.status(503).end('Storage not configured');
       const { path } = await getPdfTarget(kind, req);
       const signed = await supabaseStorage.createSignedUrl(path, 60);
-      const upstream = await fetch(signed);
-      if (!upstream.ok) return res.status(502).end('Upstream storage error');
+      // Stage 11: forward any client Range header to the upstream so the browser can
+      // seek/stream large PDFs without downloading the whole file through the server.
+      const headers = {};
+      const range = req.headers.range;
+      if (range) headers['Range'] = range;
+      const upstream = await fetch(signed, { headers });
+      if (!upstream.ok && upstream.status !== 206 && upstream.status !== 416) {
+        return res.status(502).end('Upstream storage error');
+      }
       res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Length', upstream.headers.get('content-length') || '');
       res.setHeader('Accept-Ranges', 'bytes');
       res.setHeader('Cache-Control', 'private, max-age=0, must-revalidate');
+      if (upstream.status === 206) {
+        // Partial content: copy the upstream range headers straight through.
+        res.status(206);
+        const cr = upstream.headers.get('content-range');
+        const cl = upstream.headers.get('content-length');
+        if (cr) res.setHeader('Content-Range', cr);
+        if (cl) res.setHeader('Content-Length', cl);
+      } else {
+        const cl = upstream.headers.get('content-length');
+        if (cl) res.setHeader('Content-Length', cl);
+      }
       if (upstream.body && typeof upstream.body.pipe === 'function') {
         upstream.body.pipe(res);
       } else if (upstream.body && typeof upstream.body.getReader === 'function') {
@@ -2899,7 +2995,7 @@ app.post('/api/admin/migrate-seed', requireAdmin, async (req, res) => {
 
 app.post('/api/admin/force-migrate', requireAdmin, async (req, res) => {
   try {
-    const { fbDb } = require('./firebase-admin');
+    const { fbDb, writeData } = require('./firebase-admin');
     const localStore = require('./data-store');
     const keys = ['courses', 'announcements', 'subscriptions', 'reviews'];
     const results = {};
@@ -2907,7 +3003,8 @@ app.post('/api/admin/force-migrate', requireAdmin, async (req, res) => {
       const local = await localStore.readData(key);
       if (local && fbDb) {
         const data = Array.isArray(local) ? local : Object.values(local);
-        await fbDb.ref(key).set(data);
+        // Use writeData so the in-memory cache is invalidated consistently.
+        await writeData(key, data);
         results[key] = Array.isArray(local) ? local.length : Object.keys(local).length;
         console.log('Force-migrated', key, 'to Firebase');
       }
@@ -2915,7 +3012,7 @@ app.post('/api/admin/force-migrate', requireAdmin, async (req, res) => {
     // Also migrate courses one by one to ensure lessons are included
     const localCourses = await localStore.readData('courses');
     if (Array.isArray(localCourses) && fbDb) {
-      await fbDb.ref('courses').set(localCourses);
+      await writeData('courses', localCourses);
       results.courses = localCourses.length + ' courses with lessons';
     }
     res.json({ success: true, message: 'تم فرض الترحيل', results });

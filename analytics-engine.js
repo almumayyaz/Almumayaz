@@ -1,4 +1,4 @@
-const { readData, writeData } = require('./firebase-admin');
+const { readData, writeData, updateData } = require('./firebase-admin');
 
 const ROOT = 'studentAnalytics';
 
@@ -143,9 +143,38 @@ async function getOrCreate(uid) {
 
 async function persist(uid, a) {
   a.lastUpdated = now();
+  await updateData(ROOT + '/' + uid, a);
+}
+
+// Stage 3/4: recompute summary/achievements/streak in memory (no DB write).
+async function recalcInMemory(uid, a) {
+  const r = checkConditions(a);
+  if (r.newly.length) {
+    const existing = a.achievements.unlocked || [];
+    a.achievements.unlocked = [...new Set([...existing, ...r.newly])];
+    for (const id of r.newly) {
+      const ad = ACHIEVEMENT_DEFS.find(d => d.id === id);
+      if (ad) await recordActivity(uid, 'achievement_unlocked', 'achievement:' + id, { achievementName: ad.name, achievementId: id }, a);
+    }
+  }
+  await updateStreakInternal(uid, a);
   a.summary = makeSummary(a);
   a.achievements.total = (a.achievements.unlocked || []).length;
-  await writeData(ROOT + '/' + uid, a);
+}
+
+async function recalcAndPersist(uid, a) {
+  await recalcInMemory(uid, a);
+  await persist(uid, a);
+}
+
+// Stage 3: during a video heartbeat we only changed a few sub-trees, so write back
+// just those top-level fields via `update()` instead of rewriting the whole analytics
+// document (which also contains quizHistory/pdfHistory/activityLog history, etc.).
+async function persistPartial(uid, a, fields) {
+  const patch = {};
+  fields.forEach(f => { patch[f] = a[f]; });
+  patch.lastUpdated = now();
+  await updateData(ROOT + '/' + uid, patch);
 }
 
 async function recalcAndPersist(uid, a) {
@@ -276,7 +305,10 @@ async function trackVideoHeartbeat(uid, cid, lid, position, duration, watchedSec
     }, 0);
     cl.averageWatchPercent = cpl ? Math.round(totalWatchPct / cpl) : 0;
   }
-  await recalcAndPersist(uid, a);
+  await recalcInMemory(uid, a);
+  // Stage 3: write back only the sub-trees a heartbeat can touch. quizHistory,
+  // pdfHistory, profile, sessions and createdAt are left untouched on the server.
+  await persistPartial(uid, a, ['watchHistory', 'lessonProgress', 'courseProgress', 'summary', 'achievements', 'streak', 'activityLog']);
   return { completed: lp[lk].status === 'completed', completionPercent: wl.completionPercent || 0, status: lp[lk].status };
 }
 
@@ -374,7 +406,13 @@ async function getStudentDashboardData(uid) {
   };
 }
 
-async function getAdminAnalytics() {
+// Stage 12: the admin dashboard aggregates every student x every lesson, which is
+// expensive. Cache the computed result for 60s so repeated opens don't recompute it.
+// The data-layer caches for `users`/`courses` already absorb the underlying reads.
+let _adminAnalyticsCache = { value: null, expires: 0 };
+const ADMIN_ANALYTICS_TTL_MS = 60000;
+
+async function computeAdminAnalytics() {
   const users = await readData('users');
   const allAnalytics = await readData(ROOT) || {};
   const students = (users || []).filter(u => u.role === 'student');
@@ -472,6 +510,16 @@ async function getAdminAnalytics() {
     lessonAnalytics, examAnalytics,
     allStudentsSummary: studentRows.map(r => ({ uid: r.uid, name: r.name, email: r.email, summary: r.summary, profile: r.profile }))
   };
+}
+
+async function getAdminAnalytics() {
+  const t = Date.now();
+  if (_adminAnalyticsCache.value && t < _adminAnalyticsCache.expires) {
+    return _adminAnalyticsCache.value;
+  }
+  const result = await computeAdminAnalytics();
+  _adminAnalyticsCache = { value: result, expires: t + ADMIN_ANALYTICS_TTL_MS };
+  return result;
 }
 
 async function getAdminStudentDetail(studentId) {
