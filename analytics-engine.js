@@ -386,7 +386,8 @@ async function getAdminAnalytics() {
     if (!a || !a.summary) return;
     const u = (users || []).find(u => u.uid === uid);
     const sm = a.summary || {};
-    studentRows.push({ uid, name: (u || {}).name || a.profile.name || '', email: (u || {}).email || a.profile.email || '', summary: sm, profile: a.profile || {} });
+    const ap = a.profile || {};
+    studentRows.push({ uid, name: (u || {}).name || ap.name || '', email: (u || {}).email || ap.email || '', summary: sm, profile: ap });
   });
   const totalWatchTime = studentRows.reduce((s, r) => s + (r.summary.totalWatchTime || 0), 0);
   const avgWatchTime = studentRows.length ? Math.round(totalWatchTime / studentRows.length) : 0;

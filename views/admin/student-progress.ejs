@@ -22,7 +22,9 @@ if (currentStudentId) { loadStudent(currentStudentId); }
 var studentListCache = null;
 async function getStudentList() {
   if (studentListCache) return studentListCache;
-  var v2 = await (await fetch('/api/admin/analytics/v2/overview')).json();
+  var resp = await fetch('/api/admin/analytics/v2/overview');
+  var v2 = await resp.json();
+  if (!resp.ok || v2.error) return [];
   studentListCache = (v2.allStudentsSummary || []).map(function(s) {
     return { id: s.uid, name: s.name, grade: s.profile.grade || '', governorate: s.profile.governorate || '', activityScore: s.summary.activityScore || 0 };
   });

@@ -31,7 +31,9 @@
 <script>
 (async function() {
   // Load overview from v2 engine
-  var v2 = await (await fetch('/api/admin/analytics/v2/overview')).json();
+  var resp = await fetch('/api/admin/analytics/v2/overview');
+  var v2 = await resp.json();
+  if (!resp.ok || v2.error) { document.getElementById('overviewCards').innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:#dc2626;">خطأ: ' + (v2.error || 'فشل تحميل البيانات') + '</div>'; return; }
   var ov = v2;
   var cards = [
     { label: 'إجمالي الطلاب', value: ov.totalStudents, icon: 'fa-users', color: '#3b82f6' },
