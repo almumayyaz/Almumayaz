@@ -100,7 +100,7 @@
 
   <div style="margin-top:20px;display:flex;flex-direction:column;gap:12px;">
     <% if (lesson.quiz && lesson.quiz.enabled && !isGuest) { %>
-    <div class="welcome-banner" style="padding:12px 16px;">
+    <div class="welcome-banner lesson-quiz-sticky" style="padding:12px 16px;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
         <i class="fas fa-question-circle" style="color:var(--accent);font-size:14px;"></i>
         <span style="font-size:13px;font-weight:700;color:var(--accent);">اختبار الدرس</span>
@@ -134,6 +134,18 @@ var lessonId = '<%= lesson.id %>';
 var isGuest = <%= isGuest ? 'true' : 'false' %>;
 </script>
 <script src="/js/lesson.js"></script>
+
+<style>
+  .lesson-quiz-sticky {
+    position: sticky;
+    bottom: 64px;
+    z-index: 998;
+    margin-bottom: 4px;
+  }
+  @media (min-width: 992px) {
+    .lesson-quiz-sticky { position: static; bottom: auto; }
+  }
+</style>
 
 </body>
 </html>
