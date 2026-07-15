@@ -4175,8 +4175,8 @@ app.get('/api/admin/fcm-debug', requireAdmin, async (req, res) => {
       savedAt: adminUser && adminUser.fcmTokenSavedAt ? adminUser.fcmTokenSavedAt : 'NOT RECORDED',
       uid: adminUser ? adminUser.id : 'NO ADMIN',
       role: adminUser ? adminUser.role : 'none',
-      projectId: process.env.FIREBASE_PROJECT_ID || 'NOT SET',
-      senderId: process.env.FIREBASE_MESSAGING_SENDER_ID || 'NOT SET',
+      projectId: stripBOM(process.env.FIREBASE_PROJECT_ID || '') || 'NOT SET',
+      senderId: stripBOM(process.env.FIREBASE_MESSAGING_SENDER_ID || '') || 'NOT SET',
       vapidFirst10: vapid ? vapid.slice(0, 10) : 'NOT SET',
       vapidLast10: vapid ? vapid.slice(-10) : 'NOT SET',
       vapidLength: vapid.length
@@ -4205,8 +4205,8 @@ app.get('/api/admin/fcm-project', requireAdmin, async (req, res) => {
       serverProjectId: projectId,
       dbProjectId: dbProject,
       databaseURL: databaseURL,
-      envProjectId: process.env.FIREBASE_PROJECT_ID || 'NOT SET',
-      envSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || 'NOT SET',
+      envProjectId: stripBOM(process.env.FIREBASE_PROJECT_ID || '') || 'NOT SET',
+      envSenderId: stripBOM(process.env.FIREBASE_MESSAGING_SENDER_ID || '') || 'NOT SET',
       serviceAccount: saInfo
     });
   } catch (e) {

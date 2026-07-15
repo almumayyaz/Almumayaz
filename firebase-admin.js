@@ -34,7 +34,7 @@ try {
   const sa = loadServiceAccount();
   if (sa && dbUrl) {
     const initOpts = { credential: cert(sa), databaseURL: dbUrl };
-    const projectId = process.env.FIREBASE_PROJECT_ID || sa.project_id || (dbUrl.match(/https:\/\/([^.]+)\.firebaseio\.com/) || [])[1] || '';
+    const projectId = stripBOM(process.env.FIREBASE_PROJECT_ID || '') || sa.project_id || (dbUrl.match(/https:\/\/([^.]+)\.firebaseio\.com/) || [])[1] || '';
     if (projectId) initOpts.projectId = projectId;
     if (!getApps().length) {
       initializeApp(initOpts);
