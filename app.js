@@ -2134,6 +2134,16 @@ app.post('/api/admin/analytics/v2/backup', requireAdmin, async (req, res) => {
   }
 });
 
+// Admin: remove analytics records not linked to a real user (orphans like uid "0")
+app.post('/api/admin/analytics/v2/cleanup-orphans', requireAdmin, async (req, res) => {
+  try {
+    const result = await analytics.cleanupOrphanAnalytics();
+    res.json({ success: true, ...result });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Admin: single student detail (engine v2)
 app.get('/api/admin/analytics/v2/student/:studentId', requireAdmin, async (req, res) => {
   try {

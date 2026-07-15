@@ -422,7 +422,10 @@ async function computeAdminAnalytics() {
   analyticsIds.forEach(uid => {
     const a = allAnalytics[uid];
     if (!a || !a.summary) return;
+    // Skip analytics records that are not linked to a real user (e.g. uid "0", "", demo/guest).
+    if (!uid || uid === '0' || uid === 0) return;
     const u = (users || []).find(u => u.uid === uid);
+    if (!u) return;
     const sm = a.summary || {};
     const ap = a.profile || {};
     studentRows.push({ uid, name: (u || {}).name || ap.name || '', email: (u || {}).email || ap.email || '', summary: sm, profile: ap });
@@ -659,6 +662,20 @@ function clearAdminAnalyticsCache() {
   _adminAnalyticsCache = { value: null, expires: 0 };
 }
 
+async function cleanupOrphanAnalytics() {
+  const all = await readData('studentAnalytics') || {};
+  const users = await readData('users') || [];
+  const validUids = new Set(users.map(u => u.uid));
+  const orphans = Object.keys(all).filter(uid =>
+    !uid || uid === '0' || uid === 0 || !validUids.has(uid)
+  );
+  if (fbRemove) {
+    await Promise.all(orphans.map(uid => fbRemove('studentAnalytics/' + uid).catch(() => {})));
+  }
+  clearAdminAnalyticsCache();
+  return { removed: orphans.length, uids: orphans };
+}
+
 async function deleteAllAnalytics() {
   const all = await readData('studentAnalytics') || {};
   const uids = Object.keys(all);
@@ -687,5 +704,5 @@ module.exports = {
   getAnalytics, trackLogin, trackVideoHeartbeat, trackPdfOpen, trackQuizSubmit,
   getStudentDashboardData, getAdminAnalytics, getAdminStudentDetail, migrateAll,
   computeLessonStatuses, makeSummary, calcActivityScore, ACHIEVEMENT_DEFS,
-  clearAdminAnalyticsCache, deleteAllAnalytics, backupAnalytics
+  clearAdminAnalyticsCache, deleteAllAnalytics, backupAnalytics, cleanupOrphanAnalytics
 };
