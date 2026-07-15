@@ -4117,8 +4117,9 @@ app.get('/api/admin/test-send-raw-fcm', requireAdmin, async (req, res) => {
   try {
     const token = req.query.token || '';
     if (!token) return res.json({ success: false, error: 'Missing ?token=' });
-    const messaging = admin.messaging ? admin.messaging() : null;
-    if (!messaging) return res.json({ success: false, error: 'admin.messaging() not available' });
+    const hasMessaging = admin && typeof admin.messaging === 'function';
+    if (!hasMessaging) return res.json({ success: false, error: 'admin.messaging is not a function (messaging scope unavailable)' });
+    const messaging = admin.messaging();
     try {
       const result = await messaging.send({ token: token, data: { title: 'Test', body: 'raw fcm test', url: '/' } });
       res.json({ success: true, result: result });
@@ -4126,7 +4127,7 @@ app.get('/api/admin/test-send-raw-fcm', requireAdmin, async (req, res) => {
       res.json({ success: false, errorCode: e.code || '', errorMessage: e.message, fullError: e.errorInfo || null });
     }
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ success: false, serverError: e.message, stack: (e.stack || '').split('\n').slice(0,3).join(' | ') });
   }
 });
 
