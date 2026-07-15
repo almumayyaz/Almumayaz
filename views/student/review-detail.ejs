@@ -110,29 +110,29 @@ function startReviewTimer() {
 
 startReviewTimer();
 
-document.querySelector('.btn-submit-review')?.addEventListener('click', function() {
-  clearInterval(timerInterval);
-});
-
-document.querySelectorAll('.btn-submit-review').forEach(btn => {
-  btn.addEventListener('click', function() {
+document.querySelectorAll('.btn-submit-review').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    clearInterval(timerInterval);
     const quiz = this.closest('.quiz-section');
     if (!quiz) return;
     const questions = quiz.querySelectorAll('.quiz-question');
-    let score = 0, total = questions.length, allAnswered = true;
+    const total = questions.length;
+    if (!total) return;
+    let score = 0, allAnswered = true;
 
-    questions.forEach((q) => {
+    questions.forEach(function (q) {
       const selected = q.querySelector('input[type="radio"]:checked');
       const options = q.querySelectorAll('.quiz-option');
-      const correct = parseInt(q.dataset.correct);
+      const correct = parseInt(q.dataset.correct, 10);
       if (!selected) { allAnswered = false; return; }
-      const selIdx = parseInt(selected.value);
-      options.forEach((o, oi) => {
+      const selIdx = parseInt(selected.value, 10);
+      options.forEach(function (o, oi) {
         o.style.borderColor = oi === correct ? '#059669' : '';
         o.style.background = oi === correct ? 'rgba(5,150,105,0.08)' : '';
       });
-      if (selIdx === correct) score++;
-      else {
+      if (selIdx === correct) {
+        score++;
+      } else {
         selected.closest('.quiz-option').style.borderColor = '#DC2626';
         var wrongMsg = q.dataset.wrongMsg || 'إجابة غير صحيحة، راجع الدرس ثم حاول مرة أخرى.';
         if (!q.querySelector('.wrong-msg-card')) {
@@ -143,6 +143,7 @@ document.querySelectorAll('.btn-submit-review').forEach(btn => {
           q.appendChild(card);
         }
       }
+    });
 
     if (!allAnswered) { alert('يرجى الإجابة على جميع الأسئلة أولاً'); return; }
 
@@ -157,9 +158,24 @@ document.querySelectorAll('.btn-submit-review').forEach(btn => {
     const resTextColor = isDark ? '#111' : '#fff';
     const results = '<div class="quiz-results" style="margin-top:20px;padding:24px;background:var(--card);border-radius:12px;border:1px solid var(--border);"><div style="text-align:center;padding:24px;background:var(--gold-gradient);border-radius:12px;color:' + resTextColor + ';margin-bottom:16px;"><div style="font-size:48px;font-weight:900;line-height:1;">' + score + '/' + total + '</div><div style="font-size:20px;opacity:0.85;">' + pct + '%</div><div style="font-size:26px;font-weight:700;margin-top:8px;">' + grade + '</div></div></div>';
 
-    this.style.display = 'none';
+    btn.style.display = 'none';
     quiz.querySelector('.quiz-results')?.remove();
     quiz.insertAdjacentHTML('beforeend', results);
+
+    fetch('/api/analytics/quiz/submit', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        courseId: '<%= (review.courseId || "") %>',
+        quizId: '<%= review.id %>',
+        quizTitle: '<%= (review.title || "").replace(/"/g,"\\\"") %>',
+        score: score,
+        total: total,
+        correct: score,
+        wrong: total - score,
+        timeTaken: 0
+      })
+    }).catch(function(){});
   });
 });
 </script>
