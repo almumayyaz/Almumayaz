@@ -41,6 +41,7 @@
     var paused = false, pendingRebuild = false, kfId = 'annKF';
 
     function createItem(a) {
+      if (!a || typeof a !== 'object') return null;
       var d = document.createElement('div');
       d.style.cssText = 'display:inline-flex;align-items:center;gap:6px;padding:4px 14px;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.2);border-radius:20px;font-size:12px;flex:0 0 auto;width:auto;';
       var ts = document.createElement('span');
@@ -61,17 +62,22 @@
     }
 
     function buildTrack(data) {
-      if (!track) return;
-      track.innerHTML = '';
-      for (var i = 0; i < data.length; i++) track.appendChild(createItem(data[i]));
-      if (!track.children.length) return;
-      var ch = track.children, n = ch.length, setW = 0;
+      var t = document.getElementById('annTrack');
+      if (!t || !data || !data.length) return;
+      track = t;
+      t.innerHTML = '';
+      for (var i = 0; i < data.length; i++) {
+        var item = createItem(data[i]);
+        if (item) t.appendChild(item);
+      }
+      if (!t.children.length) return;
+      var ch = t.children, n = ch.length, setW = 0;
       for (var i = 0; i < n; i++) setW += ch[i].offsetWidth;
       setW += (n - 1) * 12;
       var cw = mask.offsetWidth;
       if (setW <= 0 || cw <= 0) return;
       var copies = Math.max(Math.ceil(cw * 3 / setW), 2);
-      for (var c = 1; c < copies; c++) for (var j = 0; j < n; j++) track.appendChild(ch[j].cloneNode(true));
+      for (var c = 1; c < copies; c++) for (var j = 0; j < n; j++) t.appendChild(ch[j].cloneNode(true));
       var dist = -setW, dur = setW / speed;
       var old = document.getElementById(kfId);
       if (old) old.remove();
@@ -80,8 +86,8 @@
       st.id = kfId;
       st.textContent = '@keyframes ' + nm + '{from{transform:translateX(0px)}to{transform:translateX(' + dist + 'px)}}';
       document.head.appendChild(st);
-      track.style.animation = nm + ' ' + dur + 's linear infinite';
-      if (paused) track.style.animationPlayState = 'paused';
+      t.style.animation = nm + ' ' + dur + 's linear infinite';
+      if (paused) t.style.animationPlayState = 'paused';
     }
 
     buildTrack(annData.length ? annData : Array.from(track.children).map(function(el){
@@ -275,49 +281,7 @@
     </div>
   <% } %>
 
-  <% if (analyticsData) { var ap = analyticsData.progress; %>
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:16px;">
-    <div style="background:var(--card);border-radius:var(--radius-lg);padding:14px;text-align:center;border:1px solid var(--border);">
-      <div style="font-size:22px;font-weight:800;color:var(--accent);"><%= ap.completedLessons %></div>
-      <div style="font-size:11px;color:var(--text-light);margin-top:4px;">الدروس المكتملة</div>
-    </div>
-    <div style="background:var(--card);border-radius:var(--radius-lg);padding:14px;text-align:center;border:1px solid var(--border);">
-      <div style="font-size:22px;font-weight:800;color:var(--primary);"><%= Math.floor(ap.totalWatchTime / 60) %>:<%= String(ap.totalWatchTime % 60).padStart(2,'0') %></div>
-      <div style="font-size:11px;color:var(--text-light);margin-top:4px;">وقت المشاهدة</div>
-    </div>
-    <div style="background:var(--card);border-radius:var(--radius-lg);padding:14px;text-align:center;border:1px solid var(--border);">
-      <div style="font-size:22px;font-weight:800;color:var(--success);"><%= ap.currentStreak %></div>
-      <div style="font-size:11px;color:var(--text-light);margin-top:4px;">أيام المواظبة</div>
-    </div>
-    <div style="background:var(--card);border-radius:var(--radius-lg);padding:14px;text-align:center;border:1px solid var(--border);">
-      <div style="font-size:22px;font-weight:800;color:var(--danger);"><%= ap.averageQuizScore %>%</div>
-      <div style="font-size:11px;color:var(--text-light);margin-top:4px;">متوسط الاختبارات</div>
-    </div>
-    <div style="background:var(--card);border-radius:var(--radius-lg);padding:14px;text-align:center;border:1px solid var(--border);background:linear-gradient(135deg,var(--accent-glow),transparent);">
-      <div style="font-size:22px;font-weight:800;color:var(--accent);"><%= ap.activityScore %></div>
-      <div style="font-size:11px;color:var(--text-light);margin-top:4px;">مستوى النشاط</div>
-    </div>
-  </div>
-
-  <% if (analyticsData.courseProgress && analyticsData.courseProgress.length > 0) { %>
-  <div style="background:var(--card);border-radius:var(--radius-lg);padding:24px;box-shadow:var(--shadow);border:1px solid var(--border);margin-bottom:16px;">
-    <h3 style="font-size:16px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px;">
-      <i class="fas fa-chart-line" style="color:var(--accent);"></i> تقدمك في المحاضرات
-    </h3>
-    <% analyticsData.courseProgress.slice(0, 6).forEach(function(c) { %>
-    <div style="margin-bottom:10px;">
-      <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;margin-bottom:4px;">
-        <span style="display:flex;align-items:center;gap:6px;"><i class="fas <%= c.courseIcon || 'fa-book' %>" style="color:<%= c.courseColor || 'var(--accent)' %>;"></i> <%= c.courseTitle %></span>
-        <span><%= c.completedLessons %>/<%= c.totalLessons %></span>
-      </div>
-      <div style="background:var(--bg);border-radius:10px;height:8px;overflow:hidden;">
-        <div style="background:linear-gradient(90deg,var(--accent),var(--primary));border-radius:10px;height:100%;width:<%= c.completionPercent %>%"></div>
-      </div>
-    </div>
-    <% }); %>
-  </div>
-  <% } %>
-  <% } else if (progress && Object.keys(progress).length > 0) { %>
+  <% if (progress && Object.keys(progress).length > 0) { %>
   <div style="background:var(--card);border-radius:var(--radius-lg);padding:24px;box-shadow:var(--shadow);border:1px solid var(--border);margin-bottom:16px;">
     <h3 style="font-size:16px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px;">
       <i class="fas fa-chart-line" style="color:var(--accent);"></i> تقدمك في المحاضرات

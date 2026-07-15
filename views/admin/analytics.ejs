@@ -108,7 +108,10 @@
   var worstTests = (ov.worstTests || []).slice();
   var hardest = bestTests[0] || null;
   var easiest = worstTests[0] || null;
-  var byStudents = exams.slice().sort(function(a, b) { return b.students - a.students; });
+  // Most/least attempted must exclude tests already shown in best/worst (dedupe by id).
+  var shownIds = new Set([].concat(bestTests.map(function(t){return t.id || t.examId;}), worstTests.map(function(t){return t.id || t.examId;})));
+  var remaining = exams.filter(function(e) { return !shownIds.has(e.examId); });
+  var byStudents = remaining.slice().sort(function(a, b) { return b.students - a.students; });
   var mostSolved = byStudents[0] || null;
   var leastSolved = byStudents.length > 1 ? byStudents[byStudents.length - 1] : null;
   document.getElementById('hardestExam').innerHTML = hardest ? renderExamCard(hardest, '🔥') : '<div style="text-align:center;padding:20px;color:var(--text-muted);">لا توجد بيانات حتى الآن</div>';
