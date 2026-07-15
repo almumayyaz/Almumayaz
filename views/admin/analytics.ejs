@@ -3,6 +3,12 @@
 <main class="main-content">
   <div class="page-header"><h1><i class="fas fa-chart-bar"></i> تحليلات المنصة</h1></div>
 
+  <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
+    <button id="btnBackupAnalytics" class="btn btn-sm" style="background:var(--accent-glow);color:var(--accent);border:1px solid var(--accent);"><i class="fas fa-save"></i> حفظ نسخة من التحليلات الحالية</button>
+    <button id="btnDeleteAnalytics" class="btn btn-sm" style="background:rgba(220,38,38,0.12);color:#dc2626;border:1px solid #dc2626;"><i class="fas fa-trash-alt"></i> حذف جميع بيانات التحليلات</button>
+    <span id="analyticsActionMsg" style="font-size:12px;color:var(--text-muted);align-self:center;"></span>
+  </div>
+
   <div id="overviewCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px;"></div>
 
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
@@ -108,6 +114,30 @@
   document.getElementById('easiestExam').innerHTML = easiest ? renderExamCard(easiest, '🏆') : '<div style="text-align:center;padding:20px;color:var(--text-muted);">لا توجد بيانات حتى الآن</div>';
   document.getElementById('mostSolvedExam').innerHTML = mostSolved ? renderExamCard(mostSolved, '📈') : '<div style="text-align:center;padding:20px;color:var(--text-muted);">لا توجد بيانات حتى الآن</div>';
   document.getElementById('leastSolvedExam').innerHTML = leastSolved ? renderExamCard(leastSolved, '📉') : '<div style="text-align:center;padding:20px;color:var(--text-muted);">لا توجد بيانات حتى الآن</div>';
+
+  // Backup / delete actions
+  var actionMsg = document.getElementById('analyticsActionMsg');
+  document.getElementById('btnBackupAnalytics').addEventListener('click', async function() {
+    this.disabled = true; actionMsg.textContent = 'جاري الحفظ...';
+    try {
+      var r = await fetch('/api/admin/analytics/v2/backup', { method: 'POST' });
+      var d = await r.json();
+      actionMsg.textContent = d.success ? 'تم حفظ النسخة بنجاح ✓' : ('فشل: ' + (d.error || ''));
+    } catch (e) { actionMsg.textContent = 'فشل الحفظ'; }
+    this.disabled = false;
+  });
+  document.getElementById('btnDeleteAnalytics').addEventListener('click', async function() {
+    if (!confirm('هل أنت متأكد؟ سيتم حذف جميع بيانات التحليلات نهائياً من قاعدة البيانات ولا يمكن استرجاعها (إلا من نسخة محفوظة).')) return;
+    if (!confirm('تأكيد نهائي: حذف كل بيانات التحليلات؟')) return;
+    this.disabled = true; actionMsg.textContent = 'جاري الحذف...';
+    try {
+      var r = await fetch('/api/admin/analytics/v2/delete-all', { method: 'POST' });
+      var d = await r.json();
+      actionMsg.textContent = d.success ? ('تم حذف ' + (d.deleted || 0) + ' سجل ✓') : ('فشل: ' + (d.error || ''));
+      if (d.success) setTimeout(function(){ location.reload(); }, 800);
+    } catch (e) { actionMsg.textContent = 'فشل الحذف'; }
+    this.disabled = false;
+  });
 })();
 
 function renderStudentTable(data) {

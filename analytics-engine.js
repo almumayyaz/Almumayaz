@@ -1,4 +1,4 @@
-const { readData, writeData, updateData } = require('./firebase-admin');
+const { readData, writeData, updateData, fbRemove } = require('./firebase-admin');
 
 const ROOT = 'studentAnalytics';
 
@@ -655,8 +655,37 @@ async function migrateAll() {
   return { total: students.length, migrated, skipped, errors };
 }
 
+function clearAdminAnalyticsCache() {
+  _adminAnalyticsCache = { value: null, expires: 0 };
+}
+
+async function deleteAllAnalytics() {
+  const all = await readData('studentAnalytics') || {};
+  const uids = Object.keys(all);
+  if (fbRemove) {
+    await Promise.all(uids.map(uid => fbRemove('studentAnalytics/' + uid).catch(() => {})));
+  }
+  // also drop any backups we manage
+  if (fbRemove) {
+    try { await fbRemove('analyticsBackups'); } catch (e) {}
+  }
+  clearAdminAnalyticsCache();
+  return { deleted: uids.length };
+}
+
+async function backupAnalytics() {
+  const data = await getAdminAnalytics();
+  const ts = new Date().toISOString().replace(/[:.]/g, '-');
+  const record = { createdAt: new Date().toISOString(), data };
+  if (writeData) {
+    await writeData('analyticsBackups/' + ts, record);
+  }
+  return { backupId: ts, saved: true };
+}
+
 module.exports = {
   getAnalytics, trackLogin, trackVideoHeartbeat, trackPdfOpen, trackQuizSubmit,
   getStudentDashboardData, getAdminAnalytics, getAdminStudentDetail, migrateAll,
-  computeLessonStatuses, makeSummary, calcActivityScore, ACHIEVEMENT_DEFS
+  computeLessonStatuses, makeSummary, calcActivityScore, ACHIEVEMENT_DEFS,
+  clearAdminAnalyticsCache, deleteAllAnalytics, backupAnalytics
 };

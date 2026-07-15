@@ -2114,6 +2114,26 @@ app.get('/api/admin/analytics/v2/overview', requireAdmin, async (req, res) => {
   }
 });
 
+// Admin: delete ALL analytics data (from DB too)
+app.post('/api/admin/analytics/v2/delete-all', requireAdmin, async (req, res) => {
+  try {
+    const result = await analytics.deleteAllAnalytics();
+    res.json({ success: true, ...result });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Admin: save a snapshot/backup of current analytics
+app.post('/api/admin/analytics/v2/backup', requireAdmin, async (req, res) => {
+  try {
+    const result = await analytics.backupAnalytics();
+    res.json({ success: true, ...result });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Admin: single student detail (engine v2)
 app.get('/api/admin/analytics/v2/student/:studentId', requireAdmin, async (req, res) => {
   try {
