@@ -4131,6 +4131,21 @@ app.get('/api/admin/test-send-raw-fcm', requireAdmin, async (req, res) => {
   }
 });
 
+app.get('/api/admin/fcm-project', requireAdmin, async (req, res) => {
+  try {
+    let projectId = 'unknown', databaseURL = 'unknown';
+    try {
+      const opts = admin.app().options || {};
+      projectId = opts.projectId || 'unknown';
+      databaseURL = opts.databaseURL || 'unknown';
+    } catch (e) {}
+    const dbProject = (databaseURL.match(/https:\/\/([^.]+)\.firebaseio\.com/) || [])[1] || 'unknown';
+    res.json({ serverProjectId: projectId, dbProjectId: dbProject, databaseURL: databaseURL });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/api/admin/test-send-fcm', requireAdmin, async (req, res) => {
   try {
     const users = await readData('users');
