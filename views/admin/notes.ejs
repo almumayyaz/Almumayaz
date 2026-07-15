@@ -1,0 +1,139 @@
+<%- include('../partials/header', { title: title, bodyClass: 'admin-body' }) %>
+<%- include('../partials/admin-sidebar') %>
+<script src="/js/pdf-upload.js"></script>
+<main class="admin-content">
+  <div class="page-header">
+    <div>
+      <h1>المذكرات</h1>
+      <p>رفع وإدارة المذكرات التعليمية (PDF)</p>
+    </div>
+    <button class="btn btn-primary" onclick="openNoteModal()"><i class="fas fa-plus"></i> مذكرة جديدة</button>
+  </div>
+  <div class="admin-table">
+    <table>
+      <thead>
+        <tr><th>#</th><th>العنوان</th><th>وصف</th><th>الملف</th><th>المرحلة</th><th>الصف</th><th>التاريخ</th><th>الإجراءات</th></tr>
+      </thead>
+      <tbody>
+        <% if (notes.length > 0) { %>
+          <% notes.forEach(function(n, i) { %>
+          <tr>
+            <td><%= i + 1 %></td>
+            <td><strong><%= n.title %></strong></td>
+            <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><%= n.description || '-' %></td>
+            <td><% if (n.filePath || n.fileUrl) { %><a href="/student/note-pdf/<%= n.id %>" target="_blank" class="btn btn-sm btn-outline"><i class="fas fa-file-pdf"></i> عرض</a><% } else { %><span style="color:var(--text-light);">-</span><% } %></td>
+            <td><%= n.stage === 'إعدادية' ? 'إعدادية' : n.stage === 'ثانوية' ? 'ثانوية' : '-' %></td>
+            <td><%= n.grade || '-' %></td>
+            <td><%= n.createdAt ? n.createdAt.substring(0, 10) : '-' %></td>
+            <td>
+              <div class="admin-actions">
+                <button class="edit" onclick='openNoteModal(<%= JSON.stringify(n) %>)'><i class="fas fa-edit"></i></button>
+                <button class="delete" onclick="deleteNote('<%= n.id %>')"><i class="fas fa-trash"></i></button>
+              </div>
+            </td>
+          </tr>
+          <% }) %>
+        <% } else { %>
+          <tr><td colspan="8" style="text-align:center;color:var(--text-light);">لا توجد مذكرات</td></tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<!-- Note Modal -->
+<div class="modal-overlay" id="noteModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="noteModalTitle">مذكرة جديدة</h3>
+      <button class="modal-close" onclick="closeNoteModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="noteId">
+      <div class="form-group"><label>عنوان المذكرة</label><input id="noteTitle" placeholder="مثال: مذكرة النحو للصف الثالث الثانوي"></div>
+      <div class="form-group"><label>وصف</label><textarea id="noteDesc" rows="3" placeholder="وصف مختصر للمذكرة"></textarea></div>
+      <div class="form-group"><label>المرحلة الدراسية</label><select id="noteStage" onchange="updateNoteGrades()"><option value="">اختر المرحلة</option><option value="إعدادية">إعدادية</option><option value="ثانوية">ثانوية</option></select></div>
+      <div class="form-group"><label>الصف الدراسي</label><select id="noteGrade"><option value="">اختر الصف</option></select></div>
+      <div class="form-group">
+        <label>ملف المذكرة PDF (يُرفع للتخزين الآمن)</label>
+        <input type="file" id="noteFile" accept="application/pdf" style="padding:8px;width:100%;">
+        <input type="hidden" id="noteFilePath" value="">
+        <span id="noteFileCurrent" style="font-size:12px;color:var(--accent);display:none;"><i class="fas fa-check"></i> ملف مرفوع مسبقاً (اترك الحقل فارغاً للإبقاء عليه)</span>
+      </div>
+      <button class="btn btn-primary" onclick="saveNote()" id="saveNoteBtn" style="width:100%;"><i class="fas fa-save"></i> حفظ</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function openNoteModal(note) {
+  document.getElementById('noteModalTitle').textContent = note ? 'تعديل المذكرة' : 'مذكرة جديدة';
+  document.getElementById('noteId').value = note ? note.id : '';
+  document.getElementById('noteTitle').value = note ? note.title : '';
+  document.getElementById('noteDesc').value = note ? (note.description || '') : '';
+  document.getElementById('noteFilePath').value = note ? (note.filePath || '') : '';
+  document.getElementById('noteFile').value = '';
+  document.getElementById('noteFileCurrent').style.display = note && note.filePath ? 'inline' : 'none';
+  document.getElementById('noteStage').value = note ? (note.stage || '') : '';
+  updateNoteGrades();
+  document.getElementById('noteGrade').value = note ? (note.grade || '') : '';
+  document.getElementById('noteModal').classList.add('show');
+}
+function closeNoteModal() { document.getElementById('noteModal').classList.remove('show'); }
+function updateNoteGrades() {
+  var stage = document.getElementById('noteStage').value;
+  var gradeSelect = document.getElementById('noteGrade');
+  gradeSelect.innerHTML = '<option value="">اختر الصف</option>';
+  if (stage === 'إعدادية') {
+    ['الأول الإعدادي', 'الثاني الإعدادي', 'الثالث الإعدادي'].forEach(function(g) {
+      gradeSelect.innerHTML += '<option value="' + g + '">' + g + '</option>';
+    });
+  } else if (stage === 'ثانوية') {
+    ['الأول الثانوي', 'الثاني الثانوي', 'الثالث الثانوي'].forEach(function(g) {
+      gradeSelect.innerHTML += '<option value="' + g + '">' + g + '</option>';
+    });
+  }
+}
+function saveNote() {
+  var id = document.getElementById('noteId').value;
+  var title = document.getElementById('noteTitle').value.trim();
+  var desc = document.getElementById('noteDesc').value.trim();
+  var file = document.getElementById('noteFile').files[0];
+  var existingPath = document.getElementById('noteFilePath').value;
+  var btn = document.getElementById('saveNoteBtn');
+  if (!title) { alert('يرجى إدخال عنوان المذكرة'); return; }
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحفظ...';
+
+  var stage = document.getElementById('noteStage').value;
+  var grade = document.getElementById('noteGrade').value;
+
+  var doSave = function(filePath) {
+    var data = { title: title, description: desc, filePath: filePath || '', stage: stage, grade: grade };
+    var method = id ? 'PUT' : 'POST';
+    var urlPath = id ? '/api/admin/notes/' + id : '/api/admin/notes';
+    if (window.uploadStepSave) window.uploadStepSave();
+    fetch(urlPath, { method: method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.success) { if (window.uploadDone) window.uploadDone(); location.reload(); }
+        else { if (window.uploadError) window.uploadError(d.error); alert(d.error || 'فشل الحفظ'); btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> حفظ'; }
+      })
+      .catch(function() { if (window.uploadError) window.uploadError('خطأ في الاتصال'); alert('خطأ في الاتصال'); btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> حفظ'; });
+  };
+
+  if (file) {
+    uploadPdfFile(file, 'notes').then(function(path){ doSave(path); })
+      .catch(function(e){ alert('فشل رفع الملف: ' + (e && e.message ? e.message : e)); btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> حفظ'; });
+  } else {
+    doSave(existingPath);
+  }
+}
+function deleteNote(id) {
+  if (!confirm('هل أنت متأكد من حذف المذكرة؟')) return;
+  fetch('/api/admin/notes/' + id, { method: 'DELETE' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) { if (d.success) location.reload(); else alert(d.error || 'فشل الحذف'); })
+    .catch(function() { alert('خطأ في الاتصال'); });
+}
+</script>
+<%- include('../partials/footer') %>

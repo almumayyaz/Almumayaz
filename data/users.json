@@ -1,32 +1,296 @@
 [
   {
-    "id": "admin-1",
-    "uid": "admin-1",
-    "name": "محمد عفيفي",
     "email": "admin@lughati.com",
+    "fcmToken": "d60oAZQmSLQa6XP4sgaPrE:APA91bESvY7dFS2PDgPFq1Yl_9wE9t2xT4fXstxEjkYKMV7Ww3y4kNf6ztt6GZ5r-ysSoKiRDeJ3RevxGI4piV27ezGqjXMXhWPcSsukHpJX_fekRxj3Qyk",
+    "grade": "",
+    "id": "admin-1",
+    "lastLogin": "2026-07-11T14:00:27.911Z",
+    "name": "محمد عفيفي",
+    "password": "scrypt$5300013f4677fe7aebefa2f9ca99a749$cacdd3bcbecfd6cd5da1f3689060cb17ad022c05a4949e25a778162f2665abf897927e9578a04c3389b7f6787ad03060aef15f5a1475bad8d8b855ba50023600",
     "phone": "01000000000",
-    "password": "admin123",
+    "referralCode": "REF-AIXYDAU7",
+    "referralDiscount": 0,
     "role": "admin",
-    "grade": ""
+    "uid": "admin-1"
   },
   {
-    "id": "aaefc504-d99f-4ae8-9be4-463926ae2737",
-    "name": "dghadh",
-    "email": "student0111111111@lughati.com",
-    "phone": "0111111111",
-    "parentPhone": "01111111111",
+    "createdAt": "2026-07-11T03:03:46.096Z",
+    "email": "abdogaming172@gmail.com",
+    "fcmToken": "fPXr-3QXcRlhR0f1tjJPy3:APA91bFm8gG9DHpPc-jdDsHi58Qo2cq6zTCViLv7ZlxYS4RV2AjSmUSkVKx5iWIYyOuw9da9dKa4Bfg-n4kYwCv0ggH0wdSDhVOjbuRH5QCVdnFTL3Sjor0",
+    "governorate": "الإسكندرية",
     "grade": "الثالث الثانوي",
-    "password": "ghdthshhsrhr",
-    "role": "student"
-  },
-  {
-    "id": "516ae2d3-a44a-4973-9cc1-c22b539cea53",
-    "name": "Abdulrahman",
-    "email": "student01211275526@lughati.com",
-    "phone": "01211275526",
+    "id": "QaxXJc8KwyPrTpABL75cCpxtnBU2",
+    "lastLogin": "2026-07-13T20:26:38.495Z",
+    "name": "عبدالرحمن محمد",
     "parentPhone": "01211275526",
+    "phone": "01211275526",
+    "progress": {
+      "1": {
+        "percentage": 100
+      },
+      "1783693224121": {
+        "percentage": 56
+      }
+    },
+    "referralCode": "REF-TGGR7BFG",
+    "referralDiscount": 0,
+    "referredBy": "",
+    "role": "admin",
+    "stage": "ثانوية",
+    "subscriptionEnd": "2026-08-10T13:24:27.334Z",
+    "subscriptionStart": "2026-07-11T13:24:27.334Z",
+    "subscriptionStatus": "active",
+    "uid": "QaxXJc8KwyPrTpABL75cCpxtnBU2"
+  },
+  {
+    "createdAt": "2026-07-11T15:58:38.770Z",
+    "email": "ahmed.albanna66@gmail.com",
+    "fcmToken": "dDRPo3dDHs4rypPDJfyGcE:APA91bEHdqrMQWS8hN4qc1b4tyOGvUTQbuCCt9BScaOl5I6wb78Qc2v2Ukpb8HJEgy078hyYr1c3GlXCaYyDgAa-vWIvUNEyZ4HiHl8vb6Aps4F45dWq4xU",
+    "governorate": "الإسكندرية",
     "grade": "الثالث الثانوي",
-    "password": "A111111",
-    "role": "student"
+    "id": "PaFv49S3pmVIwyxTjrDMWzzcE9D3",
+    "lastLogin": "2026-07-11T15:58:38.770Z",
+    "name": "Ahmed Elbanna",
+    "parentPhone": "01270114670",
+    "phone": "01270114670",
+    "progress": [
+      null,
+      {
+        "percentage": 100
+      }
+    ],
+    "referralCode": "REF-GDUS46YD",
+    "referralDiscount": 0,
+    "referredBy": "",
+    "role": "admin",
+    "stage": "ثانوية",
+    "subscriptionStatus": "inactive",
+    "uid": "PaFv49S3pmVIwyxTjrDMWzzcE9D3"
+  },
+  {
+    "childrenIds": [
+      "IVkOeCkoiGefRLeBqAmzdXFs3Q52"
+    ],
+    "createdAt": "2026-07-12T00:57:57.385Z",
+    "email": "",
+    "fcmToken": "eZ_yrno4T-lpH5KkG90WaI:APA91bEx5RbTAjWkSNBPy0YGqsEQfX19L7PSlpLeUz13JzGIKKd5gjAIwPtxjZyi4mFQcl4_QtSup4lz63089x9jz6vlEyEzwmb1Q8oGQfCMBEaIl5vv-BA",
+    "id": "PARENT-1783817877385-rg2t",
+    "lastLogin": "2026-07-12T00:57:57.386Z",
+    "name": "محمد",
+    "parentOf": [
+      "عبدالرحمن"
+    ],
+    "password": "aaaaaa",
+    "phone": "11111111111",
+    "referralCode": "REF-88BC3JLV",
+    "referralDiscount": 0,
+    "role": "parent",
+    "uid": "PARENT-1783817877385-rg2t"
+  },
+  {
+    "avatar": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAABtbnRyUkdCIFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAAABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAAAABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAACAAAAAcAEcAbwBvAGcAbABlACAASQBuAGMALgAgADIAMAAxADb/2wBDAAYEBAUEBAYFBQUGBgYHCQ4JCQgICRINDQoOFRIWFhUSFBQXGiEcFxgfGRQUHScdHyIjJSUlFhwpLCgkKyEkJST/2wBDAQYGBgkICREJCREkGBQYJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCT/wAARCAEAAQADASIAAhEBAxEB/8QAHAAAAQQDAQAAAAAAAAAAAAAAAgEDBQcEBggA/8QAQhAAAQMDAgMGAwYDBAoDAAAAAQACAwQFEQYhEjFBBxMiUWFxFIGhCDJCkbHBFtHwFVJy4SMkJTNDgpKywvE0YqL/xAAaAQEAAgMBAAAAAAAAAAAAAAAAAQIDBAUG/8QAJBEAAwACAgIBBAMAAAAAAAAAAAECAxEEEiExURMiMkEFYYH/2gAMAwEAAhEDEQA/ALkxlewlS4VyggCXCVeAQHsJcLyXCA9hewlwlQCAJcJQlwgEAS4SgYSoBF5Y1fcKW2wGerqIoI+RdI4NH5lV9qPtz0/anSQUBfXTtBA4B4OLpv5JsaLKJAOF7I81zbee3rUdVM91EyKkYccGdy38+a189rms5JOM3pxd1w1o+mMKNk9WdZL3EPNcsntv1tGxsbK6nc0DAPdNyfdZVt+0DqijePjGU9W3kct4OL1yE2OrOnEqqLT/ANoWzVZjiutHUUj3bOkYONg/f6K0LVeaC+UjKu3VUdTTvOA9h5FSQZiQhHhJhABhIQjwkIQAYSEIiEhCAAhIQjKEoACEJCcIQkIAChIRkJCEA6lXl4IBcLy8lQHkoC8EqA9hEEiIBAeASryQuABJIGEAq0PX/ava9GsdTxyMqrjjIhb+Dy4vJan2q9szaAS2fT8zTO08M1W0ghvmG+vr7rneruc9TUullkc9z3ElzjkuKq38Fkvk2vWOv7tqubvrhUksH3Im7Mb8vP1K1R9fINmvO5TDnuf16ZWOSePGDy/JNFjIdVueckkkdcpsVHiB3Gd8eaDAxw7Z902dnYAKkGWZ8txn806yctGCeNvnlYTSQwDmR0+aUcchAbnyTQJFtRxEcGxzkDP0U5pzV990rI59mr5aUPw5zObHH1BWptjcwcR4gVlQyys3L9gMZxsoaB052e9udBfWsor+Y6CtLgxsnKKTpzPI581bAIcMtIIK4UgmOQcEHyCsDRHa1etLSRwuqH1dEzA7l7uQ9CoVfJDn4OqsYXioHR+srbrK2/F0MniaeF8Z+8w+qn8K5QAhIQjQuCAAhDhGQhIQAlCjIQlACQhKMoCgHEoSBKgFSpEqAVKEgRBAKAlXkoQHumVTfbR2oyWpz9PWeQCdzCKqZp/3YI+6D54/VWverhHabTWV8nKnhdJ74GQFxleLhPcauorKh5fNUyue9xPMk5/dVplpWzBlc6ZxfI7JJJ38lhyU/eHiaeLHPCMhwcA4+e5KGHhMRHHlxducdFCLgQR8Eb3SYHQeyddFF97jHCN/dee/vKRzXY43Hb0T9BYK6vjwyFz8/ooq0vZaYqvSI8RCRxIGGjfbBSdwcEgHcgZUhJZbjSvw6me12wBxn+tllx2eskjDfhpR8uZUfVn5LfRv4IuSBkTQMZxvsVj/ABfCchoA9uamv7KrGN4JKZ3DjHLp7qJqaT/S8ILvbCmbTK1jqfaHWTBzPEwE+qMyB7XcDWtxzHTCZjpSyM8Ry9+4GNhhDKTGCB93CsUMuKqw3icOLGx2TpYyQB0fh35LBpcFhGScjIB81lA4bw8hjPzVWSjcOz7Xldom8RVMYL6d5DaiI/jb6eq6ztN0pr1bae4UcrZYKhgexw8iuHo6lxJDsZHIq7vs9a4kir5tMVcpdFKHSU2T91w+80e43+RUy/0RS/ZfpCEozyQlXMYBCEoyEJQAFIURQlACUBRoSgCRIMokAQShCEQQBIuqEIggFRBIEoQGqdqUNTUaFu0VI3ikdDvjmG53+mVyFO/haRzB3GF21fmtNnrOIZHcv2xnPhK4jqsyVfD677KlF4GmUU9XGO7Yd/CFs+n+zqur2Zn4mA9PVbtoXScU1MKuaLDQA1jSOvUqxqG1wwgBkYaB5Bcvkcyk+sna43CjXays7T2P08UzH1D3yjoMcj/WVYlt0hQ0rGhlM1mAAAAtigp27YAWbHGMcloXku/yZ0IxxH4o1mbStJM1wNOzJOQcbppuk6UEZhZsMYIyttMeEndqnkumaTXaLgljeGNa3i3JIVTap7O6uKuc+lj4s/hI5+S6OdECOQKxZqCOTctCyY8143tGPJjnItUjmil7PrzOzxUz2nOQ52wUFedK3S3zFssDngdWjZdWyW+IM4QxuPIqIrrJBOQXMGRyK2J59p+TWrgYmtI5ggtNU/wtie1wdtkYSV1FPRVDXSNIy3byC6HrtM0r2ucIGGQ/i4RlajqDSTJKCaaSMcTQScc/dbEc7s/KNfJ/HqZ8MpyN7iSOLc5JGVtPZ9UTU2r7TPTk942pjGG8zvv+612opPhpJBjA4vfKsHsNtTblrqlL28TadjpsHcbbf+XNdFeTktaOr2HiaD5heISsbwN4fJeKyGIAoSEZQlAAUBCMhCUAKA80ZQlAICiCAIggCCMIAiCAII2oAjCAIIgEIRhAY9xiE1BPEfxxuH0XFM1LwXZ8ZGeCRw99yu3Xt4mlp5EYXH+sraLTra50YHC2KqfjPkTkfQql+jJi9lwaSjDbLSgAAcOy2WFgGFr+lhiy0e2B3Y6LZYWghedy+aZ6jH+KMmLKfYXBu2UMAadiR8lmRwg8sKqhlnSMfid1CLKyfhuuCm3xFp2BVugVIYcdkDnHHRZIiyRkYXjT+fRR0ZO0R8mSsWUEqVliaBnIWDO1u4yMqrhojsiMlZnOyibvTtmoKiMjmw/LZTs7MAnZRc7S9krQObThWhPZFvwc532n7qtnY0+DJI9DhWn9ma3uffK+t4fDFTd3k+bnA4//ACq61Kxrq+VjR1zt5nors+zZanQWW5XBzcCaYRN9eEf5rv4ntI81mWmy5SEiIhIVnNcAoSjKAoACgKcKbKAEoSiKEoAETShyiBQBhEECIIAwnAmwjagDARhC1EEAoGVzP22WZ1J2jyvYCBXxxSt2644D/wBv1XSFZdKC3cPxlZBT8XLvHhuVVHbDbI67Vul6luHNmd3ZcNw4BwI+mVjyNdWZcafZf2OGpp7DbIjUPayOCNrST1OOQ8ytHre027fEF1GyHuubGEPzj12/dbHdLHJfrwe/LfhIT4Yy0kOPUnceylv4f07RRtdUU1LHjG5GM/VclVjl7pbZ23GS1qXpGkU/bFe6Ut72zwvZ18Raf0WyWntygqXd1Pa5IHjn485+ilpZdPtgOaWIN55e0NJ/6sZUC+26bfOM0kcZcfCSzAPsRt8las8a/EiePkT/ACLJsurbdeqZktNM1xPNo3wfIqYY6OQZxlVXZrLT2qvbNQu7trjkt6FWFRz8TBk8x0WD6kt+DYUUvZnvlY3fooK76pprfJ3b+eDjy6bfVZlfxPiJa4g+fktMqqKKWaXvnFxc/iPpsB+yj6iT8kuW14IS/dsLrfIY6ehbO7+85xA5+i1yTtdu87uMW2nLPNgcMeu62l1ksbpwH0zJnZyWhnET6lTtKzT9PFwG3ReEZI7kOI9TjKzznx6/E17wZN/lorqDtSuU0zXOgh4OIAxkEE/MhbzarvTXmDv6Z+Tyew7Fh9QsmSz6fusbnQxQOxsQ0AY9PRQkGnf7CujaqhDu4eeGVhP4fPA22+Sq6x16WiVGSF5eysdc202/UFUMbPk4m+xAK6J7FaF9D2c2sPaGul7yXl0c9xB/LCpztSouK600jRkyQYHqQf8AMK+rFWWzS9gtNqqqyKKWKljYGH7xw0AnA5bro8el12zlciG71KNhIQFEyRk0bZI3texwyHNOQQkcto09aAIQlGUBQAO5oCnCE2UABQlEUhUAaCJCEQUgIIwgaiCAcCNvJA1OBAG1OD1QNRtQFW6iqzX6hrYJoxwMPC1+fljCjBbKpt0tEDqh0tJSulmjjfv3fhxgHnjLht6KRq4861r4iNjh/wCRKzAI33BxY4Hu48bdMn/JcLs1bez1eWJWKEl+kMVcjaOlfJ90+3NVhW3S+XG4OhhpamCmc/hkq+AOlA8mNzgK2304nAaQMLzLSxpyyNufZYJvVba2Om56plGXjR1wN5nks1BJdad7Iv8AS3COQvhcHAkbkDfGDzGHFbZYNItgspimt00dxlmfL3sMvAyMHkzhOctGOo6qz/hJTGWBsbR12TcdpPHkuLj9Fsvl1S1owRw4muxBUNLNT0ELKljW1DcA8ByD6rZbVI6QAZOyZqqZkTNuY807ZtgThaf7NxrwHdZzDGcLVXMkeJiW8TznhBOAStivjskNWPTUrJWeIAo/YS0ai2wyS26sZcoaqoq5o3ti7moDYoyRseHbJHqSqzq9J32OdrDaRQxAw8dXAZC8BrSCTlxzkniOBzAxgK+5LaWbtc4eoS/DztbjwP8AcLbjlVK1o1cnEm3tsqCouVztNZ3cQrqyhBAZVPj4Zo/f+8PdWNaa9txoGOLuIlozkY+ikpLSJvvxx48sIYbdHSuPA0NHotfJk7PaWjNMdVpvZrerLQ6uqrRIwhrmzFnERnG2R/2rLqmy0plqZZHVFZNzkk3yf5eikL23/VGycjDNHLnyAcM/TKauvBJQd8whzmePI8v/AEslU2kv0TxJlW20bb2Y3Oa42F4qCDJDIWnAwP62W2laZ2TRubpsyOHikk4ifln91uZXZ42/pLZ5/wDkVK5NqfkAoCjKEhZzSAKBycKAoBsoSjKAoBoJQkCJAEEQQtRBAONTgTYTjUA41GEDUYQFZ6hxQ3661DtiGNwfQklYlpD2zOe85dNG2T2GT/NTWuaaNl3aJmEwVsYjcR0dnA/b81CxGa31kFLUNdgMMUbz+MDcfPYrhZJ65Gj1E3348v8ApE/TDiws5keduSwqQ7DdS0DcrGp2ZJfgaEIzyKdEYazOFkFjQCViVdSImOLegRykW2Q1zlzJw/RZNtiLWB2Oaxf7NbI8Tyyhzyc4yp6gpmvbs4Y91SZJdJEFd4jjixyTFvqWl3d5GVM3aONjSHOG6hDbaUEubUNZL94AHf8AJGvJKZOsi428k26nIPJY9kr3Tt4XnONsqY4GuCskmQ3r2RrogB5FYlTHjJCl5WBqjKshuUclWyBvTRLbpoifvjg/M4UNHx07623Su4u7icAfMY2+izr5Wtg7hhBPHK08IGS4Agn9EzWQdy91S8OdWV4DWs6Rtxj9Er0i3GemyxtBUwpdL0gxjiBd+37Kfcsa00vwVrpKYjBjiaD743+qyTzXexT1hI8tyL75ar5YJQlEUJWQwgICjKAoAChKIoSoAwEQSBEFICajCBvJGEAbU6E21OBAG1G1A1ONQEJq61i4W3vPxQHiHt1/ZV/e+/dSMlGS6me2UH0Gx+hKtxzQ9pa4AgjBB6rW67Q8VW2aOOtkhhlBBZwBxGegK0eTx3VKpOpw+XEQ4yf4Qlvma+NjmnZwBCmKeTYFabYawxtfRy+Game6JwPThOFskVSODmuZX2vR1cVdlskJqj+6cLCndx+EqOvd9gstH8ROfYea0J3aTU1vePghIawfhGVVTV+UZHcz4ZtF2p4Inl8snh5ZD+F7PYrNsOoIqKLupKs1EQ+7K9wLh6HH6qn7xc7zfg58UVQ8nPgAO39fuoez1epKetDYKSqJ7wmTwEhu/X05rZnA9ezBfJ8pdWXXqS4Mu+IfiHxUmMyyscWn2BUfa6e1NxSW/uIGc3FpzI/3PNaPqqrvlZBEympKk07mcJLYiAH4WsWua82yT4iRlTG52PvAjA/9osG59kvkda11Oi6GEQhoj2aBsApSGpzz5qlLZ2l19CyM1LHPiJHiIwVZVi1HSX+jFRTPBI+83qFq1FY/LM05Zv0bDNKMKGrp+YBTlRW4bjJJWvXO7MhaQDxPdkDHRO2yK8Ec+c1eooe7BcKYOyOmcf5rbdO2d13vLKifdsAy7PlnYfmoXs907VX01dyZMyCMP7nDmklxxkkfmFaNrtUFpg7qLLnO3e883Fb+HjVVKn6Odm5sxjcy/uZmFAeaIoSuqcQEoCiJQlACUBRnkgKAAoSiKEqAMhEEgShSAwiCEIggHGpwJoFODkgHGowU2EYKAcCIIG8kQQFR9okQseq2VLGhkVc0SZAwC4DhcP0Ketl1jneY+IHByPUYW0dp+nDqDTMjoWcVVRnv4sDc4+835jP5BUvadQlk0MgflrQ3jJPTkuTzMP3dkdng59z1f6Nt17bHXWGncCXRRnL2g8woOKhqbBG3u7ZBNBJsXjZw26rfKYxXCCI4Dmuwdwst9uilhcwsG/MLRjI14Onpb2aNFdJYXBot3APNuNlIR10vAZWUr2eZb1Un/Z3wsmAAWjoVn8dN3YaaduMb46rOnLNuXOjVqi5VcviNPLIzHI9VgVNwqHeA2vbGcuIW7OkiZHwNgHLAJCipbe+qkIeRjyCh1KLU50aJUUtTfqj4VtqY1oOTK44DfbCm9E6frLNcpC4ubFlwIH3St1obXBTRACMBDVzspY3bgDBKw3lbXVejSqZddiGvNybBxNDsDO61S4VRiY97+LiLeWeW69c7g51U5xG+Rwg8gSeZUhpC0DU+pqWkOXQRO76cnfLGnOPmcD5rLgxNtIwcjKpltlv6FtZtGlaGne3Ermd7J/iduf1x8lOr2ABgDAXiu8lpaPN09vYLkJSuO6AlCp4oSV4lCSgEKEpSUBKAEoURKEoSNhKEgShSAwiCFEEAQTjU2E4EAYRhNhGFAHGogUAKMKQKQDzXNXanp7+EdbCSBjorZcDxx8OwY7q30GcldKqv+1fTsGoKKOmmADpI3NjeRuxwIII/NYOQ0o2zY4qbvSNc0tcWvoIwCMYHX7o6LaaeYSeJpBB/VUVa9SVdirzZrg4smhIjLi4gH1/L9VYtv1jCGMZxhreEYJPiJPQBcTLhqWd7FmmkbZd7YaynLoX8EgGfdVXqW5Xi0SuhZUy95nYDrv7qwHanjEJa1w7zlwg5I2z89lr1wjgr5HV5gYe6HFxOHiI8sfkmN6flGSvK0mRWlZr3eADNPKMHPvyVi0NpdTkPdIXbYIJzlajbrpHTSsEY4I2nhIG2VNs1dTxYD3AAjIOeijJtvwi06S1snphgYHRanqK4sbHIwO3G2Oqeq9X08Ry6QFp65VW6u1Y34iQxyktP3d9ySmLDVvRjyZpxrbMbUF4Z3rgw5IOwxzOeat/sPtjqGSoqarIqamEHDubW52H7qp9A6bkvNa28V7c0zDmFrvxkHmfT+SuvSJf/AG7E1nItOVvTcxknHP8ApoXFZMVZa/wscoCVDN1fbW6ml03UvdTXARtmhbLs2pYerD1IIII57KXJXVOMI4oSUpQEqAeJQkryQlCBCUBKUlCUJEKElKUJQAhKEgShSAwlCQJQgDCMFNhG1AOBECgCIIQOBGCmgjyhIagNax5t9PL1ZLj5EH+SngVB60cRZ2Y5d80H6rByVvFRn4r1lko3tM0YbiwXmhYfiYQC9rfxgdfdVxQ32WKQCR7hwkb77Lol0YfEWuGQRgg9Qqh7QOzpzJpLhaI9nu4pIQeR8x/Jc7jZk10s6nKw0n9TGYlm1K6WqqHvm5AhjgTnK3O13KM2dzi4B07uDL3cuefNUiypqqCcscxzSDvspmi1e+CB0LiSQOFrs8v62Wxk4+/MmHDyteKNzrLsyB7YmTeEYcHZ555n9eqgKnUZ717BIQACOeQRutZqr/NUZBdgnbbyWNBDXXKRzKaGSVxxswZwMq84ElujHfJdPUk3U6nmMUkfF4i3hbv6/wAlJ6R0dUajnbVXAFtGNwCN5N/09VmaW7M5ZpWVV12DTkQDff1P7K1KO3MpIWsiY1jR0HRavI5MwuuL2bfH4l2++b18A0lOylibFE0MY3YADAC3vs+tEhbNdJm4Y8cEIPUdXfM/oovTGk5b/K2WdpZb2nxO5GX0Hp5n+hZgijp4WxRNDGMGA0DYBTweM9/Uor/I8pa+lH+lH/aTtzqejs2oKVxiqqWoMPeNOHAOBcN/Qt+q2zsu10zW+nI5pXNFwpgI6lg6no8eh/XK1T7TFzjisVtt2R3k1QZcdcNaR/5Kk9HaxuGjrtFcLfIQW+F8ZPhlb1a5dpTuTiNnY5KEqF0hq63a0s7Ljb3+QlhcfFE/yP8APqpklYiTxQFESmygR4lCV4lISgEJQkpShchB4JQkCUKSQgiCQJQgCCMbIAjCAIIwhCUKAECiytZ1R2g6d0hEXXO4RiXpBGeOQ/Icvmqd1V9oe6XMvpdOUraCI7fES+OQ+w5D6qylv0Rsv65Xegs1K6quNZDSQt5vleAPl5qFtFc7tA0VV1lMA3v5ZXUfEMbMcQwn3Lcn3XKd0vVwuBM9xrairqH/AI5XlxA9PJdVdikXddmtiOPvQuf75e4/upvGuumTFtVtGt0NQKyAScJY7dr2O5tcDgg+oKaqoQ4kOGVN6xscmnbybvAP9m1zx3zcf7mY/i9nbfP3WBPGJGhzeRXmsuN47cs9PiyLLCtGp3LRVpu8hknpmGQ9Q0Z/PmouTsksjgXtgc0/3WuOAt47sg5ATw+7y3ULNc+EyXhivaNCi7MLJTSh3wvGRuGuJICnLfpuloG8NPTxxt8mtwtjEGdyPon6C3z3GqFNRxGaXmcbBo8yeiq7yZH13ssox4120kR0NGyJoJG5/MlbdYNDPqi2pujDHBzbT9X/AOLyHotjsOkKa1Bs0+Kiq/vkeFno0fvzU6RhdPjcBT92T2crlfyLr7cXr5MdkLIY2xxMDGNGA1owAEzN4QSsp/JV52ya1GjtJTvheBXVgMFP5tJG7vkPrhdRL9I5TZzz216s/ijWtUYnh1JRf6tDjkcfePzdn5AKvwU7M8veXOOSTnJTQCz6KGyaM1rctF3RtdQSbEcMsTj4JW+R/n0XUOitb2zXFt+LoHcEseBPTuPjiJ8/MHfB64XHoUhbb5X2KZtXb6ualmaRh8bi0qtRslM7RcgKozRf2gpm8FJqaDvm8hVwjDv+ZvI/LCua03u236jbWWyshqoXfiY7JHoRzB9CsLTXssZZQ80RQ4UAEoHIygKggIJQkCUFWJDCUIQVr9/1/p3TQc2vuMfet/4Mfjf+Q5fNAbKEj5WRML5HtY0blzjgBUjfvtDPy6OzW5sY6S1Byf8ApG31VY6j7QdQakeTX3KZ7OkTTwsH/KNldQyNnRupe13S2m2Oaa0VtQP+DTeI59TyCprWHbzf74H09uItdIdj3RzI4erunywqxkmc47kplxyrqEiDKknnuEzpJZHvJOXPcckrIha2IZOzQsSkmGCw7cP1Tkkpf6AdFdEMSqmMpc45wByXZ/ZLF3PZ3pxhGP8AZ8Dse7Af3XFwifMO7YMveeFo8ydl3TpejbbbPRUTBhtPAyID0a0BY8hKJiroKe50UtHVxNlgmaWPY4ZBBVW1toqdNVxtlQTJTuz8NOfxN/un/wCw+v5q2WOUBqe7aacDa7nXU5qJAMQNPFK3ycAMkH1WjyeOss/2bvF5Lw1/TNF7kEZASFgbz2Ut/DF0iLvh3Q1sGMxzNkDS4eRB6qQs2ipq17Z7riOIH/47XAl/+IjkPQLkLiZXXXR2Xy8Knt2Iqxadq9QycTeKno2nDpyN3ejR19+Ssa2WmktFM2npIgxo5nq4+ZPUrJiijhjbHExrGNGGtaMABEuvg404l49nF5PLvM/PhfB5A7kiKbeVsmqMTSBjS4kADfJXH/bJrg6x1bP3MpdQ0RMFOAdjg+J3zP0AV89uus/4W0fLT08vBW3DMEWDhzWkeJw9h19QuSHnKzY1+yrG3c0iI7+6QBZSDwQ1J/0Dz5bo0Mw4onjzaVDCGo5CMKasOqLpp6qbVWytmppAebDsfQjkR7rX2Oy0H0TrXYVSTonR/bzRV/d0uoYRSSnb4mIExk+o5j5ZVpUlbS3CBtRSVEVRC8Za+NwcD8wuKo5SOqntO6wvGmagT2yvlpz1bnLHe7TsVjeP4J2ddlAVUWl+36nqHsp9Q0ggJ2+JpwS0f4m8/wAs+ytW33Kju9IyroamKpgfyfG7IWJpr2SZIWBf7/Q6atc1yuMwjgiHzcegHmSs7OAuZu2jXT9S399vpZT8BRPMbADs9/Jzv2CtK2yGxNWdsF+1JVSGmqpbfQ5IjggeWkjzc4bkrSJqySZxc9xcTuSTklY5dtgIVnSKhOeShJyvYXirAHBJ2SiPzPySsOG+5SqAea0N5BGOSAIx0TQNs7ONNSag1HSMDcxxTMe7b1z+gK7KpG8IAVI/Z60+1tklusjPFJKQw+g2/UFW/eq+a3WyR9IzjrJAWQMxnLvM+gWK35LIqztu7ZLhp+sOmtPSdxUhnFU1Y5szyYzyPmfbCoCC4VBqXVTpn/EFxe6YOPGXHmS7nn1Vq9rOgpbdpmG+1D3S13xGKhxPR+f3H1VR07HPdsFnwIpbNuoNe6opg1seobm1g2DXTl4HydlbVoTth1Fpe58VbWyXS2SvzPBKBxMyd3MPQ+nI+nNV1DTOdvjZvmnZqhlO3IO623hhr7kYfqPfg7asF+t2pbbFcbXUNnp5Rs4cweoI6EeSkcLi/s47S75oi+tnt7X1dHO4CpoydpW+Y8nDoV2HZrrDebfDWwtewSNDjHIMOYT0IXNyR0fj0bEvaMspmZwY0uOwAySn3Kue27WjdI6NqBDLwVtb/q8AB3BI3d8hn6Kkrb0Sc89tGsv4v1nUvhlD6KjzTwYOWnB8Th7n9AtAKI7oStlLRUAr2xBK8UzPGJWFh5HmgFfVwsOC8Ejo3dNOrS7IZEfd2yabCIyGkexTvAPJRtgBrS0AeScC8AlwgFBRtfhNpcoSPtfuti0trW7aVnMttq3RB334zux/uFq4OEbXlGt+wdbdoF+Gm9I3G4B2JBH3cX+N3hH65+S5EmcZanJJJ3cSfNXz9oe8mKhttoY7/euNQ8eg2H6lUIN5nemAqQvAY6vYS4SrIQIhdyRYQuCA8NgAvZXl5CRQnIhlwHNNt5qX0vQG5X+3UYGe/qY4/wA3BEQdcdmtiFn0ZbqVrQ0thaXersZJ/MlbR8O1znTkAuOzc/hHkEFExtLbIY2jGGgALL4MQtHotdvyXNN7QrML3o680XCXPdTPfGBzL2jib9QFyVbRxS/1su2qiIPje0jOQRjz2XF9PE2gfOJyI3NcW8D9iCD1HRbfG/IxZPQ/U1LaVpIyAf1WFQ0FXfa+Ompo3SSSO4WgLHnn+NnEbCS3i2XSHYv2cRWi3x3KrhBqpWh/ibu0HcN/n/ks2bKY4gf7Ouyii0zSxz1kLKiteA5znDIb6BWNRUUlJMJKd/C88weRHkswRhjsY3T7W8Dc9StCqb9mwlodZWsfE5zvA5n3mnouRu3PWf8AFespYYJOKkt+YI/Iu/GfzGPkuiO0rUsWldJXK5ucA9kJZEM7ukds0fmc+wK4ye90r3PeS5ziSSepVsa/YYJSFKUByspUQoUYdkYd05FA8cIzlQAHAHbCBze7LRnZ3IeScJDGl7uQTLQXEvdzPTyHkoJCXkq9hSQeXkuF7CEgpeS9hLwoQf/Z",
+    "createdAt": "2026-07-12T23:07:54.227Z",
+    "email": "abdoulrahman.official@gmail.com",
+    "emailVerified": true,
+    "fcmToken": "cwtzlG2e-je1tWui2QC2E9:APA91bG8rWkBOiMDzx2FEhPfTmCypoGnmA3p8pjNBJjMGNJI-fG_rlwNfCoJb8RwVa31lxoeGJwbuzsSIozlLZk5jlmahB2Zk9d6NFYg-aIVEZC5lNo2zho",
+    "governorate": "الإسكندرية",
+    "grade": "الثالث الثانوي",
+    "id": "lKik1lI1mleXfuZTyZLO2dBjLHc2",
+    "lastLogin": "2026-07-13T23:38:13.072Z",
+    "name": "عبدالرحمن",
+    "parentEmail": "",
+    "parentId": "PARENT-1783909906505-vwoj",
+    "parentName": "",
+    "parentPhone": "01037623529",
+    "phone": "01211275526",
+    "planName": "",
+    "planPeriod": "",
+    "progress": {
+      "1": {
+        "percentage": 1
+      },
+      "1783693224121": {
+        "percentage": 0
+      }
+    },
+    "referralCode": "REF-4LQVD0B7",
+    "referralDiscount": 0,
+    "referredBy": "",
+    "role": "student",
+    "stage": "ثانوية",
+    "subscribedStage": "إعدادية",
+    "subscriptionEnd": "2026-08-12T19:14:34.552Z",
+    "subscriptionStart": "2026-07-13T19:14:34.552Z",
+    "subscriptionStatus": "active",
+    "uid": "lKik1lI1mleXfuZTyZLO2dBjLHc2"
+  },
+  {
+    "childrenIds": [
+      "lKik1lI1mleXfuZTyZLO2dBjLHc2"
+    ],
+    "createdAt": "2026-07-12T23:29:10.949Z",
+    "email": "abdogaming172@gmail.com",
+    "fcmToken": "",
+    "id": "PARENT-1783898950949-0gu2",
+    "lastLogin": "2026-07-12T23:29:10.949Z",
+    "name": "محمد",
+    "parentOf": [
+      "عبدالرحمن"
+    ],
+    "password": "aaaaaa",
+    "phone": "01211275526",
+    "referralCode": "REF-H9LF58QM",
+    "referralDiscount": 0,
+    "role": "parent",
+    "uid": "PARENT-1783898950949-0gu2"
+  },
+  {
+    "childrenIds": [
+      "lKik1lI1mleXfuZTyZLO2dBjLHc2"
+    ],
+    "createdAt": "2026-07-13T02:31:46.505Z",
+    "email": "",
+    "fcmToken": "fwjgcvJIvkxF9sHqj1UGcG:APA91bGrmHl2_ZE8iXIFycTwiXif5mVbeZk9fBca3ApnBdWYzhlJ5tWLspbla40S3yjxhI447SI7b_neYzSorv3M8j7pkm2O-eIwLdnePXJ5SC45RX5dncc",
+    "id": "PARENT-1783909906505-vwoj",
+    "lastLogin": "2026-07-13T02:31:46.505Z",
+    "name": "محمد",
+    "parentOf": [
+      "عبدالرحمن"
+    ],
+    "password": "mmmmmm",
+    "phone": "01037623529",
+    "referralCode": "REF-WH9XXN11",
+    "referralDiscount": 0,
+    "role": "parent",
+    "uid": "PARENT-1783909906505-vwoj"
+  },
+  {
+    "createdAt": "2026-07-13T13:38:47.825Z",
+    "email": "afifymohamed497@gmail.com",
+    "emailVerified": true,
+    "fcmToken": "fn960T1Z7UzByXitptmMR1:APA91bGWGbrCTeGt1RLwL294IDfYA-MqvFeyDA75BCKPrFTnV2dgDBItga7cw7yiTEgSw22Juw4MjQcmG4GGP8ypMCByBSCXWTQBoZmfhssn7UmnAd7kIVs",
+    "governorate": "الجيزة",
+    "grade": "الثالث الثانوي",
+    "id": "oGYcKIe3zdU5Vl8sufYywuYriZw1",
+    "lastLogin": "2026-07-13T23:54:05.630Z",
+    "name": "محمد محمود",
+    "parentPhone": "01147443654",
+    "phone": "",
+    "referralCode": "REF-U08QTZA8",
+    "referralDiscount": 0,
+    "referredBy": "",
+    "role": "admin",
+    "stage": "ثانوية",
+    "subscriptionStatus": "inactive",
+    "uid": "oGYcKIe3zdU5Vl8sufYywuYriZw1"
+  },
+  {
+    "dismissed": {
+      "notif-1783954480896": true,
+      "notif-1783960560246": true,
+      "notif-1783960573384": true,
+      "notif-1783961004789": true,
+      "notif-1783961011375": true
+    },
+    "fcmToken": "ctJyyen2v4i5HAHy9BV-v7:APA91bEpElW3vya-Oe2qOU07tdNMG82GsINKO2qb-yrBlojUbW4zmgwLzV0z6XktrDmnlNn20dsRwFUjHniznUJhv19XJ6ATyjGTAfZsaHgGy9dxd8xxEVk",
+    "progress": [
+      null,
+      {
+        "percentage": 1
+      }
+    ],
+    "referralCode": "REF-IZCMVPBX",
+    "referralDiscount": 0
+  },
+  {
+    "dismissed": {
+      "notif-1783954480896": true
+    },
+    "referralCode": "REF-LS87GQ4X",
+    "referralDiscount": 0
+  },
+  {
+    "dismissed": {
+      "notif-1783954402425": true,
+      "notif-1783954422672": true,
+      "notif-1783954442077": true,
+      "notif-1783954464143": true,
+      "notif-1783954480896": true
+    },
+    "referralCode": "REF-8WEBX0T9",
+    "referralDiscount": 0
+  },
+  {
+    "dismissed": {
+      "notif-1783961004789": true,
+      "notif-1783961011375": true
+    },
+    "referralCode": "REF-U2Z2460M",
+    "referralDiscount": 0
+  },
+  {
+    "dismissed": {
+      "notif-1783728556590": true,
+      "notif-1783729151556": true,
+      "notif-1783729342315": true,
+      "notif-1783729548625": true,
+      "notif-1783729550387": true,
+      "notif-1783729940872": true,
+      "notif-1783730130667": true,
+      "notif-1783730140748": true,
+      "notif-1783730310715": true,
+      "notif-1783731012678": true,
+      "notif-1783731028301": true,
+      "notif-1783731656066": true,
+      "notif-1783731667093": true,
+      "notif-1783731674568": true,
+      "notif-1783772984350": true,
+      "notif-1783772996752": true,
+      "notif-1783773007176": true,
+      "notif-1783773029548": true,
+      "notif-1783954131365": true,
+      "notif-1783954157291": true,
+      "notif-1783954163570": true,
+      "notif-1783954207688": true,
+      "notif-1783954222147": true,
+      "notif-1783954354754": true,
+      "notif-1783954390617": true,
+      "notif-1783954402425": true,
+      "notif-1783954414422": true,
+      "notif-1783954422672": true,
+      "notif-1783954442077": true,
+      "notif-1783954464143": true,
+      "notif-1783960560246": true,
+      "notif-1783960573384": true,
+      "notif-1783961004789": true,
+      "notif-1783961011375": true
+    },
+    "referralCode": "REF-VS08XYXA",
+    "referralDiscount": 0
+  },
+  {
+    "createdAt": "2026-07-13T17:03:50.528Z",
+    "email": "abdomohameddev@gmail.com",
+    "emailVerified": true,
+    "fcmToken": "ctJyyen2v4i5HAHy9BV-v7:APA91bEpElW3vya-Oe2qOU07tdNMG82GsINKO2qb-yrBlojUbW4zmgwLzV0z6XktrDmnlNn20dsRwFUjHniznUJhv19XJ6ATyjGTAfZsaHgGy9dxd8xxEVk",
+    "governorate": "البحيرة",
+    "grade": "الأول الإعدادي",
+    "id": "2tWF7DJ0u6VzRabOLG4tOwdkCAq1",
+    "lastLogin": "2026-07-13T21:56:37.949Z",
+    "name": "عبدالرحمن",
+    "parentPhone": "01211275526",
+    "phone": "01211275526",
+    "planName": "اشتراك شهري",
+    "planPeriod": "شهرياً",
+    "referralCode": "REF-TER7O0TI",
+    "referralDiscount": 0,
+    "referredBy": "",
+    "role": "student",
+    "stage": "إعدادية",
+    "subscribedStage": "إعدادية",
+    "subscriptionEnd": "2026-08-12T21:50:33.164Z",
+    "subscriptionStart": "2026-07-13T21:50:33.164Z",
+    "subscriptionStatus": "active",
+    "uid": "2tWF7DJ0u6VzRabOLG4tOwdkCAq1"
   }
 ]

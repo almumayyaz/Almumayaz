@@ -1,0 +1,56 @@
+<div class="app-splash" id="appSplash" aria-hidden="true">
+  <div class="spl-glow"></div>
+  <div class="spl-ring spl-spin"></div>
+  <div class="spl-ring spl-ring2 spl-spin-rev"></div>
+  <div class="spl-letters">
+    <% var splLetters = ['ا','ب','ت','ث','ج','ح','خ','د','ر','ز','س','ع']; var splN = splLetters.length; for (var i = 0; i < splN; i++) { var ang = i * (360 / splN); %>
+    <span style="transform:rotate(<%= ang %>deg) translateY(calc(-1 * min(34vw,200px))) rotate(<%= -ang %>deg);animation-delay:<%= (i * 0.18).toFixed(2) %>s;"><%= splLetters[i] %></span>
+    <% } %>
+  </div>
+  <div class="spl-center">
+    <div class="spl-word">المُميز</div>
+    <div class="spl-underline"></div>
+    <div class="spl-cap">منصة اللغة العربية</div>
+  </div>
+</div>
+<style>
+.app-splash{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 40%,#1a2647 0%,#0b1226 55%,#05080f 100%);overflow:hidden;transition:opacity 1.1s ease,transform 1.1s ease;}
+html.splash-hidden .app-splash{display:none!important;}
+.app-splash.hide{opacity:0;transform:scale(1.05);pointer-events:none;}
+.spl-glow{position:absolute;top:50%;left:50%;width:min(72vw,440px);height:min(72vw,440px);margin:calc(min(72vw,440px)/-2) 0 0 calc(min(72vw,440px)/-2);border-radius:50%;background:radial-gradient(circle,rgba(214,162,61,.3),rgba(214,162,61,0) 70%);filter:blur(6px);animation:spl-pulse 3.2s ease-in-out infinite;}
+.spl-ring{position:absolute;top:50%;left:50%;width:min(84vw,500px);height:min(84vw,500px);margin:calc(min(84vw,500px)/-2) 0 0 calc(min(84vw,500px)/-2);border-radius:50%;border:2px solid transparent;border-top-color:rgba(214,162,61,.75);border-right-color:rgba(214,162,61,.2);}
+.spl-ring2{width:min(66vw,380px);height:min(66vw,380px);margin:calc(min(66vw,380px)/-2) 0 0 calc(min(66vw,380px)/-2);border-top-color:rgba(120,170,255,.5);border-left-color:rgba(120,170,255,.18);}
+.spl-spin{animation:spl-spin 11s linear infinite;}
+.spl-spin-rev{animation:spl-spin 8s linear infinite reverse;}
+.spl-letters span{position:absolute;top:50%;left:50%;margin:-22px 0 0 -14px;font-family:'Aref Ruqaa',serif;font-size:clamp(22px,5.5vw,36px);color:rgba(214,162,61,.55);text-shadow:0 0 14px rgba(214,162,61,.45);animation:spl-tw 4.5s ease-in-out infinite;}
+.spl-center{position:relative;text-align:center;z-index:3;}
+.spl-word{font-family:'Aref Ruqaa',serif;font-weight:700;font-size:clamp(52px,14vw,110px);line-height:1;background:linear-gradient(100deg,#f6dca0,#d6a23d 40%,#b9842b 60%,#f6dca0);background-size:220% auto;-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent;filter:drop-shadow(0 6px 30px rgba(214,162,61,.5));animation:spl-shimmer 3.8s linear infinite,spl-rise 1s cubic-bezier(.22,1,.36,1) both;}
+.spl-underline{height:3px;width:0;margin:16px auto 0;border-radius:3px;background:linear-gradient(90deg,transparent,#d6a23d,#f6dca0,#d6a23d,transparent);animation:spl-draw 1s .55s cubic-bezier(.22,1,.36,1) forwards;}
+.spl-cap{margin-top:20px;font-family:'Cairo',sans-serif;font-size:clamp(13px,3.6vw,19px);letter-spacing:.4px;color:rgba(232,238,255,.9);opacity:0;animation:spl-fade 1s 1.15s forwards;}
+@keyframes spl-pulse{0%,100%{transform:scale(1);opacity:.75}50%{transform:scale(1.12);opacity:1}}
+@keyframes spl-spin{to{transform:rotate(360deg)}}
+@keyframes spl-tw{0%,100%{opacity:.18}50%{opacity:.7}}
+@keyframes spl-shimmer{to{background-position:220% center}}
+@keyframes spl-rise{from{opacity:0;transform:translateY(20px) scale(.95)}to{opacity:1;transform:none}}
+@keyframes spl-draw{to{width:min(62vw,320px)}}
+@keyframes spl-fade{to{opacity:1}}
+@media (prefers-reduced-motion: reduce){.app-splash *{animation:none!important}.spl-word,.spl-cap{opacity:1}.spl-underline{width:min(62vw,320px)}}
+</style>
+<script>
+(function(){
+  if(document.documentElement.classList.contains('splash-hidden')) return;
+  var s = document.getElementById('appSplash');
+  if(!s) return;
+  function finish(){
+    if(s.classList.contains('hide')) return;
+    s.classList.add('hide');
+    try { sessionStorage.setItem('lughati-splash','1'); } catch(e){}
+    setTimeout(function(){
+      document.documentElement.classList.add('splash-hidden');
+      if(s && s.parentNode) s.parentNode.removeChild(s);
+    }, 1150);
+  }
+  var t = setTimeout(finish, 4000);
+  s.addEventListener('click', function(){ clearTimeout(t); finish(); });
+})();
+</script>

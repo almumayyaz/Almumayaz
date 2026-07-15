@@ -1,5 +1,6 @@
 <%- include('../partials/header', { title: title, bodyClass: 'admin-body' }) %>
 <%- include('../partials/admin-sidebar') %>
+<script src="/js/pdf-upload.js"></script>
 <main class="admin-content">
   <div class="page-header">
     <div>
@@ -40,7 +41,7 @@
               <td><%= r.grade || 'الكل' %></td>
               <td><%= r.courseId || '---' %></td>
               <td><%= r.date %></td>
-            <td><% if (r.quiz) { %><span class="status-badge active"><%= r.quiz.questions.length %> سؤال</span><% } else { %><span class="status-badge pending">لا يوجد</span><% } %></td>
+            <td><% if (r.quiz && r.quiz.questions && r.quiz.questions.length) { %><span class="status-badge active"><%= r.quiz.questions.length %> سؤال</span><% } else { %><span class="status-badge pending">لا يوجد</span><% } %></td>
             <td>
               <div class="admin-actions">
                 <button class="edit" onclick='openReviewModal(<%= JSON.stringify(r) %>)'><i class="fas fa-edit"></i></button>
@@ -99,7 +100,6 @@
             <input type="checkbox" id="reviewIsFree"> مجاني
           </label>
         </div>
-        <div class="form-group"><label>الترتيب</label><input id="reviewOrder" type="number" min="0" value="0"></div>
       </div>
       <button class="btn btn-primary" onclick="saveReview()" style="width:100%;"><i class="fas fa-save"></i> حفظ</button>
     </div>
@@ -117,9 +117,12 @@
       <input type="hidden" id="rqReviewId">
       <div class="form-group"><label>عنوان الاختبار</label><input id="rqTitle" placeholder="مثال: اختبار مراجعة النحو"></div>
       <div id="rqQuestionsContainer">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
           <label>الأسئلة</label>
-          <button class="btn btn-sm" style="background:var(--accent);color:#fff;" onclick="addRqQuestion()"><i class="fas fa-plus"></i> إضافة سؤال</button>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-sm" style="background:var(--accent);color:#fff;" onclick="addRqQuestion()"><i class="fas fa-plus"></i> إضافة سؤال</button>
+            <button class="btn btn-sm" style="background:var(--primary);color:#fff;" onclick="toggleRqWordUpload()"><i class="fas fa-file-word"></i> رفع ملف وورد</button>
+          </div>
         </div>
       </div>
       <button class="btn btn-primary" onclick="saveReviewQuiz()" style="width:100%;margin-top:16px;"><i class="fas fa-save"></i> حفظ الاختبار</button>
@@ -127,9 +130,35 @@
   </div>
 </div>
 
+<!-- Word Upload Popup (Review Quiz) -->
+<div class="modal-overlay" id="rqWordUploadModal" style="z-index:3000;">
+  <div class="modal" style="max-width:500px;">
+    <div class="modal-header">
+      <h3>رفع ملف Word لاختبار المراجعة</h3>
+      <button class="modal-close" onclick="closeModal('rqWordUploadModal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>اختيار ملف Word يحتوي على الأسئلة</label>
+        <input id="rqWordFilePopup" type="file" accept=".docx,.doc" style="padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;width:100%;">
+      </div>
+      <button class="btn btn-sm" style="background:var(--success);color:#fff;width:100%;" onclick="extractRqQuestionsFromPopup()"><i class="fas fa-magic"></i> استخراج</button>
+    </div>
+  </div>
+</div>
+
 <script>
 function escAttr(s) { return String(s).replace(/"/g,'&quot;').replace(/&/g,'&amp;'); }
-function extractSrcFromIframe(v) { var m = String(v).match(/src=["']([^"']+)["']/); return m ? m[1] : v; }
+function normalizeYouTube(src) {
+  if (!src) return src;
+  var m;
+  if ((m = String(src).match(/youtube\.com\/embed\/([A-Za-z0-9_\-]+)/))) return 'https://www.youtube.com/embed/' + m[1];
+  if ((m = String(src).match(/youtu\.be\/([A-Za-z0-9_\-]+)/))) return 'https://www.youtube.com/embed/' + m[1];
+  if ((m = String(src).match(/youtube\.com\/watch\?(?:[^&]*&)*v=([A-Za-z0-9_\-]+)/))) return 'https://www.youtube.com/embed/' + m[1];
+  if ((m = String(src).match(/youtube\.com\/shorts\/([A-Za-z0-9_\-]+)/))) return 'https://www.youtube.com/embed/' + m[1];
+  return src;
+}
+function extractSrcFromIframe(v) { var m = String(v).match(/src=["']([^"']+)["']/); return normalizeYouTube(m ? m[1] : v); }
 function openReviewModal(r) {
   document.getElementById('reviewModalTitle').textContent = r ? 'تعديل المراجعة' : 'مراجعة جديدة';
   document.getElementById('reviewId').value = r ? r.id : '';
@@ -142,7 +171,6 @@ function openReviewModal(r) {
   document.getElementById('reviewStage').value = r ? (r.stage || 'all') : 'all';
   document.getElementById('reviewGrade').value = r ? (r.grade || '') : '';
   document.getElementById('reviewIsFree').checked = r ? !!r.isFree : false;
-  document.getElementById('reviewOrder').value = r ? (r.order || 0) : 0;
   var vc = document.getElementById('reviewVideosContainer');
   vc.innerHTML = '';
   var videos = (r && r.videos) || [];
@@ -150,7 +178,7 @@ function openReviewModal(r) {
   var pc = document.getElementById('reviewPdfsContainer');
   pc.innerHTML = '';
   var pdfs = (r && r.pdfFiles) || [];
-  pdfs.forEach(function(p){ addReviewPdfField(p.title, p.url); });
+  pdfs.forEach(function(p){ addReviewPdfField(p); });
   document.getElementById('reviewModal').classList.add('show');
 }
 function closeRM() { document.getElementById('reviewModal').classList.remove('show'); }
@@ -161,11 +189,18 @@ function addReviewVideoField(title, url) {
   div.innerHTML = '<div class="form-group" style="flex:1;margin-bottom:0;"><label style="font-size:11px;">عنوان الفيديو</label><input class="rv-video-title" placeholder="مثال: شرح المراجعة" value="' + escAttr(title||'') + '"></div><div class="form-group" style="flex:2;margin-bottom:0;"><label style="font-size:11px;">رابط YouTube Embed</label><input class="rv-video-url" placeholder="https://www.youtube.com/embed/..." value="' + escAttr(url||'') + '"></div><button class="btn btn-sm" style="background:#ef4444;color:#fff;height:36px;width:36px;padding:0;display:flex;align-items:center;justify-content:center;flex-shrink:0;" onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>';
   container.appendChild(div);
 }
-function addReviewPdfField(title, url) {
+function addReviewPdfField(entry) {
+  entry = entry || {};
   var container = document.getElementById('reviewPdfsContainer');
   var div = document.createElement('div');
-  div.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:flex-end;';
-  div.innerHTML = '<div class="form-group" style="flex:1;margin-bottom:0;"><label style="font-size:11px;">عنوان الملف</label><input class="rv-pdf-title" placeholder="مثال: مذكرة المراجعة" value="' + escAttr(title||'') + '"></div><div class="form-group" style="flex:2;margin-bottom:0;"><label style="font-size:11px;">رابط الملف</label><input class="rv-pdf-url" placeholder="/files/review.pdf" value="' + escAttr(url||'') + '"></div><button class="btn btn-sm" style="background:#ef4444;color:#fff;height:36px;width:36px;padding:0;display:flex;align-items:center;justify-content:center;flex-shrink:0;" onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>';
+  div.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:center;flex-wrap:wrap;';
+  div.innerHTML =
+    '<div class="form-group" style="flex:1;min-width:140px;margin-bottom:0;"><label style="font-size:11px;">عنوان الملف</label><input class="rv-pdf-title" placeholder="مثال: مذكرة المراجعة" value="' + escAttr(entry.title||'') + '"></div>' +
+    '<div class="form-group" style="flex:2;min-width:200px;margin-bottom:0;"><label style="font-size:11px;">ملف PDF (يُرفع للتخزين الآمن)</label><input type="file" class="rv-pdf-file" accept="application/pdf" style="padding:6px;"></div>' +
+    '<input type="hidden" class="rv-pdf-path" value="' + escAttr(entry.path||'') + '">' +
+    '<input type="hidden" class="rv-pdf-url" value="' + escAttr(entry.url||'') + '">' +
+    (entry.path ? ' <span style="font-size:11px;color:var(--accent);"><i class="fas fa-check"></i> ملف مرفوع</span>' : '') +
+    '<button class="btn btn-sm" style="background:#ef4444;color:#fff;height:36px;width:36px;padding:0;display:flex;align-items:center;justify-content:center;flex-shrink:0;" onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>';
   container.appendChild(div);
 }
 function saveReview() {
@@ -179,29 +214,60 @@ function saveReview() {
   });
   var pdfInputs = document.querySelectorAll('#reviewPdfsContainer > div');
   var pdfFiles = [];
+  var uploadFails = [];
+  var filePromises = [];
   pdfInputs.forEach(function(p) {
     var t = p.querySelector('.rv-pdf-title').value;
-    var u = p.querySelector('.rv-pdf-url').value;
-    if (u) pdfFiles.push({ title: t || 'ملف', url: u });
+    var file = p.querySelector('.rv-pdf-file').files[0];
+    var exPath = p.querySelector('.rv-pdf-path').value;
+    var exUrl = p.querySelector('.rv-pdf-url').value;
+    if (file) {
+      filePromises.push(
+        uploadPdfFile(file, 'reviews')
+          .then(function(path){ if (path) pdfFiles.push({ title: t || 'ملف', path: path }); else uploadFails.push(t || 'ملف'); })
+          .catch(function(){ uploadFails.push(t || 'ملف'); })
+      );
+    } else if (exPath) {
+      pdfFiles.push({ title: t || 'ملف', path: exPath });
+    } else if (exUrl) {
+      pdfFiles.push({ title: t || 'ملف', url: exUrl });
+    }
   });
-  const data = {
-    title: document.getElementById('reviewTitle').value,
-    course: document.getElementById('reviewCourse').value,
-    courseId: document.getElementById('reviewCourseId').value,
-    desc: document.getElementById('reviewDesc').value,
-    icon: document.getElementById('reviewIcon').value,
-    color: document.getElementById('reviewColor').value,
-    videos: videos,
-    pdfFiles: pdfFiles,
-    stage: document.getElementById('reviewStage').value,
-    grade: document.getElementById('reviewGrade').value,
-    isFree: document.getElementById('reviewIsFree').checked,
-    order: parseInt(document.getElementById('reviewOrder').value) || 0
-  };
-  const url = id ? '/api/admin/reviews/' + id : '/api/admin/reviews';
-  const method = id ? 'PUT' : 'POST';
-  fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) })
-    .then(r => r.json()).then(d => { if (d.success) location.reload(); else alert(d.error); });
+  // Always save the review (videos + whatever PDFs succeeded). Never let a
+  // PDF upload failure silently discard the teacher's video/title changes.
+  Promise.all(filePromises).then(function() {
+    const data = {
+      title: document.getElementById('reviewTitle').value,
+      course: document.getElementById('reviewCourse').value,
+      courseId: document.getElementById('reviewCourseId').value,
+      desc: document.getElementById('reviewDesc').value,
+      icon: document.getElementById('reviewIcon').value,
+      color: document.getElementById('reviewColor').value,
+      videos: videos,
+      pdfFiles: pdfFiles,
+      stage: document.getElementById('reviewStage').value,
+      grade: document.getElementById('reviewGrade').value,
+      isFree: document.getElementById('reviewIsFree').checked,
+      order: 0
+    };
+    const url = id ? '/api/admin/reviews/' + id : '/api/admin/reviews';
+    const method = id ? 'PUT' : 'POST';
+    if (window.uploadStepSave) window.uploadStepSave();
+    fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      .then(r => r.json()).then(function(d) {
+        if (d.success) {
+          if (window.uploadDone) window.uploadDone();
+          var msg = 'تم حفظ بيانات المراجعة بنجاح.';
+          if (uploadFails.length) msg += ' (تعذر رفع بعض ملفات PDF: ' + uploadFails.join('، ') + ')';
+          alert(msg);
+          location.reload();
+        } else {
+          if (window.uploadError) window.uploadError(d.error);
+          alert(d.error || 'تعذر الحفظ');
+        }
+      })
+      .catch(function(e) { if (window.uploadError) window.uploadError((e && e.message) ? e.message : e); alert('تعذر الاتصال بالخادم'); });
+  });
 }
 function deleteReview(id) {
   if (!confirm('هل أنت متأكد من حذف هذه المراجعة؟')) return;
@@ -218,6 +284,7 @@ function applyFilter() {
   window.location.href = '/admin/reviews' + (params.length ? '?' + params.join('&') : '');
 }
 
+function closeModal(id) { var m = document.getElementById(id); if (m) m.classList.remove('show'); }
 function openReviewQuizModal(r) {
   document.getElementById('reviewQuizModalTitle').textContent = 'اختبار - ' + r.title;
   document.getElementById('rqReviewId').value = r.id;
@@ -225,9 +292,10 @@ function openReviewQuizModal(r) {
   const container = document.getElementById('rqQuestionsContainer');
   const existing = container.querySelectorAll('.question-block');
   existing.forEach(el => el.remove());
-  if (r.quiz && r.quiz.questions) {
+  if (r.quiz && r.quiz.questions && r.quiz.questions.length) {
     r.quiz.questions.forEach((q, i) => addRqQuestion(q, i));
   }
+  document.getElementById('rqWordFilePopup').value = '';
   document.getElementById('reviewQuizModal').classList.add('show');
 }
 function closeRQM() { document.getElementById('reviewQuizModal').classList.remove('show'); }
@@ -237,19 +305,48 @@ function addRqQuestion(q, idx) {
   div.className = 'question-block';
   div.style.cssText = 'background:var(--bg);border-radius:10px;padding:16px;margin-bottom:12px;border:1px solid var(--border);';
   const qi = idx !== undefined ? idx : container.querySelectorAll('.question-block').length;
-  div.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><strong style="color:var(--primary);">السؤال ' + (qi + 1) + '</strong><button class="btn btn-sm" style="background:#ef4444;color:#fff;font-size:11px;padding:4px 10px;" onclick="this.closest(\'.question-block\').remove()">حذف</button></div><div class="form-group"><input class="q-text" placeholder="نص السؤال" value="' + escAttr(q ? q.question : '') + '"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' + ['أ','ب','ج','د'].map((letter, oi) => '<div class="form-group" style="margin-bottom:4px;"><label style="font-size:11px;margin-bottom:2px;">الخيار ' + letter + '</label><input class="q-opt-' + oi + '" placeholder="الخيار ' + letter + '" value="' + escAttr(q && q.options && q.options[oi] ? q.options[oi] : '') + '"></div>').join('') + '</div><div class="form-group" style="margin-bottom:0;"><label style="font-size:12px;">الإجابة الصحيحة</label><select class="q-correct" style="width:80px;padding:6px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;">' + ['أ','ب','ج','د'].map((letter, oi) => '<option value="' + oi + '"' + ((q ? q.correct + '' : '0') === '' + oi ? ' selected' : '') + '>' + letter + '</option>').join('') + '</select></div>';
+  div.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><strong style="color:var(--primary);">السؤال ' + (qi + 1) + '</strong><button class="btn btn-sm" style="background:#ef4444;color:#fff;font-size:11px;padding:4px 10px;" onclick="this.closest(\'.question-block\').remove()">حذف</button></div><div class="form-group"><input class="rq-q-text" placeholder="نص السؤال" value="' + escAttr(q ? q.question : '') + '"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' + ['أ','ب','ج','د'].map((letter, oi) => '<div class="form-group" style="margin-bottom:4px;"><label style="font-size:11px;margin-bottom:2px;">الخيار ' + letter + '</label><input class="rq-q-opt-' + oi + '" placeholder="الخيار ' + letter + '" value="' + escAttr(q && q.options && q.options[oi] ? q.options[oi] : '') + '"></div>').join('') + '</div><div class="form-group" style="margin-bottom:0;"><label style="font-size:12px;">الإجابة الصحيحة</label><select class="rq-q-correct" style="width:80px;padding:6px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;">' + ['أ','ب','ج','د'].map((letter, oi) => '<option value="' + oi + '"' + ((q ? q.correct + '' : '0') === '' + oi ? ' selected' : '') + '>' + letter + '</option>').join('') + '</select></div><div class="form-group" style="margin-bottom:0;margin-top:8px;"><label style="font-size:12px;">الرسالة عند الإجابة الخاطئة (اختياري)</label><textarea class="rq-q-wrong-msg" placeholder="رسالة تظهر للطالب عند اختيار إجابة خاطئة" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:12px;resize:vertical;" rows="2">' + escAttr(q && q.wrongAnswerMessage ? q.wrongAnswerMessage : '') + '</textarea></div>';
   container.appendChild(div);
 }
-function saveReviewQuiz() {
-  const reviewId = document.getElementById('rqReviewId').value;
+function toggleRqWordUpload() {
+  document.getElementById('rqWordFilePopup').value = '';
+  document.getElementById('rqWordUploadModal').classList.add('show');
+}
+function extractRqQuestionsFromPopup() {
+  var btn = document.querySelector('#rqWordUploadModal .modal-body button');
+  var fileInput = document.getElementById('rqWordFilePopup');
+  if (!fileInput.files || !fileInput.files[0]) { alert('يرجى اختيار ملف Word أولاً'); return; }
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الاستخراج...';
+  var formData = new FormData();
+  formData.append('file', fileInput.files[0]);
+  fetch('/api/admin/upload-word-file', {
+    method: 'POST',
+    body: formData
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if (d.success && d.questions && d.questions.length) {
+      d.questions.forEach(function(q){ addRqQuestion(q); });
+      closeModal('rqWordUploadModal');
+      fileInput.value = '';
+      alert('تم استخراج ' + d.questions.length + ' سؤال');
+    } else {
+      alert(d.error || 'فشل استخراج الأسئلة');
+      btn.disabled = false; btn.innerHTML = '<i class="fas fa-magic"></i> استخراج';
+    }
+  }).catch(function(){
+    alert('فشل الاتصال بالخادم');
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-magic"></i> استخراج';
+  });
+}
+function saveReviewQuiz() {  const reviewId = document.getElementById('rqReviewId').value;
   const title = document.getElementById('rqTitle').value;
   const blocks = document.querySelectorAll('#rqQuestionsContainer .question-block');
   const questions = [];
   blocks.forEach(b => {
-    const qtext = b.querySelector('.q-text').value;
-    const opts = [0,1,2,3].map(i => b.querySelector('.q-opt-' + i).value);
-    const correct = parseInt(b.querySelector('.q-correct').value) || 0;
-    if (qtext && opts.some(o => o)) questions.push({ question: qtext, options: opts, correct });
+    const qtext = b.querySelector('.rq-q-text').value;
+    const opts = [0,1,2,3].map(i => b.querySelector('.rq-q-opt-' + i).value);
+    const correct = parseInt(b.querySelector('.rq-q-correct').value) || 0;
+    const wm = b.querySelector('.rq-q-wrong-msg').value;
+    if (qtext && opts.some(o => o)) questions.push({ question: qtext, options: opts, correct: correct, wrongAnswerMessage: wm });
   });
   fetch('/api/admin/reviews/' + reviewId + '/quiz', {
     method: 'PUT',

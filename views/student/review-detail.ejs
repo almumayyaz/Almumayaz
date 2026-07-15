@@ -14,10 +14,12 @@
     </div>
   </div>
 
-  <% if (review.videoUrl) { %>
-  <div class="video-container" oncontextmenu="return false;">
-    <iframe src="<%= review.videoUrl %>" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-  </div>
+  <% if (review.videos && review.videos.length > 0) { %>
+  <% review.videos.forEach(function(v) { %>
+  <div class="plyr-container" data-plyr-provider="youtube" data-plyr-embed-id="<%= (ytId(v.url) || '') %>" style="margin-bottom:16px;" oncontextmenu="return false;"></div>
+  <% }) %>
+  <% } else if (review.videoUrl) { %>
+  <div class="plyr-container" data-plyr-provider="youtube" data-plyr-embed-id="<%= (ytId(review.videoUrl) || '') %>" oncontextmenu="return false;"></div>
   <% } else { %>
   <div class="welcome-banner" style="text-align:center;padding:60px 40px;">
     <div style="font-size:64px;margin-bottom:16px;color:var(--accent);"><i class="fas <%= review.icon %>"></i></div>
@@ -33,16 +35,22 @@
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px;padding:16px;background:var(--bg);border-radius:8px;">
       <div><span style="font-weight:600;color:var(--primary);">المادة:</span> <span style="color:var(--text-light);"><%= review.course %></span></div>
       <div><span style="font-weight:600;color:var(--primary);">التاريخ:</span> <span style="color:var(--text-light);"><%= review.date %></span></div>
-      <% if (review.quiz) { %><div><span style="font-weight:600;color:var(--primary);">عدد الأسئلة:</span> <span style="color:var(--text-light);"><%= review.quiz.questions.length %> سؤال</span></div><% } %>
+      <% if (review.quiz && review.quiz.questions && review.quiz.questions.length) { %><div><span style="font-weight:600;color:var(--primary);">عدد الأسئلة:</span> <span style="color:var(--text-light);"><%= review.quiz.questions.length %> سؤال</span></div><% } %>
     </div>
-    <% if (review.pdfUrl) { %>
+    <% if (review.pdfFiles && review.pdfFiles.length > 0) { %>
+    <div class="lesson-actions" style="display:flex;flex-wrap:wrap;gap:10px;">
+      <% review.pdfFiles.forEach(function(pf, pi) { %>
+      <a href="/student/review-pdf/<%= review.id %>/<%= pi %>" class="btn"><i class="fas fa-file-pdf" style="color:var(--accent);"></i> <%= pf.title || ('الملف ' + (pi + 1)) %></a>
+      <% }) %>
+    </div>
+    <% } else if (review.pdfUrl) { %>
     <div class="lesson-actions">
-      <a href="<%= review.pdfUrl %>" class="btn" target="_blank"><i class="fas fa-file-pdf" style="color:var(--accent);"></i> تحميل المذكرة PDF</a>
+      <a href="/student/review-pdf/<%= review.id %>/0" class="btn"><i class="fas fa-file-pdf" style="color:var(--accent);"></i> عرض المذكرة PDF</a>
     </div>
     <% } %>
   </div>
 
-  <% if (review.quiz) { %>
+   <% if (review.quiz && review.quiz.questions && review.quiz.questions.length) { %>
   <div class="quiz-section">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;margin-bottom:24px;">
       <h2 style="margin-bottom:0;"><i class="fas fa-question-circle" style="color:var(--accent);"></i> <%= review.quiz.title %></h2>
@@ -154,6 +162,63 @@ document.querySelectorAll('.btn-submit-review').forEach(btn => {
     quiz.insertAdjacentHTML('beforeend', results);
   });
 });
+</script>
+<script src="/js/plyr.js"></script>
+<script>
+  // Disable dev-tools / save / print / view-source shortcuts on this page.
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'F12' || e.keyCode === 123) { e.preventDefault(); return; }
+    if (e.ctrlKey || e.metaKey) {
+      var k = (e.key || '').toLowerCase();
+      if (k === 's' || k === 'p' || k === 'u') e.preventDefault();
+    }
+  });
+
+  function embedFallback(container) {
+    var id = container.getAttribute('data-plyr-embed-id');
+    if (!id) return;
+    var src = 'https://www.youtube.com/embed/' + encodeURIComponent(id) + '?rel=0&modestbranding=1&iv_load_policy=3&controls=0';
+    container.innerHTML = '<iframe src="' + src + '" style="width:100%;aspect-ratio:16/9;border:0;border-radius:12px;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>';
+  }
+
+  if (typeof Plyr === 'undefined') {
+    document.querySelectorAll('.plyr-container[data-plyr-embed-id]').forEach(embedFallback);
+  } else {
+    document.querySelectorAll('.plyr-container[data-plyr-embed-id]').forEach(function (container) {
+      var id = container.getAttribute('data-plyr-embed-id');
+      if (!id) return;
+      var player = new Plyr(container, {
+        iconUrl: '/img/plyr.svg',
+        controls: ['play-large', 'play', 'progress', 'current-time', 'duration'],
+        youtube: { noCookie: true, rel: 0, modestbranding: 1, iv_load_policy: 3, playsinline: 1 },
+        urls: { youtube: { api: 'https://www.youtube.com/iframe_api' } },
+        keyboard: { focused: true, global: false },
+        clickToPlay: true,
+        hideControls: true,
+        resetOnEnd: false,
+        displayDuration: true
+      });
+      setupYoutubeOverlay(container, player);
+    });
+  }
+
+  function setupYoutubeOverlay(container, player) {
+    var wrapper = container.querySelector('.plyr__video-wrapper');
+    if (!wrapper) return;
+    wrapper.style.position = 'relative';
+    var topEl = document.createElement('div');
+    topEl.className = 'plyr-youtube-overlay plyr-youtube-overlay-top';
+    var botEl = document.createElement('div');
+    botEl.className = 'plyr-youtube-overlay plyr-youtube-overlay-bottom';
+    wrapper.appendChild(topEl);
+    wrapper.appendChild(botEl);
+    function show(){ topEl.classList.remove('plyr-youtube-overlay-hidden'); botEl.classList.remove('plyr-youtube-overlay-hidden'); }
+    function hide(){ topEl.classList.add('plyr-youtube-overlay-hidden'); botEl.classList.add('plyr-youtube-overlay-hidden'); }
+    player.on('ready', function(){ if (player.playing) hide(); else show(); });
+    player.on('playing', hide);
+    player.on('pause', show);
+    player.on('ended', show);
+  }
 </script>
 </body>
 </html>

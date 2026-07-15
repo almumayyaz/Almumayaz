@@ -16,6 +16,20 @@
         <a href="/admin/students" style="color:var(--accent);"><i class="fas fa-arrow-left"></i> إدارة الطلاب</a>
       </div>
     </div>
+    <div class="admin-stat-card" style="cursor:pointer;" onclick="location.href='/admin/analytics'">
+      <h3>تحليلات المنصة</h3>
+      <div class="value" style="font-size:16px;"><i class="fas fa-chart-bar"></i> عرض</div>
+      <div style="font-size:12px;color:var(--text-light);margin-top:4px;">
+        <span style="color:var(--accent);">نشاط الطلاب والمحاضرات</span>
+      </div>
+    </div>
+    <div class="admin-stat-card" style="cursor:pointer;" onclick="location.href='/admin/student-progress'">
+      <h3>تقدم الطلاب</h3>
+      <div class="value" style="font-size:16px;"><i class="fas fa-user-graduate"></i> عرض</div>
+      <div style="font-size:12px;color:var(--text-light);margin-top:4px;">
+        <span style="color:var(--accent);">بحث وتتبع تقدم كل طالب</span>
+      </div>
+    </div>
     <div class="admin-stat-card">
       <h3>المحاضرات</h3>
       <div class="value"><%= courses.reduce(function(a, c) { return a + (c.lessons||[]).length; }, 0) %></div>

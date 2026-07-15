@@ -4,44 +4,178 @@
   <div class="page-header">
     <div>
       <h1><i class="fas fa-bell"></i> إرسال إشعار</h1>
-      <p>إرسال إشعار فوري للطلاب</p>
+      <p>إرسال إشعار فوري للطلاب أو جدولة إشعار ليُرسل تلقائياً لاحقاً</p>
     </div>
   </div>
-  <div style="background:var(--card);border-radius:var(--radius-lg);padding:24px;box-shadow:var(--shadow);border:1px solid var(--border);max-width:600px;">
-    <div class="form-group">
-      <label>العنوان</label>
-      <input id="notifTitle" class="form-input" placeholder="عنوان الإشعار">
+
+  <div style="display:flex;gap:8px;margin-bottom:16px;">
+    <button class="tab-btn active" data-tab="instant" style="flex:1;padding:10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--accent-glow);color:var(--accent);font-weight:700;font-size:13px;cursor:pointer;"><i class="fas fa-bolt"></i> إرسال فوري</button>
+    <button class="tab-btn" data-tab="scheduled" style="flex:1;padding:10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--card);color:var(--text);font-weight:600;font-size:13px;cursor:pointer;"><i class="fas fa-clock"></i> إرسال مجدول</button>
+  </div>
+
+  <!-- ========== TAB: إرسال فوري (بدون تغيير) ========== -->
+  <div id="tab-instant" class="tab-panel active">
+    <div style="background:var(--card);border-radius:var(--radius-lg);padding:24px;box-shadow:var(--shadow);border:1px solid var(--border);max-width:600px;">
+      <div class="form-group">
+        <label>العنوان</label>
+        <input id="notifTitle" class="form-input" placeholder="عنوان الإشعار">
+      </div>
+      <div class="form-group">
+        <label>النص</label>
+        <textarea id="notifBody" class="form-input" rows="4" placeholder="نص الإشعار"></textarea>
+      </div>
+      <div class="form-group">
+        <label>إلى</label>
+        <select id="notifTarget" class="form-input" onchange="toggleTargetValue('notif')">
+          <option value="all">جميع الطلاب</option>
+          <option value="stage">مرحلة دراسية</option>
+          <option value="grade">صف دراسي</option>
+          <option value="student">طالب محدد</option>
+        </select>
+      </div>
+      <div class="form-group" id="notifTargetValueGroup" style="display:none;">
+        <label id="notifTargetValueLabel">القيمة</label>
+        <select id="notifTargetValueSelect" class="form-input" style="display:none;"></select>
+        <input id="notifTargetValue" class="form-input" placeholder="..." style="display:none;">
+      </div>
+      <button class="btn btn-primary" onclick="sendPush()" id="sendBtn" style="width:100%;"><i class="fas fa-paper-plane"></i> إرسال الإشعار</button>
+      <div id="notifResult" style="display:none;margin-top:16px;padding:12px;border-radius:8px;text-align:center;font-weight:600;"></div>
     </div>
-    <div class="form-group">
-      <label>النص</label>
-      <textarea id="notifBody" class="form-input" rows="4" placeholder="نص الإشعار"></textarea>
+  </div>
+
+  <!-- ========== TAB: إرسال مجدول ========== -->
+  <div id="tab-scheduled" class="tab-panel">
+    <div style="background:var(--card);border-radius:var(--radius-lg);padding:24px;box-shadow:var(--shadow);border:1px solid var(--border);max-width:600px;">
+      <div class="form-group">
+        <label>العنوان <span style="color:var(--danger);">*</span></label>
+        <input id="schTitle" class="form-input" placeholder="عنوان الإشعار">
+      </div>
+      <div class="form-group">
+        <label>النص <span style="color:var(--danger);">*</span></label>
+        <textarea id="schBody" class="form-input" rows="4" placeholder="نص الإشعار"></textarea>
+      </div>
+      <div class="form-group">
+        <label>إلى</label>
+        <select id="schTarget" class="form-input" onchange="toggleTargetValue('sch')">
+          <option value="all">جميع الطلاب</option>
+          <option value="stage">مرحلة دراسية</option>
+          <option value="grade">صف دراسي</option>
+          <option value="student">طالب محدد</option>
+        </select>
+      </div>
+      <div class="form-group" id="schTargetValueGroup" style="display:none;">
+        <label id="schTargetValueLabel">القيمة</label>
+        <select id="schTargetValueSelect" class="form-input" style="display:none;"></select>
+        <input id="schTargetValue" class="form-input" placeholder="..." style="display:none;">
+      </div>
+      <div style="display:flex;gap:12px;">
+        <div class="form-group" style="flex:1;">
+          <label>تاريخ الإرسال <span style="color:var(--danger);">*</span></label>
+          <input id="schDate" class="form-input" type="date" style="direction:ltr;text-align:left;">
+        </div>
+        <div class="form-group" style="flex:1;">
+          <label>وقت الإرسال <span style="color:var(--danger);">*</span></label>
+          <input id="schTime" class="form-input" type="time" style="direction:ltr;text-align:left;">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="saveSchedule()" id="schSaveBtn" style="width:100%;"><i class="fas fa-calendar-check"></i> جدولة الإشعار</button>
+      <div id="schResult" style="display:none;margin-top:16px;padding:12px;border-radius:8px;text-align:center;font-weight:600;"></div>
     </div>
-    <div class="form-group">
-      <label>إلى</label>
-      <select id="notifTarget" class="form-input" onchange="toggleTargetValue()">
-        <option value="all">جميع الطلاب</option>
-        <option value="stage">مرحلة دراسية</option>
-        <option value="grade">صف دراسي</option>
-        <option value="student">طالب محدد</option>
-      </select>
+  </div>
+
+  <!-- ========== جدول الإشعارات المجدولة ========== -->
+  <div style="background:var(--card);border-radius:var(--radius-lg);padding:24px;box-shadow:var(--shadow);border:1px solid var(--border);margin-top:20px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+      <h3 style="font-size:16px;font-weight:700;"><i class="fas fa-list"></i> الإشعارات المجدولة</h3>
+      <button class="btn btn-outline" onclick="refreshScheduled()" style="font-size:12px;"><i class="fas fa-sync-alt"></i> تحديث</button>
     </div>
-    <div class="form-group" id="targetValueGroup" style="display:none;">
-      <label id="targetValueLabel">القيمة</label>
-      <select id="notifTargetValueSelect" class="form-input" style="display:none;"></select>
-      <input id="notifTargetValue" class="form-input" placeholder="..." style="display:none;">
+    <div style="overflow-x:auto;">
+      <table class="table" style="width:100%;font-size:13px;">
+        <thead>
+          <tr>
+            <th>العنوان</th>
+            <th>النص</th>
+            <th>تاريخ الإرسال</th>
+            <th>الوقت</th>
+            <th>إلى</th>
+            <th>الحالة</th>
+            <th>الإجراءات</th>
+          </tr>
+        </thead>
+        <tbody id="scheduledTableBody">
+          <tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> جاري التحميل...</td></tr>
+        </tbody>
+      </table>
     </div>
-    <button class="btn btn-primary" onclick="sendPush()" id="sendBtn" style="width:100%;"><i class="fas fa-paper-plane"></i> إرسال الإشعار</button>
-    <div id="notifResult" style="display:none;margin-top:16px;padding:12px;border-radius:8px;text-align:center;font-weight:600;"></div>
+  </div>
+
+  <!-- Edit Modal -->
+  <div id="editModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
+    <div style="background:var(--card);border-radius:var(--radius-lg);padding:24px;max-width:500px;width:90%;max-height:90vh;overflow-y:auto;">
+      <h3 style="font-size:16px;font-weight:700;margin-bottom:16px;">تعديل الإشعار المجدول</h3>
+      <div class="form-group">
+        <label>العنوان <span style="color:var(--danger);">*</span></label>
+        <input id="editSchId" type="hidden">
+        <input id="editTitle" class="form-input" placeholder="عنوان الإشعار">
+      </div>
+      <div class="form-group">
+        <label>النص <span style="color:var(--danger);">*</span></label>
+        <textarea id="editBody" class="form-input" rows="4" placeholder="نص الإشعار"></textarea>
+      </div>
+      <div class="form-group">
+        <label>إلى</label>
+        <select id="editTarget" class="form-input" onchange="toggleTargetValue('edit')">
+          <option value="all">جميع الطلاب</option>
+          <option value="stage">مرحلة دراسية</option>
+          <option value="grade">صف دراسي</option>
+          <option value="student">طالب محدد</option>
+        </select>
+      </div>
+      <div class="form-group" id="editTargetValueGroup" style="display:none;">
+        <label id="editTargetValueLabel">القيمة</label>
+        <select id="editTargetValueSelect" class="form-input" style="display:none;"></select>
+        <input id="editTargetValue" class="form-input" placeholder="..." style="display:none;">
+      </div>
+      <div style="display:flex;gap:12px;">
+        <div class="form-group" style="flex:1;">
+          <label>تاريخ الإرسال <span style="color:var(--danger);">*</span></label>
+          <input id="editDate" class="form-input" type="date" style="direction:ltr;text-align:left;">
+        </div>
+        <div class="form-group" style="flex:1;">
+          <label>وقت الإرسال <span style="color:var(--danger);">*</span></label>
+          <input id="editTime" class="form-input" type="time" style="direction:ltr;text-align:left;">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:16px;">
+        <button class="btn btn-primary" onclick="updateSchedule()" style="flex:1;"><i class="fas fa-save"></i> حفظ التغييرات</button>
+        <button class="btn btn-outline" onclick="closeEditModal()" style="flex:1;">إلغاء</button>
+      </div>
+    </div>
   </div>
 </main>
 
+<style>
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+.table th, .table td { padding: 10px 12px; text-align: right; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.table th { font-size: 12px; color: var(--text-muted); font-weight: 700; background: var(--bg); }
+.badge { display:inline-block; padding:2px 10px; border-radius:12px; font-size:11px; font-weight:700; }
+.badge-pending { background:rgba(251,191,36,0.15); color:#f59e0b; }
+.badge-sent { background:rgba(22,163,74,0.15); color:#16a34a; }
+.badge-failed { background:rgba(239,68,68,0.15); color:#ef4444; }
+.badge-cancelled { background:rgba(156,163,175,0.15); color:#9ca3af; }
+.badge-sending { background:rgba(59,130,246,0.15); color:#3b82f6; }
+.action-btn { padding:4px 10px; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; transition:0.2s; }
+.action-btn:hover { opacity:0.8; }
+</style>
+
 <script>
-function toggleTargetValue() {
-  var t = document.getElementById('notifTarget').value;
-  var g = document.getElementById('targetValueGroup');
-  var l = document.getElementById('targetValueLabel');
-  var sel = document.getElementById('notifTargetValueSelect');
-  var inp = document.getElementById('notifTargetValue');
+function toggleTargetValue(prefix) {
+  var t = document.getElementById(prefix + 'Target').value;
+  var g = document.getElementById(prefix + 'TargetValueGroup');
+  var l = document.getElementById(prefix + 'TargetValueLabel');
+  var sel = document.getElementById(prefix + 'TargetValueSelect');
+  var inp = document.getElementById(prefix + 'TargetValue');
   if (t === 'all') { g.style.display = 'none'; return; }
   g.style.display = 'block';
   if (t === 'stage') {
@@ -59,6 +193,7 @@ function toggleTargetValue() {
   }
 }
 
+// ========== Instant send (unchanged) ==========
 function sendPush() {
   var btn = document.getElementById('sendBtn');
   btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الإرسال...';
@@ -101,6 +236,217 @@ function sendPush() {
       btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> إرسال الإشعار';
     });
 }
+
+// ========== Tab switching ==========
+document.querySelectorAll('.tab-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.tab-btn').forEach(function(b) {
+      b.style.background = 'var(--card)'; b.style.color = 'var(--text)'; b.style.fontWeight = '600';
+    });
+    this.style.background = 'var(--accent-glow)'; this.style.color = 'var(--accent)'; this.style.fontWeight = '700';
+    document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+    document.getElementById('tab-' + this.getAttribute('data-tab')).classList.add('active');
+  });
+});
+
+// ========== Scheduled notifications CRUD ==========
+function getScheduledTargetValue() {
+  var target = document.getElementById('schTarget').value;
+  var sel = document.getElementById('schTargetValueSelect');
+  var inp = document.getElementById('schTargetValue');
+  return target === 'all' ? '' : (sel.style.display !== 'none' ? sel.value : inp.value);
+}
+function getEditTargetValue() {
+  var target = document.getElementById('editTarget').value;
+  var sel = document.getElementById('editTargetValueSelect');
+  var inp = document.getElementById('editTargetValue');
+  return target === 'all' ? '' : (sel.style.display !== 'none' ? sel.value : inp.value);
+}
+
+function saveSchedule() {
+  var title = document.getElementById('schTitle').value.trim();
+  var body = document.getElementById('schBody').value.trim();
+  var date = document.getElementById('schDate').value;
+  var time = document.getElementById('schTime').value;
+  var target = document.getElementById('schTarget').value;
+  var targetValue = getScheduledTargetValue();
+
+  if (!title || !body || !date || !time) {
+    showSchResult(false, 'جميع الحقول المطلوبة يجب أن يتم ملؤها.');
+    return;
+  }
+  var scheduledAt = new Date(date + 'T' + time);
+  if (scheduledAt <= new Date()) {
+    showSchResult(false, 'لا يمكن اختيار وقت في الماضي. اختر تاريخ ووقت مستقبلي.');
+    return;
+  }
+
+  var btn = document.getElementById('schSaveBtn');
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحفظ...';
+  fetch('/api/admin/schedule-notification', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ title, body, target, targetValue, scheduledAt: scheduledAt.toISOString() }) })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.success) {
+        showSchResult(true, 'تم جدولة الإشعار بنجاح.');
+        document.getElementById('schTitle').value = '';
+        document.getElementById('schBody').value = '';
+        document.getElementById('schDate').value = '';
+        document.getElementById('schTime').value = '';
+        refreshScheduled();
+      } else {
+        showSchResult(false, d.error || 'فشل جدولة الإشعار.');
+      }
+      btn.disabled = false; btn.innerHTML = '<i class="fas fa-calendar-check"></i> جدولة الإشعار';
+    })
+    .catch(function() {
+      showSchResult(false, 'فشل الاتصال بالخادم.');
+      btn.disabled = false; btn.innerHTML = '<i class="fas fa-calendar-check"></i> جدولة الإشعار';
+    });
+}
+
+function showSchResult(success, msg) {
+  var r = document.getElementById('schResult');
+  r.style.display = 'block';
+  r.style.background = success ? 'rgba(22,163,74,0.1)' : 'rgba(239,68,68,0.1)';
+  r.style.color = success ? 'var(--success)' : 'var(--danger)';
+  r.style.border = success ? '1px solid rgba(22,163,74,0.2)' : '1px solid rgba(239,68,68,0.2)';
+  r.innerHTML = '<i class="fas fa-' + (success ? 'check-circle' : 'exclamation-circle') + '"></i> ' + msg;
+}
+
+function refreshScheduled() {
+  var tbody = document.getElementById('scheduledTableBody');
+  tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> جاري التحميل...</td></tr>';
+  fetch('/api/admin/scheduled-notifications')
+    .then(function(r) { return r.json(); })
+    .then(function(list) {
+      if (!list || !list.length) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted);">لا توجد إشعارات مجدولة</td></tr>';
+        return;
+      }
+      list.sort(function(a, b) { return new Date(b.createdAt) - new Date(a.createdAt); });
+      tbody.innerHTML = list.map(function(n) {
+        var dt = n.scheduledAt ? new Date(n.scheduledAt) : null;
+        var dateStr = dt ? dt.toLocaleDateString('ar-EG') : '-';
+        var timeStr = dt ? dt.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : '-';
+        var createdAt = n.createdAt ? new Date(n.createdAt).toLocaleDateString('ar-EG') : '-';
+        var targetLabel = n.target || 'all';
+        var statusClass = 'badge-' + (n.status || 'pending').toLowerCase();
+        var statusLabel = n.status === 'Pending' ? 'بانتظار الإرسال' : n.status === 'Sent' ? 'تم الإرسال' : n.status === 'Failed' ? 'فشل' : n.status === 'Cancelled' ? 'ملغي' : n.status === 'Sending' ? 'جاري الإرسال' : n.status;
+        var actions = '';
+        if (n.status === 'Pending') {
+          actions = '<button class="action-btn" style="background:rgba(59,130,246,0.15);color:#3b82f6;" onclick="editScheduled(\'' + n.id + '\')"><i class="fas fa-edit"></i></button> ' +
+                    '<button class="action-btn" style="background:rgba(22,163,74,0.15);color:#16a34a;" onclick="sendNow(\'' + n.id + '\')"><i class="fas fa-paper-plane"></i></button> ' +
+                    '<button class="action-btn" style="background:rgba(239,68,68,0.15);color:#ef4444;" onclick="cancelScheduled(\'' + n.id + '\')"><i class="fas fa-ban"></i></button> ' +
+                    '<button class="action-btn" style="background:rgba(156,163,175,0.15);color:#9ca3af;" onclick="deleteScheduled(\'' + n.id + '\')"><i class="fas fa-trash"></i></button>';
+        } else if (n.status === 'Cancelled') {
+          actions = '<button class="action-btn" style="background:rgba(156,163,175,0.15);color:#9ca3af;" onclick="deleteScheduled(\'' + n.id + '\')"><i class="fas fa-trash"></i></button>';
+        } else {
+          actions = '<span style="color:var(--text-muted);font-size:11px;">—</span>';
+        }
+        var bodyShort = n.body && n.body.length > 40 ? n.body.slice(0, 40) + '...' : (n.body || '');
+        return '<tr>' +
+          '<td style="font-weight:600;">' + (n.title || '-') + '</td>' +
+          '<td style="color:var(--text-muted);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + (n.body || '') + '">' + bodyShort + '</td>' +
+          '<td>' + dateStr + '</td>' +
+          '<td>' + timeStr + '</td>' +
+          '<td>' + targetLabel + '</td>' +
+          '<td><span class="badge ' + statusClass + '">' + statusLabel + '</span></td>' +
+          '<td style="white-space:nowrap;">' + actions + '</td>' +
+        '</tr>';
+      }).join('');
+    })
+    .catch(function() {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--danger);"><i class="fas fa-exclamation-circle"></i> فشل تحميل الإشعارات</td></tr>';
+    });
+}
+
+function editScheduled(id) {
+  fetch('/api/admin/scheduled-notifications')
+    .then(function(r) { return r.json(); })
+    .then(function(list) {
+      var n = list.find(function(x) { return x.id === id; });
+      if (!n) return;
+      var dt = n.scheduledAt ? new Date(n.scheduledAt) : new Date();
+      document.getElementById('editSchId').value = n.id;
+      document.getElementById('editTitle').value = n.title || '';
+      document.getElementById('editBody').value = n.body || '';
+      document.getElementById('editDate').value = dt.toISOString().slice(0, 10);
+      document.getElementById('editTime').value = dt.toTimeString().slice(0, 5);
+      document.getElementById('editTarget').value = n.target || 'all';
+      toggleTargetValue('edit');
+      if (n.target && n.target !== 'all') {
+        var sel = document.getElementById('editTargetValueSelect');
+        var inp = document.getElementById('editTargetValue');
+        if (sel.style.display !== 'none') sel.value = n.targetValue || '';
+        else inp.value = n.targetValue || '';
+      }
+      document.getElementById('editModal').style.display = 'flex';
+    });
+}
+
+function closeEditModal() {
+  document.getElementById('editModal').style.display = 'none';
+}
+
+function updateSchedule() {
+  var id = document.getElementById('editSchId').value;
+  var title = document.getElementById('editTitle').value.trim();
+  var body = document.getElementById('editBody').value.trim();
+  var date = document.getElementById('editDate').value;
+  var time = document.getElementById('editTime').value;
+  var target = document.getElementById('editTarget').value;
+  var targetValue = getEditTargetValue();
+
+  if (!title || !body || !date || !time) {
+    alert('جميع الحقول المطلوبة يجب أن يتم ملؤها.');
+    return;
+  }
+  var scheduledAt = new Date(date + 'T' + time);
+  if (scheduledAt <= new Date()) {
+    alert('لا يمكن اختيار وقت في الماضي.');
+    return;
+  }
+
+  fetch('/api/admin/schedule-notification/' + id, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ title, body, target, targetValue, scheduledAt: scheduledAt.toISOString() }) })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.success) { closeEditModal(); refreshScheduled(); }
+      else { alert(d.error || 'فشل التحديث'); }
+    });
+}
+
+function sendNow(id) {
+  if (!confirm('تأكيد إرسال الإشعار الآن؟')) return;
+  fetch('/api/admin/schedule-notification/' + id + '/send-now', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.success) refreshScheduled();
+      else alert(d.error || 'فشل الإرسال');
+    });
+}
+
+function cancelScheduled(id) {
+  if (!confirm('تأكيد إلغاء الإشعار المجدول؟')) return;
+  fetch('/api/admin/schedule-notification/' + id + '/cancel', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.success) refreshScheduled();
+      else alert(d.error || 'فشل الإلغاء');
+    });
+}
+
+function deleteScheduled(id) {
+  if (!confirm('تأكيد حذف الإشعار؟ لا يمكن التراجع عن هذا الإجراء.')) return;
+  fetch('/api/admin/schedule-notification/' + id, { method: 'DELETE' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.success) refreshScheduled();
+      else alert(d.error || 'فشل الحذف');
+    });
+}
+
+// Init: load table on page load
+refreshScheduled();
 </script>
 </body>
 </html>

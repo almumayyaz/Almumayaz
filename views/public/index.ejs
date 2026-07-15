@@ -34,15 +34,19 @@
 [data-theme="dark"] .landing-body .btn-outline { border-color: rgba(255,255,255,0.2); color: #F1F5F9; }
 .landing-body .btn-outline:hover { border-color: #F59E0B; color: #F59E0B; transform: translateY(-2px); }
 [data-theme="dark"] .landing-body .btn-outline:hover { border-color: #FBBF24; color: #FBBF24; }
+@media (max-width: 768px) {
+  .landing-body .nav-left { justify-content: flex-end; gap: 8px; }
+  .landing-body .nav-left .btn { padding: 8px 14px; font-size: 13px; white-space: nowrap; }
+}
 
 /* ===== HERO ===== */
 .lp-hero {
-  min-height: 90vh;
+  min-height: auto;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   position: relative;
   overflow: hidden;
-  padding: 60px 0 80px;
+  padding: 88px 0 60px;
 }
 .lp-hero-bg {
   position: absolute;
@@ -60,12 +64,17 @@
 }
 .lp-hero-glow-1 { top: -200px; right: -100px; background: rgba(245,158,11,0.12); }
 .lp-hero-glow-2 { bottom: -200px; left: -100px; background: rgba(245,158,11,0.08); }
-.lp-hero .container { position: relative; z-index: 2; }
+.lp-hero .container { position: relative; z-index: 2; max-width: 100%; }
 .lp-hero-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 60px;
+  grid-template-columns: 1fr;
+  gap: 40px;
+  max-width: 760px;
   align-items: center;
+}
+.lp-hero-content {
+  text-align: right;
+  direction: rtl;
 }
 .lp-hero-badge {
   display: inline-flex;
@@ -462,12 +471,14 @@
   .lp-teacher-badges { justify-content: center; }
   .lp-testimonials-grid { grid-template-columns: 1fr; }
   .lp-cta { padding: 60px 32px; border-radius: 16px; }
+  .lp-hero { min-height: auto; padding-top: 88px; }
 }
 @media (max-width: 576px) {
   .lp-subjects-grid { grid-template-columns: 1fr; }
   .lp-stats { grid-template-columns: 1fr; }
   .lp-hero-stat { display: none; }
   .lp-section { padding: 60px 0; }
+  .lp-hero { align-items: flex-start; padding: 88px 0 48px; }
 }
 </style>
 
@@ -484,201 +495,13 @@
         <h1>أتقن اللغة العربية مع <span>محمد عفيفي</span></h1>
         <p>منصة تعليمية متخصصة لطلاب الثانوية العامة. شرح مبسط، مراجعات قوية، واختبارات تفاعلية لضمان التفوق والتميز.</p>
         <div class="lp-hero-actions">
-          <a href="/subscriptions" class="btn btn-primary">ابدأ رحلة التفوق <i class="fas fa-arrow-left" style="margin-right:8px;"></i></a>
+          <a href="/register" class="btn btn-primary">ابدأ رحلة التفوق <i class="fas fa-arrow-left" style="margin-right:8px;"></i></a>
           <a href="/demo" class="btn btn-outline"><i class="fas fa-eye" style="margin-left:8px;"></i> تجربة مجانية</a>
         </div>
-        <div class="lp-hero-card" style="margin-top:32px;">
-          <div class="lp-hero-card-grid">
-            <div class="lp-subject-card"><i class="fas fa-book-open"></i><span>النحو</span></div>
-            <div class="lp-subject-card"><i class="fas fa-feather-alt"></i><span>البلاغة</span></div>
-            <div class="lp-subject-card"><i class="fas fa-pen-fancy"></i><span>الأدب</span></div>
-            <div class="lp-subject-card"><i class="fas fa-quote-right"></i><span>النصوص</span></div>
-            <div class="lp-subject-card"><i class="fas fa-pencil-alt"></i><span>التعبير</span></div>
-            <div class="lp-subject-card"><i class="fas fa-book-reader"></i><span>القراءة</span></div>
-          </div>
-        </div>
-      </div>
-      <div class="lp-hero-visual">
-        <div class="lp-hero-stat">
-          <div class="lp-hero-stat-icon"><i class="fas fa-users"></i></div>
-          <div class="lp-hero-stat-text"><div class="lp-hero-stat-num">+5000</div><div class="lp-hero-stat-label">طالب مسجل</div></div>
-        </div>
-        <div class="lp-hero-stat">
-          <div class="lp-hero-stat-icon"><i class="fas fa-video"></i></div>
-          <div class="lp-hero-stat-text"><div class="lp-hero-stat-num">+50</div><div class="lp-hero-stat-label">محاضرة</div></div>
-        </div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ===== SUBJECTS ===== -->
-<section class="lp-section">
-  <div class="container">
-    <div class="lp-section-tag">المنهج كاملاً</div>
-    <h2 class="lp-section-title">كل فروع اللغة العربية في مكان واحد</h2>
-    <p class="lp-section-desc">منهج متكامل يغطي جميع فروع اللغة العربية لطلاب الثانوية العامة، مع شرح وافٍ وتدريبات مكثفة على كل فرع.</p>
-    <div class="lp-subjects-grid">
-      <div class="lp-subject-item">
-        <div class="lp-subject-icon"><i class="fas fa-book-open"></i></div>
-        <h3>النحو</h3>
-        <p>شرح شامل لقواعد النحو والإعراب مع تطبيقات عملية وأسئلة شامل على كل باب</p>
-      </div>
-      <div class="lp-subject-item">
-        <div class="lp-subject-icon"><i class="fas fa-feather-alt"></i></div>
-        <h3>البلاغة</h3>
-        <p>تبسيط علم البيان والمعاني والبديع بأسلوب عصري مع أمثلة من القرآن والشعر</p>
-      </div>
-      <div class="lp-subject-item">
-        <div class="lp-subject-icon"><i class="fas fa-pen-fancy"></i></div>
-        <h3>الأدب</h3>
-        <p>رحاب العصور الأدبية والنصوص المقررة مع تحليل شامل لكل عصر وأعلامه</p>
-      </div>
-      <div class="lp-subject-item">
-        <div class="lp-subject-icon"><i class="fas fa-quote-right"></i></div>
-        <h3>النصوص</h3>
-        <p>تحليل وشرح النصوص المقررة مع معاني الكلمات والأسئلة المتوقعة في الامتحان</p>
-      </div>
-      <div class="lp-subject-item">
-        <div class="lp-subject-icon"><i class="fas fa-pencil-alt"></i></div>
-        <h3>التعبير</h3>
-        <p>تقنيات وأساليب الكتابة الإبداعية والوظيفية لتحقيق الدرجة النهائية</p>
-      </div>
-      <div class="lp-subject-item">
-        <div class="lp-subject-icon"><i class="fas fa-book-reader"></i></div>
-        <h3>القراءة</h3>
-        <p>مهارات القراءة المتخصصة والاستيعاب مع تدريبات على فهم النصوص</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ===== STATS ===== -->
-<section class="lp-section lp-section-alt">
-  <div class="container">
-    <div style="text-align:center;">
-      <div class="lp-section-tag">إحصائيات</div>
-      <h2 class="lp-section-title">أرقام تتحدث عن نفسها</h2>
-      <p class="lp-section-desc" style="margin:0 auto;">سنوات من العطاء والتفوق في تدريس اللغة العربية لطلاب الثانوية العامة</p>
-    </div>
-    <div class="lp-stats">
-      <div class="lp-stat">
-        <div class="lp-stat-num">+5000</div>
-        <div class="lp-stat-label">طالباً وطالبة</div>
-      </div>
-      <div class="lp-stat">
-        <div class="lp-stat-num">+95%</div>
-        <div class="lp-stat-label">نسبة النجاح</div>
-      </div>
-      <div class="lp-stat">
-        <div class="lp-stat-num">+50</div>
-        <div class="lp-stat-label">محاضرة مسجلة</div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ===== HOW IT WORKS ===== -->
-<section class="lp-section">
-  <div class="container">
-    <div style="text-align:center;">
-      <div class="lp-section-tag">خطوات بسيطة</div>
-      <h2 class="lp-section-title">كيف تبدأ رحلة التفوق؟</h2>
-      <p class="lp-section-desc" style="margin:0 auto;">ثلاث خطوات فقط تفصلك عن عالم من التميز في اللغة العربية</p>
-    </div>
-    <div class="lp-steps">
-      <div class="lp-step">
-        <div class="lp-step-num">١</div>
-        <h3>اختر خطتك</h3>
-        <p>تصفح باقات الاشتراك واختر ما يناسب احتياجاتك وميزانيتك</p>
-      </div>
-      <div class="lp-step">
-        <div class="lp-step-num">٢</div>
-        <h3>أنشئ حسابك</h3>
-        <p>سجل بياناتك بسهولة وتمتع بتجربة تعليمية مخصصة</p>
-      </div>
-      <div class="lp-step">
-        <div class="lp-step-num">٣</div>
-        <h3>ابدأ التعلم</h3>
-        <p>تصفح المحاضرات، حل الأسئلة، وتابع تقدمك خطوة بخطوة</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ===== TEACHER ===== -->
-<section class="lp-section lp-section-alt">
-  <div class="container">
-    <div style="text-align:center;">
-      <div class="lp-section-tag">المدرس</div>
-      <h2 class="lp-section-title">تعرف على أستاذك</h2>
-    </div>
-    <div class="lp-teacher-wrapper">
-      <div class="lp-teacher-avatar">
-        <i class="fas fa-chalkboard-teacher"></i>
-      </div>
-      <div class="lp-teacher-info">
-        <h2>محمد عفيفي</h2>
-        <h3>مدرس اللغة العربية للثانوية العامة</h3>
-        <div class="lp-teacher-quote">
-          التعليم ليس مجرد نقل للمعلومات، بل بناء للعقول وصقل للمهارات. هدفي أن أحبب طلابي في اللغة العربية وأجعلهم يتقنونها بإتقان.
-        </div>
-        <div class="lp-teacher-badges">
-          <div class="lp-teacher-badge"><i class="fas fa-graduation-cap"></i> +15 عاماً خبرة</div>
-          <div class="lp-teacher-badge"><i class="fas fa-star"></i> أعلى نسب نجاح</div>
-          <div class="lp-teacher-badge"><i class="fas fa-heart"></i> آلاف الطلاب</div>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ===== TESTIMONIALS ===== -->
-<section class="lp-section">
-  <div class="container">
-    <div style="text-align:center;">
-      <div class="lp-section-tag">آراء الطلاب</div>
-      <h2 class="lp-section-title">ماذا يقول طلابنا؟</h2>
-      <p class="lp-section-desc" style="margin:0 auto;">تجارب حقيقية لطلاب حققوا التفوق مع منصة المُميز</p>
-    </div>
-    <div class="lp-testimonials-grid">
-      <div class="lp-testimonial">
-        <div class="lp-testimonial-stars"><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i></div>
-        <div class="lp-testimonial-text">بفضل الله ثم بفضل شرح الأستاذ محمد عفيفي، قدرت أحصل على الدرجة النهائية في اللغة العربية. أسلوبه مبسط وطريقته في الشرح تخلي أي حاجة صعبة سهلة.</div>
-        <div class="lp-testimonial-author">
-          <div class="lp-testimonial-avatar">أ</div>
-          <div><div class="lp-testimonial-name">أحمد عبدالله</div><div class="lp-testimonial-grade">الثالث الثانوي - 2025</div></div>
-        </div>
-      </div>
-      <div class="lp-testimonial">
-        <div class="lp-testimonial-stars"><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i></div>
-        <div class="lp-testimonial-text">المنصة حلوة جداً والمحاضرات واضحة ومنظمة. بنك الأسئلة ساعدني كتير في التدريب على شكل الامتحان. الحمد لله جبت ٤٨ من ٥٠ في العربى.</div>
-        <div class="lp-testimonial-author">
-          <div class="lp-testimonial-avatar">م</div>
-          <div><div class="lp-testimonial-name">مريم عمرو</div><div class="lp-testimonial-grade">الثالث الثانوي - 2025</div></div>
-        </div>
-      </div>
-      <div class="lp-testimonial">
-        <div class="lp-testimonial-stars"><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i></div>
-        <div class="lp-testimonial-text">أفضل منصة عربية تعليمية جربتها. المذكرات PDF والمراجعات النهائية ساعدوني أجمع المنهج في وقت قياسي. أنصح أي طالب ثانوية عامة يجربها.</div>
-        <div class="lp-testimonial-author">
-          <div class="lp-testimonial-avatar">ي</div>
-          <div><div class="lp-testimonial-name">يوسف محمود</div><div class="lp-testimonial-grade">الثالث الثانوي - 2024</div></div>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ===== CTA ===== -->
-<section class="lp-section">
-  <div class="container">
-    <div class="lp-cta">
-      <h2>جهز نفسك للتفوق في اللغة العربية</h2>
-      <p>انضم إلى آلاف الطلاب الذين وثقوا في منصة المُميز وحققوا أعلى الدرجات. ابدأ رحلة التفوق اليوم.</p>
-      <a href="/register" class="btn btn-primary">أنشئ حسابك مجاناً <i class="fas fa-arrow-left" style="margin-right:8px;"></i></a>
-    </div>
-  </div>
-</section>
 
 <%- include('../partials/footer') %>

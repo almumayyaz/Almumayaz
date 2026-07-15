@@ -1,0 +1,131 @@
+<%- include('../partials/header', { title: title, navPageTitle: 'المُميز', bodyClass: 'admin-body' }) %>
+<%- include('../partials/admin-sidebar') %>
+<main class="main-content">
+  <div class="page-header"><h1><i class="fas fa-chart-bar"></i> تحليلات المنصة</h1></div>
+
+  <div id="overviewCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px;"></div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+    <div style="background:var(--card);border-radius:var(--radius-lg);padding:16px;border:1px solid var(--border);">
+      <h3 style="font-size:14px;margin-bottom:12px;"><i class="fas fa-trophy" style="color:var(--accent);"></i> الأكثر نشاطاً</h3>
+      <div id="mostActiveTable"><div style="text-align:center;padding:20px;color:var(--text-muted);">جاري التحميل...</div></div>
+    </div>
+    <div style="background:var(--card);border-radius:var(--radius-lg);padding:16px;border:1px solid var(--border);">
+      <h3 style="font-size:14px;margin-bottom:12px;"><i class="fas fa-exclamation-triangle" style="color:#dc2626;"></i> الأقل نشاطاً</h3>
+      <div id="leastActiveTable"><div style="text-align:center;padding:20px;color:var(--text-muted);">جاري التحميل...</div></div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+    <div style="background:var(--card);border-radius:var(--radius-lg);padding:16px;border:1px solid var(--border);">
+      <h3 style="font-size:14px;margin-bottom:12px;"><i class="fas fa-book" style="color:var(--accent);"></i> تحليل المحاضرات</h3>
+      <div id="lessonsTable"><div style="text-align:center;padding:20px;color:var(--text-muted);">جاري التحميل...</div></div>
+    </div>
+    <div style="background:var(--card);border-radius:var(--radius-lg);padding:16px;border:1px solid var(--border);">
+      <h3 style="font-size:14px;margin-bottom:12px;"><i class="fas fa-question-circle" style="color:var(--accent);"></i> تحليل الاختبارات</h3>
+      <div id="quizzesTable"><div style="text-align:center;padding:20px;color:var(--text-muted);">جاري التحميل...</div></div>
+    </div>
+  </div>
+</main>
+
+<script>
+(async function() {
+  // Load overview from v2 engine
+  var v2 = await (await fetch('/api/admin/analytics/v2/overview')).json();
+  var ov = v2;
+  var cards = [
+    { label: 'إجمالي الطلاب', value: ov.totalStudents, icon: 'fa-users', color: '#3b82f6' },
+    { label: 'نشط اليوم', value: ov.activeToday, icon: 'fa-clock', color: '#059669' },
+    { label: 'نشط هذا الأسبوع', value: ov.activeThisWeek, icon: 'fa-calendar-week', color: '#7c3aed' },
+    { label: 'نشط هذا الشهر', value: ov.activeThisMonth, icon: 'fa-calendar', color: '#d97706' },
+    { label: 'بدون نشاط', value: ov.noActivity, icon: 'fa-user-slash', color: '#dc2626' },
+    { label: 'متوسط المشاهدة', value: Math.floor(ov.avgWatchTime / 60) + ':' + String(ov.avgWatchTime % 60).padStart(2,'0'), icon: 'fa-clock', color: '#2563eb' },
+    { label: 'متوسط الإنجاز', value: Math.round((ov.completedStudents / (ov.totalStudents || 1)) * 100) + '%', icon: 'fa-percent', color: '#059669' },
+    { label: 'متوسط الاختبارات', value: ov.avgQuizScore + '%', icon: 'fa-chart-line', color: '#7c3aed' }
+  ];
+  document.getElementById('overviewCards').innerHTML = cards.map(function(c) {
+    return '<div style="background:var(--card);border-radius:var(--radius-lg);padding:14px;border:1px solid var(--border);text-align:center;">' +
+      '<i class="fas ' + c.icon + '" style="color:' + c.color + ';font-size:22px;margin-bottom:6px;"></i>' +
+      '<div style="font-size:22px;font-weight:800;line-height:1.2;">' + c.value + '</div>' +
+      '<div style="font-size:11px;color:var(--text-muted);">' + c.label + '</div></div>';
+  }).join('');
+
+  // Load most active from v2
+  var most = (ov.topActive || []).map(function(s) {
+    return { id: s.uid, name: s.name, activityScore: s.summary.activityScore, completedLessons: s.summary.completedLessons, totalLessons: 0, totalWatchMinutes: Math.floor((s.summary.totalWatchTime || 0) / 60), avgQuizScore: s.summary.averageQuizScore };
+  });
+  document.getElementById('mostActiveTable').innerHTML = most.length ? renderStudentTable(most) : '<div style="text-align:center;padding:20px;color:var(--text-muted);">لا توجد بيانات</div>';
+
+  // Load least active from v2
+  var least = (ov.leastActive || []).map(function(s) {
+    return { id: s.uid, name: s.name, activityScore: s.summary.activityScore, completedLessons: s.summary.completedLessons, totalLessons: 0, totalWatchMinutes: Math.floor((s.summary.totalWatchTime || 0) / 60), avgQuizScore: s.summary.averageQuizScore };
+  });
+  document.getElementById('leastActiveTable').innerHTML = least.length ? renderStudentTable(least) : '<div style="text-align:center;padding:20px;color:var(--text-muted);">لا توجد بيانات</div>';
+
+  // Load lessons from v2
+  var lessons = (ov.mostDifficultLessons || []).map(function(l) {
+    return { courseTitle: l.courseTitle, lessonTitle: l.lessonTitle, completionRate: l.completionRate, completedCount: l.completedStudents, totalStudents: l.totalStudents, courseId: l.courseId };
+  });
+  document.getElementById('lessonsTable').innerHTML = lessons.length ? renderLessonsTable(lessons) : '<div style="text-align:center;padding:20px;color:var(--text-muted);">لا توجد محاضرات</div>';
+
+  // Load quizzes from v2
+  var quizzes = (ov.mostFailedQuizzes || []).map(function(q) {
+    return { quizTitle: q.quizTitle, averageScore: q.avgScore, highestScore: q.avgScore, lowestScore: q.avgScore, passRate: q.passRate, attempts: q.totalAttempts };
+  });
+  document.getElementById('quizzesTable').innerHTML = quizzes.length ? renderQuizzesTable(quizzes) : '<div style="text-align:center;padding:20px;color:var(--text-muted);">لا توجد اختبارات</div>';
+})();
+
+function renderStudentTable(data) {
+  var h = '<table style="width:100%;font-size:12px;border-collapse:collapse;"><thead><tr style="background:var(--bg);">' +
+    '<th style="padding:6px 4px;text-align:right;">الاسم</th><th style="padding:6px 4px;text-align:center;">النشاط</th>' +
+    '<th style="padding:6px 4px;text-align:center;">مُنجز</th><th style="padding:6px 4px;text-align:center;">وقت</th>' +
+    '<th style="padding:6px 4px;text-align:center;">اختبارات</th></tr></thead><tbody>';
+  data.forEach(function(s) {
+    var scoreColor = s.activityScore >= 70 ? '#059669' : s.activityScore >= 40 ? '#d97706' : '#dc2626';
+    h += '<tr style="border-bottom:1px solid var(--border);">' +
+      '<td style="padding:6px 4px;"><a href="/admin/student-progress?sid=' + s.id + '" style="color:var(--accent);text-decoration:none;font-weight:600;">' + (s.name || '—') + '</a></td>' +
+      '<td style="padding:6px 4px;text-align:center;"><span style="background:' + scoreColor + ';color:#fff;padding:2px 8px;border-radius:10px;font-weight:700;font-size:11px;">' + s.activityScore + '</span></td>' +
+      '<td style="padding:6px 4px;text-align:center;">' + s.completedLessons + '/' + s.totalLessons + '</td>' +
+      '<td style="padding:6px 4px;text-align:center;">' + (s.totalWatchMinutes >= 60 ? Math.round(s.totalWatchMinutes/60) + 'س' : s.totalWatchMinutes + 'د') + '</td>' +
+      '<td style="padding:6px 4px;text-align:center;">' + s.avgQuizScore + '%</td></tr>';
+  });
+  return h + '</tbody></table>';
+}
+
+function renderLessonsTable(data) {
+  // Group by course
+  var courses = {};
+  data.forEach(function(l) {
+    if (!courses[l.courseId]) courses[l.courseId] = { title: l.courseTitle, lessons: [] };
+    courses[l.courseId].lessons.push(l);
+  });
+  var h = '';
+  Object.keys(courses).forEach(function(cid) {
+    var c = courses[cid];
+    h += '<div style="font-weight:700;font-size:12px;padding:6px 0;color:var(--accent);border-bottom:1px solid var(--border);margin-top:8px;">' + c.title + '</div>';
+    c.lessons.forEach(function(l) {
+      h += '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:11px;border-bottom:1px solid var(--border);">' +
+        '<span>' + l.lessonTitle + '</span>' +
+        '<span style="color:var(--text-muted);">' + l.completionRate + '% (' + l.completedCount + '/' + l.totalStudents + ')</span></div>';
+    });
+  });
+  return h || '<div style="text-align:center;padding:20px;color:var(--text-muted);">لا توجد محاضرات</div>';
+}
+
+function renderQuizzesTable(data) {
+  var h = '<table style="width:100%;font-size:12px;border-collapse:collapse;"><thead><tr style="background:var(--bg);">' +
+    '<th style="padding:6px 4px;text-align:right;">الاختبار</th><th style="padding:6px 4px;text-align:center;">المعدل</th>' +
+    '<th style="padding:6px 4px;text-align:center;">الأعلى</th><th style="padding:6px 4px;text-align:center;">الأدنى</th>' +
+    '<th style="padding:6px 4px;text-align:center;">النسبة</th></tr></thead><tbody>';
+  data.forEach(function(q) {
+    h += '<tr style="border-bottom:1px solid var(--border);">' +
+      '<td style="padding:6px 4px;font-weight:600;">' + (q.quizTitle || q.courseTitle) + '</td>' +
+      '<td style="padding:6px 4px;text-align:center;">' + q.averageScore + '%</td>' +
+      '<td style="padding:6px 4px;text-align:center;color:#059669;font-weight:600;">' + q.highestScore + '%</td>' +
+      '<td style="padding:6px 4px;text-align:center;color:#dc2626;">' + q.lowestScore + '%</td>' +
+      '<td style="padding:6px 4px;text-align:center;">' + q.passRate + '% (' + q.attempts + ')</td></tr>';
+  });
+  return h + '</tbody></table>';
+}
+</script>
+<%- include('../partials/footer') %>

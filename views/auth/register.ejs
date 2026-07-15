@@ -152,8 +152,6 @@ function handleRegister(e) {
     }
     firebase.auth().createUserWithEmailAndPassword(email, password)
       .then(function(cred) {
-        // Send email verification
-        cred.user.sendEmailVerification().catch(function(){});
         return cred.user.getIdToken();
       })
       .then(function(token) {
@@ -171,7 +169,23 @@ function handleRegister(e) {
       .then(function(r) { return r.json(); })
       .then(function(d) {
         if (d.success) {
-          document.getElementById('registerForm').innerHTML = '<div style="padding:40px 20px;text-align:center;"><i class="fas fa-envelope" style="font-size:56px;color:var(--accent);display:block;margin-bottom:16px;"></i><h2 style="font-family:\'Aref Ruqaa\',serif;font-size:22px;font-weight:700;margin-bottom:8px;">تم إنشاء الحساب 🎉</h2><p style="font-size:14px;color:var(--text-light);margin-bottom:20px;">تم إرسال رابط تأكيد إلى بريدك الإلكتروني. يرجى التحقق من بريدك (أو البريد المزعج) وتأكيد الحساب ثم تسجيل الدخول.</p><a href="/login" class="btn btn-primary"><i class="fas fa-sign-in-alt"></i> تسجيل الدخول</a></div>';
+          window._regEmail = email;
+          document.getElementById('registerForm').innerHTML =
+            '<div style="padding:30px 10px;text-align:center;">' +
+            '<i class="fas fa-envelope-open-text" style="font-size:54px;color:var(--accent);display:block;margin-bottom:14px;"></i>' +
+            '<h2 style="font-family:\'Aref Ruqaa\',serif;font-size:22px;font-weight:700;margin-bottom:8px;">تأكيد البريد الإلكتروني</h2>' +
+            '<p style="font-size:14px;color:var(--text-light);margin-bottom:18px;">أرسلنا كود تأكيد مكوّن من 6 أرقام إلى بريدك الإلكتروني. أدخله لتفعيل حسابك.</p>' +
+            '<div class="form-group"><input type="text" id="verifyCodeInput" placeholder="الكود المكوّن من 6 أرقام" dir="ltr" style="text-align:center;letter-spacing:6px;font-size:20px;"></div>' +
+            '<div id="verifyError" style="display:none;background:rgba(220,38,38,0.1);border:1px solid rgba(220,38,38,0.2);border-radius:8px;padding:10px;margin-bottom:12px;font-size:13px;color:var(--danger);"></div>' +
+            '<button class="btn btn-primary" id="verifyBtn" onclick="verifyAccount()" style="width:100%;"><i class="fas fa-check"></i> تأكيد الحساب</button>' +
+            '<button class="btn" onclick="resendCode()" style="width:100%;margin-top:10px;background:none;border:1px solid var(--border);color:var(--text-muted);">إعادة إرسال الكود</button>' +
+            '</div>';
+          if (!d.emailSent) {
+            var v = document.getElementById('verifyError');
+            v.style.display = 'block'; v.style.color = '#a16207';
+            v.style.background = 'rgba(234,179,8,0.1)'; v.style.borderColor = 'rgba(234,179,8,0.3)';
+            v.textContent = 'تعذر الإرسال التلقائي للإيميل، أعد المحاولة أو تواصل مع الدعم.';
+          }
         }
         else { alert(d.error || 'فشل إنشاء الحساب'); location.reload(); }
       })
@@ -189,6 +203,40 @@ function handleRegister(e) {
     btn.innerHTML = '<i class="fas fa-user-plus"></i> إنشاء الحساب';
   }
   return false;
+}
+
+function verifyAccount() {
+  var code = document.getElementById('verifyCodeInput').value.trim();
+  var err = document.getElementById('verifyError');
+  var btn = document.getElementById('verifyBtn');
+  err.style.display = 'none';
+  if (!code) { err.style.display = 'block'; err.textContent = 'يرجى إدخال الكود'; return; }
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري التأكيد...';
+  fetch('/api/auth/verify-email', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: window._regEmail, code: code })
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.success) { window.location.href = '/student'; }
+    else { err.style.display = 'block'; err.textContent = d.error || 'فشل التأكيد'; btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> تأكيد الحساب'; }
+  }).catch(function() {
+    err.style.display = 'block'; err.textContent = 'فشل الاتصال بالخادم'; btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> تأكيد الحساب';
+  });
+}
+
+function resendCode() {
+  var err = document.getElementById('verifyError');
+  if (!window._regEmail) return;
+  fetch('/api/auth/send-verify-code', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: window._regEmail })
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.success) {
+      err.style.display = 'block'; err.style.color = '#15803d'; err.style.background = 'rgba(34,197,94,0.1)'; err.style.borderColor = 'rgba(34,197,94,0.3)';
+      err.textContent = 'تم إرسال كود جديد إلى بريدك الإلكتروني.';
+    } else { err.style.display = 'block'; err.style.color = ''; err.style.background = ''; err.style.borderColor = ''; err.textContent = d.error || 'فشل إعادة الإرسال'; }
+  }).catch(function() {
+    err.style.display = 'block'; err.textContent = 'فشل الاتصال بالخادم';
+  });
 }
 </script>
 <%- include('../partials/footer') %>

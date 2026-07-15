@@ -1,0 +1,165 @@
+<%- include('../partials/header', { title: 'لوحة المتابعة - ولي الأمر' }) %>
+<nav class="navbar" style="position:relative;top:0;box-shadow:none;border-bottom:1px solid var(--border);">
+  <div class="container">
+    <div class="nav-right">
+      <a href="/parent/dashboard" class="nav-logo" style="font-size:24px;">المُميز</a>
+    </div>
+    <div class="nav-left">
+      <span style="font-size:13px;color:var(--text-light);"><i class="fas fa-user-friends"></i> <%= user.name %></span>
+      <a href="/logout" class="btn btn-sm" style="background:var(--danger);color:#fff;padding:6px 14px;border-radius:var(--radius);font-size:12px;"><i class="fas fa-sign-out-alt"></i> خروج</a>
+    </div>
+  </div>
+</nav>
+<div style="max-width:900px;margin:0 auto;padding:24px 16px 40px;">
+  <% if (!selectedChild) { %>
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:40px;text-align:center;">
+    <i class="fas fa-user-friends" style="font-size:48px;color:var(--accent);display:block;margin-bottom:12px;"></i>
+    <h2 style="font-size:20px;font-weight:700;">لا يوجد طلاب مرتبطون</h2>
+    <p style="font-size:14px;color:var(--text-light);margin-top:8px;">لم يتم ربط أي طالب بحسابك بعد. تواصل مع الطالب لإرسال دعوة الربط.</p>
+  </div>
+  <% } else { %>
+  <!-- Children Selector -->
+  <div id="childrenSelector" style="display:<%= children.length > 1 ? 'flex' : 'none' %>;align-items:center;gap:10px;margin-bottom:20px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px 16px;">
+    <i class="fas fa-users" style="color:var(--accent);"></i>
+    <span style="font-weight:600;font-size:14px;">اختر الطالب:</span>
+    <select id="childSelect" onchange="switchChild(this.value)" style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);color:var(--text);font-size:14px;">
+      <% children.forEach(function(c) { %>
+      <option value="<%= c.id %>" <%= c.id === selectedChild.id ? 'selected' : '' %>><%= c.name %> - <%= c.grade || '' %></option>
+      <% }) %>
+    </select>
+  </div>
+
+  <!-- Child Info Header -->
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;margin-bottom:20px;box-shadow:var(--shadow);">
+    <div style="display:flex;align-items:center;gap:16px;">
+      <div style="width:60px;height:60px;border-radius:50%;background:var(--accent-glow);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:800;"><%= selectedChild.name.charAt(0) %></div>
+      <div style="flex:1;">
+        <h2 style="font-size:22px;font-weight:700;margin:0;font-family:'Aref Ruqaa',serif;"><%= selectedChild.name %></h2>
+        <div style="display:flex;gap:16px;margin-top:6px;flex-wrap:wrap;font-size:13px;color:var(--text-light);">
+          <span><i class="fas fa-graduation-cap"></i> <%= selectedChild.stage || '' %> <%= selectedChild.grade || '' %></span>
+          <span><i class="fas fa-phone"></i> <%= selectedChild.phone || '---' %></span>
+        </div>
+      </div>
+      <div style="text-align:center;">
+        <% if (selectedChild.subscriptionStatus === 'active') { %>
+        <span style="display:inline-block;background:rgba(22,163,74,0.1);color:var(--success);padding:6px 16px;border-radius:20px;font-size:13px;font-weight:700;"><i class="fas fa-check-circle"></i> مشترك</span>
+        <% } else { %>
+        <span style="display:inline-block;background:rgba(220,38,38,0.1);color:var(--danger);padding:6px 16px;border-radius:20px;font-size:13px;font-weight:700;"><i class="fas fa-times-circle"></i> غير مشترك</span>
+        <% } %>
+      </div>
+    </div>
+  </div>
+  <% } %>
+
+  <% if (selectedChild) { %>
+  <!-- Stats Grid -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px;">
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;text-align:center;">
+      <div style="font-size:28px;font-weight:800;color:var(--accent);"><%= stats.completedLessons || 0 %></div>
+      <div style="font-size:13px;color:var(--text-light);margin-top:4px;">الدروس المكتملة</div>
+    </div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;text-align:center;">
+      <div style="font-size:28px;font-weight:800;color:var(--accent);"><%= stats.completedExams || 0 %></div>
+      <div style="font-size:13px;color:var(--text-light);margin-top:4px;">الاختبارات المنجزة</div>
+    </div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;text-align:center;">
+      <div style="font-size:28px;font-weight:800;color:var(--accent);"><%= stats.avgScore || 0 %>%</div>
+      <div style="font-size:13px;color:var(--text-light);margin-top:4px;">متوسط الدرجات</div>
+    </div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;text-align:center;">
+      <div style="font-size:28px;font-weight:800;color:var(--accent);"><%= stats.totalHours || 0 %></div>
+      <div style="font-size:13px;color:var(--text-light);margin-top:4px;">ساعات الدراسة</div>
+    </div>
+  </div>
+
+  <!-- Progress Bar -->
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;margin-bottom:20px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <span style="font-weight:700;font-size:14px;"><i class="fas fa-chart-line" style="color:var(--accent);"></i> إنجاز المنهج</span>
+      <span style="font-weight:700;font-size:16px;color:var(--accent);"><%= stats.progressPercentage || 0 %>%</span>
+    </div>
+    <div style="width:100%;height:12px;background:var(--bg);border-radius:10px;overflow:hidden;">
+      <div style="width:<%= stats.progressPercentage || 0 %>%;height:100%;background:linear-gradient(90deg,var(--accent),#D97706);border-radius:10px;transition:width 0.6s ease;"></div>
+    </div>
+  </div>
+
+  <!-- Last Activity & Details -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;">
+      <h3 style="font-size:14px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px;"><i class="fas fa-history" style="color:var(--accent);"></i> آخر نشاط</h3>
+      <div style="font-size:13px;color:var(--text-light);">
+        <% if (stats.lastLesson) { %>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
+          <span style="color:var(--text);font-weight:600;">آخر درس</span>
+          <span><%= stats.lastLesson %></span>
+        </div>
+        <% } %>
+        <% if (stats.lastExam) { %>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
+          <span style="color:var(--text);font-weight:600;">آخر اختبار</span>
+          <span><%= stats.lastExam %></span>
+        </div>
+        <% } %>
+        <% if (stats.lastExamScore !== undefined && stats.lastExamScore !== null) { %>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
+          <span style="color:var(--text);font-weight:600;">درجة آخر اختبار</span>
+          <span style="font-weight:700;color:<%= stats.lastExamScore >= 50 ? 'var(--success)' : 'var(--danger)' %>;"><%= stats.lastExamScore %>%</span>
+        </div>
+        <% } %>
+        <% if (!stats.lastLesson && !stats.lastExam) { %>
+        <div style="text-align:center;padding:20px 0;color:var(--text-muted);">
+          <i class="fas fa-inbox" style="font-size:32px;display:block;margin-bottom:8px;opacity:0.4;"></i>
+          لا يوجد نشاط مسجل بعد
+        </div>
+        <% } %>
+      </div>
+    </div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;">
+      <h3 style="font-size:14px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px;"><i class="fas fa-bell" style="color:var(--accent);"></i> آخر الإشعارات</h3>
+      <div id="notificationsList" style="font-size:13px;">
+        <% if (notifications.length > 0) { %>
+          <% notifications.slice(0, 5).forEach(function(n) { %>
+          <div style="padding:10px 0;border-bottom:1px solid var(--border);">
+            <div style="font-weight:600;color:var(--text);"><%= n.title %></div>
+            <div style="color:var(--text-light);font-size:12px;"><%= n.body %></div>
+            <div style="color:var(--text-muted);font-size:11px;margin-top:2px;"><%= new Date(n.sentAt).toLocaleDateString('ar-EG') %></div>
+          </div>
+          <% }) %>
+        <% } else { %>
+        <div style="text-align:center;padding:20px 0;color:var(--text-muted);">
+          <i class="fas fa-bell-slash" style="font-size:28px;display:block;margin-bottom:6px;opacity:0.4;"></i>
+          لا توجد إشعارات
+        </div>
+        <% } %>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Activity Log -->
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;">
+    <h3 style="font-size:14px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px;"><i class="fas fa-stream" style="color:var(--accent);"></i> سجل الأنشطة</h3>
+    <% if (stats.recentActivity && stats.recentActivity.length > 0) { %>
+    <div style="display:flex;flex-direction:column;gap:4px;">
+      <% stats.recentActivity.slice(0, 10).forEach(function(a) { %>
+      <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;background:var(--bg);border-radius:var(--radius);">
+        <div style="width:8px;height:8px;border-radius:50%;background:<%= a.type === 'lesson' ? 'var(--accent)' : (a.type === 'exam' ? 'var(--success)' : 'var(--primary)') %>;flex-shrink:0;"></div>
+        <span style="flex:1;font-size:13px;"><%= a.text %></span>
+        <span style="font-size:11px;color:var(--text-muted);"><%= new Date(a.date).toLocaleDateString('ar-EG') %></span>
+      </div>
+      <% }) %>
+    </div>
+    <% } else { %>
+    <div style="text-align:center;padding:20px 0;color:var(--text-muted);">
+      <i class="fas fa-inbox" style="font-size:28px;display:block;margin-bottom:6px;opacity:0.4;"></i>
+      لا توجد أنشطة مسجلة بعد
+    </div>
+    <% } %>
+  </div>
+  <% } %>
+</div>
+<script>
+function switchChild(childId) {
+  window.location.href = '/parent/dashboard?child=' + childId;
+}
+</script>
+<%- include('../partials/footer') %>

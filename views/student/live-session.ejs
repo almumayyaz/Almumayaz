@@ -1,0 +1,151 @@
+<%- include('../partials/header', { title: title, navPageTitle: 'المُميز', bodyClass: 'student-body' }) %>
+<%- include('../partials/student-sidebar') %>
+<main class="main-content">
+  <div class="page-header">
+    <a href="/student/live-sessions" style="color:var(--text-muted);font-size:13px;margin-bottom:8px;display:inline-flex;align-items:center;gap:4px;">
+      <i class="fas fa-arrow-right"></i> العودة للحصص المباشرة
+    </a>
+    <h1 style="font-size:20px;"><i class="fas fa-video" style="color:var(--accent);"></i> <%= session.title %></h1>
+  </div>
+
+  <!-- Session Info -->
+  <div style="background:var(--card);border-radius:var(--radius-lg);padding:16px 20px;border:1px solid var(--border);margin-bottom:16px;">
+    <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;">
+      <div style="display:flex;align-items:center;gap:6px;font-size:13px;">
+        <span style="font-weight:600;">الحالة:</span>
+        <% if (session.status === 'Live') { %>
+          <span style="color:#dc2626;font-weight:700;display:flex;align-items:center;gap:4px;">
+            <span style="width:8px;height:8px;background:#dc2626;border-radius:50%;display:inline-block;animation:pulse 1.5s infinite;"></span>
+            مباشر الآن
+          </span>
+        <% } else if (session.status === 'Scheduled') { %>
+          <span style="color:#2563eb;font-weight:700;">مجدولة</span>
+        <% } else if (session.status === 'Ended') { %>
+          <span style="color:#6b7280;font-weight:700;">منتهية</span>
+        <% } else { %>
+          <span style="color:#dc2626;font-weight:700;">ملغاة</span>
+        <% } %>
+      </div>
+      <% if (session.subject) { %><span style="font-size:13px;"><span style="font-weight:600;">المادة:</span> <%= session.subject %></span><% } %>
+      <% if (session.grade) { %><span style="font-size:13px;"><span style="font-weight:600;">الصف:</span> <%= session.grade %></span><% } %>
+      <span style="font-size:13px;"><span style="font-weight:600;">البداية:</span> <%= new Date(session.startTime).toLocaleDateString('ar-EG', { timeZone:'Africa/Cairo', weekday:'short', year:'numeric', month:'short', day:'numeric' }) %> <%= new Date(session.startTime).toLocaleTimeString('ar-EG', { timeZone:'Africa/Cairo', hour:'2-digit', minute:'2-digit' }) %></span>
+      <% if (session.duration) { %><span style="font-size:13px;"><span style="font-weight:600;">المدة:</span> <%= session.duration %> دقيقة</span><% } %>
+    </div>
+    <div id="sessionCountdown" style="margin-top:10px;font-size:14px;font-weight:700;color:var(--accent);"></div>
+  </div>
+
+  <!-- Zoom Join Button -->
+  <% if (session.status === 'Live' || session.status === 'Scheduled') { %>
+  <div style="text-align:center;padding:40px 20px;background:var(--card);border-radius:var(--radius-lg);border:1px solid var(--border);">
+    <i class="fas fa-video" style="font-size:48px;color:var(--accent);margin-bottom:16px;"></i>
+    <div style="font-size:15px;font-weight:600;margin-bottom:8px;">
+      <%= session.status === 'Live' ? 'الحصة مباشرة الآن' : 'الحصة مجدولة' %>
+    </div>
+    <div style="font-size:13px;color:var(--text-muted);margin-bottom:24px;">
+      <%= session.status === 'Live' ? 'اضغط للانضمام إلى الحصة' : 'سوف تبدأ الحصة قريباً' %>
+    </div>
+
+    <button class="btn btn-primary" onclick="openZoomEmbed()" style="display:inline-flex;align-items:center;gap:8px;font-size:16px;padding:12px 32px;">
+      <i class="fas fa-video"></i> <%= session.status === 'Live' ? 'انضم الآن للحصة' : 'دخول مبكر' %>
+    </button>
+  </div>
+  <% } else { %>
+    <div style="text-align:center;padding:40px;color:var(--text-muted);font-size:14px;">
+      <i class="fas fa-info-circle" style="font-size:32px;display:block;margin-bottom:12px;color:var(--accent);"></i>
+      هذه الحصة <%= session.status === 'Ended' ? 'انتهت' : 'ملغاة' %>
+    </div>
+  <% } %>
+
+  <!-- Fullscreen Zoom Embed Overlay (hidden by default) -->
+  <div id="zoomOverlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:99999;background:#fff;flex-direction:column;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 16px;background:#1a1a2e;color:#fff;font-size:14px;font-weight:600;flex-shrink:0;">
+      <span><%= session.title %></span>
+      <button onclick="closeZoomEmbed()" style="background:none;border:1px solid rgba(255,255,255,0.3);color:#fff;padding:4px 12px;border-radius:6px;cursor:pointer;font-size:13px;">خروج</button>
+    </div>
+    <iframe id="zoomFrame" style="flex:1;width:100%;border:none;" allow="camera;microphone;display-capture;autoplay;clipboard-read;clipboard-write" allowfullscreen></iframe>
+  </div>
+
+  <!-- Attendance status -->
+  <div id="attendanceStatus" style="margin-top:16px;font-size:12px;color:var(--text-muted);text-align:center;"></div>
+</main>
+
+<script>
+var sessionId = '<%= session.id %>';
+var sessionStatus = '<%= session.status %>';
+var embedUrl = '/zoom-embed/' + sessionId;
+var attendanceRecorded = false;
+
+// Countdown timer
+(function() {
+  var el = document.getElementById('sessionCountdown');
+  if (!el) return;
+  var startTime = new Date('<%= session.startTime %>').getTime();
+  function tick() {
+    var diff = startTime - Date.now();
+    if (diff <= 0) { el.textContent = 'الحصة بدأت الآن'; return; }
+    var h = Math.floor(diff / 3600000);
+    var m = Math.floor((diff % 3600000) / 60000);
+    var s = Math.floor((diff % 60000) / 1000);
+    el.textContent = 'تبدأ بعد ' + h + 'س ' + m + 'د ' + s + 'ث';
+  }
+  if (sessionStatus === 'Scheduled') { tick(); setInterval(tick, 1000); }
+  else if (sessionStatus === 'Live') { el.textContent = 'الحصة مباشرة الآن'; }
+  else { el.style.display = 'none'; }
+})();
+
+// Auto-open Zoom if session is Live
+if (sessionStatus === 'Live') {
+  setTimeout(openZoomEmbed, 500);
+}
+
+function openZoomEmbed() {
+  recordJoin();
+  var overlay = document.getElementById('zoomOverlay');
+  var frame = document.getElementById('zoomFrame');
+  overlay.style.display = 'flex';
+  frame.src = embedUrl;
+}
+
+function closeZoomEmbed() {
+  var overlay = document.getElementById('zoomOverlay');
+  var frame = document.getElementById('zoomFrame');
+  frame.src = '';
+  overlay.style.display = 'none';
+}
+
+// Record attendance (join)
+function recordJoin() {
+  if (attendanceRecorded) return;
+  fetch('/api/live-sessions/' + sessionId + '/attendance', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ action: 'join' })
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if (d.success) { attendanceRecorded = true; }
+  }).catch(function(){});
+}
+
+// Record attendance on page unload
+window.addEventListener('beforeunload', function() {
+  fetch('/api/live-sessions/' + sessionId + '/attendance', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ action: 'leave' })
+  }).then(function(r){ return r.json(); }).catch(function(){});
+});
+
+// Poll for session status changes
+(function() {
+  function checkStatus() {
+    fetch('/api/live-sessions/' + sessionId)
+      .then(function(r){ return r.json(); })
+      .then(function(d) {
+        if (!d.session || !d.session.status) return;
+        var s = d.session.status;
+        if (s === 'Live' && sessionStatus !== 'Live') { location.reload(); }
+        if (s === 'Ended' && sessionStatus === 'Live') { location.reload(); }
+      }).catch(function(){});
+  }
+  setInterval(checkStatus, 30000);
+})();
+</script>
+
+<%- include('../partials/footer') %>

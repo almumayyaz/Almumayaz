@@ -4,43 +4,63 @@
   <div class="page-header">
     <div>
       <h1>المذكرات</h1>
-      <p>جميع المذكرات بصيغة PDF للتحميل والطباعة - من إعداد الأستاذ محمد عفيفي</p>
+      <p>جميع المذكرات متاحة للمشتركين داخل المنصة فقط - من إعداد الأستاذ محمد عفيفي</p>
     </div>
     <span style="font-size:13px;color:var(--text-light);background:var(--card);padding:8px 16px;border-radius:8px;border:1px solid var(--border);">
       <i class="fas fa-sticky-note" style="color:var(--accent);"></i> <%= (allNotes||[]).length %> مذكرة
     </span>
   </div>
-  <div class="notes-grid">
-    <% courses.forEach(function(course) { %>
-    <div class="note-card">
-      <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;">
-        <div style="width:52px;height:52px;background:<%= course.color %>;border-radius:12px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;">
-          <i class="fas <%= course.icon %>"></i>
+  <% 
+  function drivePreviewUrl(u){
+    if(!u) return '';
+    var m = u.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+    if(m) return 'https://drive.google.com/file/d/'+m[1]+'/preview';
+    m = u.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+    if(m) return 'https://drive.google.com/file/d/'+m[1]+'/preview';
+    return '';
+  }
+  %>
+  <% if (allNotes && allNotes.length > 0) { %>
+  <div style="display:flex;flex-direction:column;gap:16px;">
+    <% allNotes.forEach(function(n) { %>
+    <div style="background:var(--card);border-radius:var(--radius-lg);padding:20px;border:1px solid var(--border);box-shadow:var(--shadow);">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+        <div style="width:48px;height:48px;background:var(--accent-glow);border-radius:12px;display:flex;align-items:center;justify-content:center;color:var(--accent);font-size:20px;flex-shrink:0;">
+          <i class="fas fa-sticky-note"></i>
         </div>
-        <div>
-          <h3 style="margin-bottom:0;">مذكرة <%= course.title %></h3>
+        <div style="flex:1;min-width:0;">
+          <h3 style="margin:0;font-size:16px;"><%= n.title %></h3>
+          <% if (n.description) { %><p style="margin:4px 0 0;font-size:13px;color:var(--text-light);"><%= n.description %></p><% } %>
         </div>
       </div>
-      <% var courseNotes = (allNotes||[]).filter(function(n){return n.courseId===course.id;}); %>
-      <div style="margin-top:16px;">
-        <% if (courseNotes.length > 0) { %>
-        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;">
-          <% courseNotes.forEach(function(n) { %>
-          <span style="font-size:11px;background:var(--card);padding:4px 10px;border-radius:4px;color:var(--text-light);border:1px solid var(--border);">
-            <i class="fas fa-sticky-note" style="color:var(--accent);"></i> <%= n.title.substring(0, 20) %>
-          </span>
-          <% }) %>
-        </div>
-        <div class="note-actions">
-          <% if (courseNotes[0].fileUrl) { %><a href="<%= courseNotes[0].fileUrl %>" target="_blank" class="btn btn-sm btn-primary"><i class="fas fa-download"></i> تحميل المذكرة</a><% } %>
-        </div>
+      <% if (n.filePath || n.fileUrl) { %>
+        <% if (isSubscribed) { %>
+        <a href="/student/note-pdf/<%= n.id %>" class="btn" style="background:var(--accent);color:#fff;">
+          <i class="fas fa-file-pdf"></i> عرض المذكرة PDF
+        </a>
         <% } else { %>
-        <p style="color:var(--text-muted);font-size:13px;">لا توجد مذكرات بعد</p>
+        <a href="/student/subscription" class="btn" style="background:var(--bg);color:var(--text-light);border:1px solid var(--border);">
+          <i class="fas fa-lock"></i> المذكرة مقفلة - اشترك للعرض
+        </a>
         <% } %>
+      <% } else { %>
+      <div style="font-size:13px;color:var(--text-light);text-align:center;padding:14px;background:var(--bg);border-radius:8px;border:1px solid var(--border);">
+        <i class="fas fa-lock"></i> المذكرة غير متاحة حالياً
       </div>
+      <% } %>
+      <% if (n.createdAt) { %>
+      <div style="font-size:12px;color:var(--text-muted);text-align:center;margin-top:8px;">
+        <i class="fas fa-calendar-alt"></i> <%= n.createdAt.substring(0, 10) %>
+      </div>
+      <% } %>
     </div>
     <% }) %>
   </div>
+  <% } else { %>
+  <div style="text-align:center;padding:60px 20px;color:var(--text-light);">
+    <i class="fas fa-sticky-note" style="font-size:48px;display:block;margin-bottom:16px;opacity:0.4;"></i>
+    <p>لا توجد مذكرات متاحة حالياً</p>
+  </div>
+  <% } %>
 </main>
-</body>
-</html>
+<%- include('../partials/footer') %>

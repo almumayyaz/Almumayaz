@@ -51,8 +51,8 @@
             '<td>' + statusHtml + '</td>' +
             '<td>' +
               (isPending
-                ? '<div class="admin-actions"><button class="edit" onclick="approveRequest(\'' + r.id + '\')" title="موافقة"><i class="fas fa-check"></i></button><button class="delete" onclick="rejectRequest(\'' + r.id + '\')" title="رفض"><i class="fas fa-times"></i></button></div>'
-                : '<span style="font-size:11px;color:var(--text-muted);">' + (r.status === 'approved' ? 'مفعل' : 'مرفوض') + '</span>'
+                ? '<div class="admin-actions"><button class="edit" onclick="approveRequest(\'' + r.id + '\')" title="موافقة"><i class="fas fa-check"></i></button><button class="delete" onclick="rejectRequest(\'' + r.id + '\')" title="رفض"><i class="fas fa-times"></i></button><button class="delete" onclick="deleteRequest(\'' + r.id + '\')" style="background:rgba(220,38,38,0.15);color:var(--danger);" title="حذف"><i class="fas fa-trash"></i></button></div>'
+                : '<div class="admin-actions"><button class="delete" onclick="deleteRequest(\'' + r.id + '\')" title="حذف"><i class="fas fa-trash"></i></button> <span style="font-size:11px;color:var(--text-muted);">' + (r.status === 'approved' ? 'مفعل' : 'مرفوض') + '</span></div>'
               ) +
             '</td>' +
           '</tr>';
@@ -73,6 +73,13 @@
   window.rejectRequest = function(id) {
     if (!confirm('تأكيد رفض طلب الاشتراك؟')) return;
     fetch('/api/admin/sub-requests/' + id, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ status: 'rejected' }) })
+      .then(function(r) { return r.json(); })
+      .then(function(d) { if (d.success) loadRequests(); else alert(d.error); });
+  };
+
+  window.deleteRequest = function(id) {
+    if (!confirm('تأكيد حذف طلب الاشتراك؟ لا يمكن التراجع عن هذا الإجراء.')) return;
+    fetch('/api/admin/sub-requests/' + id, { method: 'DELETE' })
       .then(function(r) { return r.json(); })
       .then(function(d) { if (d.success) loadRequests(); else alert(d.error); });
   };

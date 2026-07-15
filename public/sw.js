@@ -10,19 +10,26 @@ firebase.initializeApp({
   appId: '1:67570982000:web:8436cf227de225076328b5'
 });
 
-var CACHE = 'lughati-v2';
-var urls = ['/', '/css/style.css', '/manifest.json'];
+// NOTE: This service worker does NOT intercept or cache any network requests.
+// The browser handles all asset loads normally (respecting the server's
+// no-cache headers), so resources are always fresh and are never blocked
+// by a stale service worker — including on mobile. Its only job is to
+// receive Firebase Cloud Messaging push notifications in the background.
+var CACHE = 'lughati-v7';
 
+// Note: skipWaiting intentionally omitted to prevent Chrome's
+// "This site has been updated in the background" notification.
+// SW will activate on next page load instead.
 self.addEventListener('install', function(e) {
-  e.waitUntil(caches.open(CACHE).then(function(c) { return c.addAll(urls); }));
+  // SW installed — will activate after all pages using old SW are closed
 });
 
 self.addEventListener('activate', function(e) {
-  e.waitUntil(clients.claim());
-});
-
-self.addEventListener('fetch', function(e) {
-  e.respondWith(fetch(e.request).catch(function() { return caches.match(e.request); }));
+  e.waitUntil(
+    caches.keys().then(function(keys) {
+      return Promise.all(keys.map(function(k) { return caches.delete(k); }));
+    }).then(function() { return clients.claim(); })
+  );
 });
 
 firebase.messaging().onBackgroundMessage(function(payload) {

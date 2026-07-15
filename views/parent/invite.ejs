@@ -1,0 +1,75 @@
+<%- include('../partials/header', { title: 'دعوة ولي الأمر - المُميز' }) %>
+<section class="auth-section">
+  <div class="auth-card">
+    <a href="/" class="nav-logo">المُميز</a>
+    <h2>دعوة لمتابعة الطالب</h2>
+    <p>تم دعوتك لمتابعة أداء <strong><%= invite.studentName %></strong> في منصة المُميز</p>
+
+    <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:var(--radius);padding:16px;margin-bottom:20px;text-align:center;">
+      <i class="fas fa-user-graduate" style="font-size:32px;color:var(--accent);display:block;margin-bottom:8px;"></i>
+      <div style="font-weight:700;font-size:18px;"><%= invite.studentName %></div>
+      <div style="font-size:13px;color:var(--text-light);"><%= invite.studentStage || '' %> <%= invite.studentGrade || '' %></div>
+    </div>
+
+    <% if (error) { %>
+    <div class="auth-error"><i class="fas fa-exclamation-circle"></i> <%= error %></div>
+    <% } %>
+
+    <div id="inviteForm">
+      <div class="form-group">
+        <label>اسم ولي الأمر</label>
+        <input type="text" id="parentName" class="form-input" value="<%= invite.parentName || '' %>" readonly style="background:var(--bg);opacity:0.8;">
+      </div>
+      <div class="form-group">
+        <label>رقم الهاتف</label>
+        <input type="tel" id="parentPhone" class="form-input" value="<%= invite.parentPhone || '' %>" readonly style="background:var(--bg);opacity:0.8;">
+      </div>
+      <% if (invite.parentEmail) { %>
+      <div class="form-group">
+        <label>البريد الإلكتروني</label>
+        <input type="email" class="form-input" value="<%= invite.parentEmail %>" readonly style="background:var(--bg);opacity:0.8;">
+      </div>
+      <% } %>
+      <div class="form-group">
+        <label>كلمة المرور <span style="color:var(--danger);">*</span></label>
+        <input type="password" id="parentPassword" class="form-input" placeholder="أدخل كلمة المرور (6 أحرف على الأقل)" dir="ltr" minlength="6">
+      </div>
+      <div class="form-group">
+        <label>تأكيد كلمة المرور <span style="color:var(--danger);">*</span></label>
+        <input type="password" id="parentPasswordConfirm" class="form-input" placeholder="أعد إدخال كلمة المرور" dir="ltr" minlength="6">
+      </div>
+      <div id="inviteError" style="display:none;background:rgba(220,38,38,0.1);border:1px solid rgba(220,38,38,0.2);border-radius:8px;padding:12px;margin-bottom:12px;text-align:center;font-size:13px;color:var(--danger);"></div>
+      <button class="btn btn-primary" onclick="acceptInvite()" id="acceptBtn" style="width:100%;">
+        <i class="fas fa-check"></i> تأكيد وإنشاء الحساب
+      </button>
+    </div>
+  </div>
+</section>
+<script>
+function acceptInvite() {
+  var password = document.getElementById('parentPassword').value;
+  var confirm = document.getElementById('parentPasswordConfirm').value;
+  var errDiv = document.getElementById('inviteError');
+  errDiv.style.display = 'none';
+  if (!password || password.length < 6) { errDiv.style.display = 'block'; errDiv.textContent = 'كلمة المرور يجب أن تكون 6 أحرف على الأقل'; return; }
+  if (password !== confirm) { errDiv.style.display = 'block'; errDiv.textContent = 'كلمة المرور غير متطابقة'; return; }
+  var btn = document.getElementById('acceptBtn');
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري إنشاء الحساب...';
+  fetch('/api/parent/accept-invite', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ token: '<%= invite.token %>', password: password })
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.success) {
+      document.getElementById('inviteForm').innerHTML = '<div style="text-align:center;padding:40px 12px;"><i class="fas fa-check-circle" style="font-size:56px;color:var(--success);display:block;margin-bottom:16px;"></i><h2 style="font-size:20px;font-weight:700;margin-bottom:8px;">🎉 تم إنشاء الحساب بنجاح!</h2><p style="font-size:14px;color:var(--text-light);margin-bottom:20px;">يمكنك الآن تسجيل الدخول لمتابعة أداء <%= invite.studentName %>.</p><a href="/parent-login" class="btn btn-primary btn-lg"><i class="fas fa-sign-in-alt"></i> تسجيل دخول ولي الأمر</a></div>';
+    } else {
+      errDiv.style.display = 'block'; errDiv.textContent = d.error || 'حدث خطأ';
+      btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> تأكيد وإنشاء الحساب';
+    }
+  }).catch(function() {
+    errDiv.style.display = 'block'; errDiv.textContent = 'فشل الاتصال بالخادم';
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> تأكيد وإنشاء الحساب';
+  });
+}
+</script>
+<%- include('../partials/footer') %>

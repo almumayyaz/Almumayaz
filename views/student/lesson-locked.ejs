@@ -1,0 +1,13 @@
+<%- include('../partials/header', { title: title, navPageTitle: 'الدرس مقفول', bodyClass: 'student-body' }) %>
+<%- include('../partials/student-sidebar') %>
+<main class="main-content">
+  <div style="text-align:center;padding:60px 20px;">
+    <div style="font-size:64px;color:var(--border);margin-bottom:16px;"><i class="fas fa-lock"></i></div>
+    <h2 style="font-size:22px;font-weight:700;color:var(--text);margin-bottom:8px;">هذا الدرس مقفول</h2>
+    <p style="color:var(--text-muted);font-size:15px;margin-bottom:12px;">يجب إكمال الدرس السابق أولاً</p>
+    <a href="/student/course/<%= course.id %>" class="btn btn-primary" style="margin-top:8px;">
+      <i class="fas fa-chevron-right"></i> العودة إلى <%= course.title %>
+    </a>
+  </div>
+</main>
+<%- include('../partials/footer') %>

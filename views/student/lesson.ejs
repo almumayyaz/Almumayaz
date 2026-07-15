@@ -124,6 +124,7 @@
 <script src="/js/plyr.js"></script>
 <script>
 (function() {
+  console.log('[ANALYTICS_DEBUG] Script STARTED. courseId:', '<%= course.id %>', 'lessonId:', '<%= lesson.id %>', 'isGuest:', <%= isGuest ? 'true' : 'false' %>);
   var courseId = '<%= course.id %>';
   var lessonId = '<%= lesson.id %>';
   var isGuest = <%= isGuest ? 'true' : 'false' %>;
@@ -134,13 +135,19 @@
   var lastHeartbeatPosition = 0;
 
   function sendHeartbeat(pos, dur, forceComplete) {
+    console.log('[ANALYTICS_DEBUG] sendHeartbeat CALLED with:', JSON.stringify({pos, dur, forceComplete, isGuest, lastHeartbeatPosition}));
+    if (isGuest) { console.log('[ANALYTICS_DEBUG] sendHeartbeat BLOCKED: isGuest=true'); return; }
     var watchedSinceLast = Math.max(0, Math.floor(pos) - lastHeartbeatPosition);
-    if (watchedSinceLast < 1 && !forceComplete) return;
+    console.log('[ANALYTICS_DEBUG] sendHeartbeat watchedSinceLast:', watchedSinceLast);
+    if (watchedSinceLast < 1 && !forceComplete) { console.log('[ANALYTICS_DEBUG] sendHeartbeat SKIPPED: watchedSinceLast < 1'); return; }
     lastHeartbeatPosition = Math.floor(pos);
+    console.log('[ANALYTICS_DEBUG] sendHeartbeat FETCHING /api/analytics/video/heartbeat with payload:', JSON.stringify({ courseId, lessonId, position: Math.floor(pos || 0), duration: Math.floor(dur || 1), watchedSeconds: forceComplete ? 0 : watchedSinceLast, forceComplete: !!forceComplete }));
     fetch('/api/analytics/video/heartbeat', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ courseId: courseId, lessonId: lessonId, position: Math.floor(pos || 0), duration: Math.floor(dur || 1), watchedSeconds: forceComplete ? 0 : watchedSinceLast, forceComplete: !!forceComplete })
-    }).catch(function(){});
+    }).then(function(r) { console.log('[ANALYTICS_DEBUG] fetch response status:', r.status); return r.json(); })
+      .then(function(d) { console.log('[ANALYTICS_DEBUG] fetch response body:', JSON.stringify(d)); })
+      .catch(function(e) { console.log('[ANALYTICS_DEBUG] fetch ERROR:', e); });
   }
 
   // Load saved progress from localStorage
@@ -265,12 +272,15 @@
   }
 
   // Initialise Plyr players (minimal: play/pause only) + wire progress tracking.
+  console.log('[ANALYTICS_DEBUG] Plyr constructor available:', typeof Plyr);
   if (typeof Plyr === 'undefined') {
+    console.log('[ANALYTICS_DEBUG] Plyr NOT loaded, using embedFallback');
     document.querySelectorAll('.plyr-container[data-plyr-embed-id]').forEach(embedFallback);
   } else {
     document.querySelectorAll('.plyr-container[data-plyr-embed-id]').forEach(function (container) {
       var videoId = container.getAttribute('data-plyr-embed-id');
-      if (!videoId) return;
+      if (!videoId) { console.log('[ANALYTICS_DEBUG] NO videoId on container'); return; }
+      console.log('[ANALYTICS_DEBUG] Creating Plyr player for videoId:', videoId);
 
       var player = new Plyr(container, {
         iconUrl: '/img/plyr.svg',
@@ -286,6 +296,7 @@
       players.push(player);
 
       player.on('ready', function () {
+        console.log('[ANALYTICS_DEBUG] EVENT: ready fired. player.currentTime:', player.currentTime, 'player.duration:', player.duration);
         updateInfoBar(false);
         updateUI(0, false);
         loadServerProgress();
@@ -295,7 +306,9 @@
         var ct = player.currentTime || 0;
         var dur = player.duration || 1;
         var pct = Math.min(Math.round((ct / dur) * 100), 100);
+        console.log('[ANALYTICS_DEBUG] EVENT: timeupdate ct:', ct, 'dur:', dur, 'pct:', pct);
         if (pct >= 95 && !autoCompleteSent) {
+          console.log('[ANALYTICS_DEBUG] timeupdate: completion threshold reached');
           autoCompleteSent = true;
           saveLocalProgress(0, 100, true);
           saveServerProgress(100, true);
@@ -310,11 +323,13 @@
       });
 
       player.on('pause', function () {
-        if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
         var ct = player.currentTime || 0;
         var dur = player.duration || 1;
         var pct = Math.min(Math.round((ct / dur) * 100), 100);
+        console.log('[ANALYTICS_DEBUG] EVENT: pause ct:', ct, 'dur:', dur, 'pct:', pct, 'autoCompleteSent:', autoCompleteSent);
+        if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; console.log('[ANALYTICS_DEBUG] pause: cleared heartbeatInterval'); }
         if (pct >= 95 && !autoCompleteSent) {
+          console.log('[ANALYTICS_DEBUG] pause: completion at >= 95%, calling saveServerProgress only');
           autoCompleteSent = true;
           saveLocalProgress(0, 100, true);
           saveServerProgress(100, true);
@@ -330,19 +345,25 @@
       });
 
       player.on('play', function () {
+        var ct = player.currentTime || 0;
+        console.log('[ANALYTICS_DEBUG] EVENT: play ct:', ct, 'player.duration:', player.duration);
         updateInfoBar(false);
-        lastHeartbeatPosition = Math.floor(player.currentTime || 0);
-        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        lastHeartbeatPosition = Math.floor(ct);
+        if (heartbeatInterval) { clearInterval(heartbeatInterval); console.log('[ANALYTICS_DEBUG] play: cleared existing interval'); }
         heartbeatInterval = setInterval(function() {
-          var ct = player.currentTime || 0;
-          if (Math.floor(ct) !== lastHeartbeatPosition) {
-            sendHeartbeat(ct, player.duration || 1, false);
-            lastHeartbeatPosition = Math.floor(ct);
+          var ct2 = player.currentTime || 0;
+          console.log('[ANALYTICS_DEBUG] INTERVAL: 15s fired. currentTime:', ct2, 'lastHeartbeatPosition:', lastHeartbeatPosition);
+          if (Math.floor(ct2) !== lastHeartbeatPosition) {
+            sendHeartbeat(ct2, player.duration || 1, false);
+            lastHeartbeatPosition = Math.floor(ct2);
+          } else {
+            console.log('[ANALYTICS_DEBUG] INTERVAL: position unchanged, skipping heartbeat');
           }
         }, 15000);
       });
 
       player.on('ended', function () {
+        console.log('[ANALYTICS_DEBUG] EVENT: ended');
         saveLocalProgress(0, 100, true);
         saveServerProgress(100, true);
         updateUI(100, true);
@@ -352,6 +373,21 @@
     });
   }
 
+  // Log currentTime every second for active players
+  setInterval(function() {
+    if (players.length > 0) {
+      players.forEach(function(p, i) {
+        try {
+          var ct = p.currentTime || 0;
+          var dur = p.duration || 0;
+          console.log('[ANALYTICS_DEBUG] 1s tick player[' + i + '] currentTime:', ct, 'duration:', dur);
+        } catch(e) {
+          console.log('[ANALYTICS_DEBUG] 1s tick ERROR:', e.message);
+        }
+      });
+    }
+  }, 1000);
+
   // Save on page unload (user closes tab/app)
   window.addEventListener('beforeunload', function() {
     if (heartbeatInterval) clearInterval(heartbeatInterval);
@@ -360,7 +396,7 @@
       var dur = p.duration || 1;
       var pct = Math.min(Math.round((ct / dur) * 100), 100);
       saveLocalProgress(Math.floor(ct), pct, false);
-      if (ct > 0) {
+      if (!isGuest && ct > 0) {
         navigator.sendBeacon('/api/analytics/video/heartbeat', JSON.stringify({ courseId: courseId, lessonId: lessonId, position: Math.floor(ct), duration: Math.floor(dur), watchedSeconds: 0, forceComplete: false }));
       }
     });

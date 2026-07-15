@@ -35,6 +35,51 @@
       <div class="form-group"><label>حساب إنستا باي</label><input id="instaPay" class="form-input" value="<%= instaPay %>" placeholder="example@instapay"></div>
       <button class="btn btn-primary" onclick="savePaymentSettings()"><i class="fas fa-save"></i> حفظ بيانات الدفع</button>
     </div>
+
+    <!-- Zoom Account Linking -->
+    <div class="form-card" style="margin-top:20px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+        <i class="fas fa-video" style="color:var(--accent);font-size:20px;"></i>
+        <h3 style="font-size:16px;font-weight:700;margin:0;">ربط حساب Zoom</h3>
+      </div>
+      <div id="zoomStatus" style="display:flex;flex-direction:column;gap:12px;">
+        <div style="display:flex;align-items:center;gap:8px;font-size:14px;">
+          <span id="zoomIndicator" style="width:12px;height:12px;border-radius:50%;background:#6b7280;display:inline-block;"></span>
+          <span id="zoomStatusText">جاري التحقق...</span>
+        </div>
+        <div id="zoomProfile" style="display:none;font-size:13px;color:var(--text-light);">
+          <div id="zoomAvatarWrap" style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+            <img id="zoomAvatar" src="" style="width:40px;height:40px;border-radius:50%;object-fit:cover;display:none;">
+            <div>
+              <div id="zoomUserName" style="font-weight:600;color:var(--text);"></div>
+              <div id="zoomUserEmail" style="font-size:12px;"></div>
+            </div>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);">آخر اتصال: <span id="zoomConnectedAt"></span></div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <a id="zoomConnectBtn" href="/auth/zoom" class="btn btn-primary" style="display:inline-flex;align-items:center;gap:6px;">
+            <i class="fas fa-link"></i> ربط حساب Zoom
+          </a>
+          <button id="zoomDisconnectBtn" style="display:none;" class="btn btn-danger" onclick="disconnectZoom()">
+            <i class="fas fa-unlink"></i> إلغاء الربط
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-card" style="margin-top:20px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+        <i class="fas fa-address-book" style="color:var(--accent);font-size:20px;"></i>
+        <h3 style="font-size:16px;font-weight:700;margin:0;">بيانات التواصل (الفوتر)</h3>
+      </div>
+      <p style="font-size:13px;color:var(--text-light);margin-bottom:16px;">تظهر هذه البيانات في الفوتر أسفل الموقع بشكل أيقونات أفقية.</p>
+      <div class="form-group"><label>رقم الهاتف</label><input id="contactPhone" class="form-input" value="<%= contactPhone %>" placeholder="01000000000"></div>
+      <div class="form-group"><label>البريد الإلكتروني</label><input id="contactEmail" class="form-input" value="<%= contactEmail %>" placeholder="info@example.com"></div>
+      <div class="form-group"><label>العنوان</label><input id="contactAddress" class="form-input" value="<%= contactAddress %>" placeholder="القاهرة، مصر"></div>
+      <div class="form-group"><label>واتساب (الرقم المحلي فقط، يُضاف +20 تلقائياً)</label><input id="contactWhatsapp" class="form-input" value="<%= contactWhatsapp %>" placeholder="01000000000"></div>
+      <button class="btn btn-primary" onclick="saveContactSettings()"><i class="fas fa-save"></i> حفظ بيانات التواصل</button>
+    </div>
   </div>
 </main>
 
@@ -83,6 +128,108 @@ function savePaymentSettings() {
     btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> حفظ بيانات الدفع';
   });
 }
+
+function saveContactSettings() {
+  var btn = event.target;
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحفظ...';
+  fetch('/api/admin/settings', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      contactPhone: document.getElementById('contactPhone').value,
+      contactEmail: document.getElementById('contactEmail').value,
+      contactAddress: document.getElementById('contactAddress').value,
+      contactWhatsapp: document.getElementById('contactWhatsapp').value
+    })
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.success) { alert('تم حفظ بيانات التواصل'); }
+    else { alert(d.error || 'حدث خطأ'); }
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> حفظ بيانات التواصل';
+  }).catch(function() {
+    alert('حدث خطأ في الاتصال');
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> حفظ بيانات التواصل';
+  });
+}
+
+// Zoom connection status
+(function() {
+  function checkZoomStatus() {
+    fetch('/api/zoom/status')
+      .then(function(r) { return r.json(); })
+      .then(function(status) {
+        var indicator = document.getElementById('zoomIndicator');
+        var statusText = document.getElementById('zoomStatusText');
+        var profile = document.getElementById('zoomProfile');
+        var connectBtn = document.getElementById('zoomConnectBtn');
+        var disconnectBtn = document.getElementById('zoomDisconnectBtn');
+
+        if (!status.configured) {
+          indicator.style.background = '#6b7280';
+          statusText.innerHTML = '⚪ غير مكوّن — <a href="/auth/zoom" style="color:var(--accent);">اضغط لمعرفة المتطلبات</a>';
+          profile.style.display = 'none';
+          connectBtn.style.display = 'none';
+          disconnectBtn.style.display = 'none';
+          return;
+        }
+
+        if (status.connected) {
+          indicator.style.background = '#22c55e';
+          statusText.textContent = '🟢 متصل بحساب Zoom';
+          profile.style.display = 'block';
+          if (status.userAvatar) {
+            document.getElementById('zoomAvatar').src = status.userAvatar;
+            document.getElementById('zoomAvatar').style.display = 'block';
+          }
+          document.getElementById('zoomUserName').textContent = status.userName || 'حساب Zoom';
+          document.getElementById('zoomUserEmail').textContent = status.userEmail || '';
+          document.getElementById('zoomConnectedAt').textContent = status.connectedAt ? new Date(status.connectedAt).toLocaleString('ar-EG') : '-';
+          connectBtn.style.display = 'none';
+          disconnectBtn.style.display = 'inline-flex';
+        } else if (status.tokenExpired) {
+          indicator.style.background = '#f59e0b';
+          statusText.textContent = '🟡 منتهي الصلاحية — أعد الربط';
+          profile.style.display = 'none';
+          connectBtn.style.display = 'inline-flex';
+          disconnectBtn.style.display = 'none';
+        } else {
+          indicator.style.background = '#6b7280';
+          statusText.textContent = '⚪ غير متصل';
+          profile.style.display = 'none';
+          connectBtn.style.display = 'inline-flex';
+          disconnectBtn.style.display = 'none';
+        }
+      })
+      .catch(function() {
+        document.getElementById('zoomStatusText').textContent = 'تعذر التحقق من حالة Zoom';
+      });
+  }
+
+  checkZoomStatus();
+  // Check periodically
+  setInterval(checkZoomStatus, 30000);
+})();
+
+function disconnectZoom() {
+  if (!confirm('هل أنت متأكد من إلغاء ربط حساب Zoom؟')) return;
+  fetch('/auth/zoom/disconnect', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.success) { location.reload(); }
+      else { alert(d.error || 'حدث خطأ'); }
+    })
+    .catch(function() { alert('خطأ في الاتصال'); });
+}
+
+// Show success message if redirected from OAuth callback
+(function() {
+  var params = new URLSearchParams(window.location.search);
+  if (params.get('zoom') === 'connected') {
+    var msg = document.createElement('div');
+    msg.style.cssText = 'background:rgba(22,163,74,0.1);color:var(--success);padding:12px;border-radius:8px;margin-bottom:16px;font-size:13px;font-weight:600;text-align:center;';
+    msg.innerHTML = '<i class="fas fa-check-circle"></i> تم ربط حساب Zoom بنجاح';
+    document.querySelector('.form-card').parentElement.insertBefore(msg, document.querySelector('.form-card'));
+  }
+})();
 </script>
 
 <style>

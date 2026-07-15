@@ -57,6 +57,7 @@
       <button class="modal-close" onclick="closeCodeModal()">&times;</button>
     </div>
     <div class="modal-body">
+      <div class="form-group"><label>اسم الاشتراك (اختياري)</label><input id="codeName" placeholder="مثال: اشتراك سنوي"></div>
       <input type="hidden" id="codeId">
       <div class="form-group">
         <label>الكود</label>
@@ -85,6 +86,7 @@
 function openCodeModal(code) {
   document.getElementById('codeModalTitle').textContent = code ? 'تعديل كود الشحن' : 'إضافة كود شحن جديد';
   document.getElementById('codeId').value = code ? code.id : '';
+  document.getElementById('codeName').value = code ? (code.name || '') : '';
   document.getElementById('codeValue').value = code ? code.code : '';
   document.getElementById('codeDuration').value = code ? '' : '30';
   document.getElementById('codeSubscriptionType').value = code ? code.subscriptionType : 'شهري';
@@ -111,6 +113,7 @@ function saveCode() {
     code: document.getElementById('codeValue').value,
     duration: parseInt(document.getElementById('codeDuration').value) || 30,
     subscriptionType: document.getElementById('codeSubscriptionType').value,
+    name: document.getElementById('codeName').value,
     value: parseFloat(document.getElementById('codeValueAmount').value) || 0,
     maxUses: parseInt(document.getElementById('codeMaxUses').value) || 1
   };

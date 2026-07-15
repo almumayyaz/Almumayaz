@@ -1,0 +1,105 @@
+<%- include('../partials/header', { title: title, navPageTitle: 'المُميز', bodyClass: 'student-body' }) %>
+<%- include('../partials/student-sidebar') %>
+<main class="main-content">
+  <div class="page-header"><h1><i class="fas fa-chart-line"></i> تقدّمي</h1></div>
+
+  <div id="progressContent" style="text-align:center;padding:40px;color:var(--text-muted);">جاري التحميل...</div>
+</main>
+
+<script>
+(async function() {
+  var res = await fetch('/api/analytics/student');
+  var d = await res.json();
+  if (d.error || !d.success) { document.getElementById('progressContent').innerHTML = '<div style="color:#dc2626;padding:20px;">' + (d.error || 'خطأ') + '</div>'; return; }
+  var p = d.progress;
+  var html = '';
+
+  // Overview cards
+  var watchMin = Math.floor((p.totalWatchTime || 0) / 60);
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:16px;">' +
+    card('fa-percent', p.overallProgress + '%', 'الإنجاز', '#3b82f6') +
+    card('fa-check-circle', p.completedLessons, 'مكتملة', '#059669') +
+    card('fa-hourglass-half', p.completedCourses, 'كورسات كاملة', '#dc2626') +
+    card('fa-clock', watchMin >= 60 ? Math.round(watchMin/60) + 'س' : watchMin + 'د', 'وقت المشاهدة', '#d97706') +
+    card('fa-star', p.averageQuizScore + '%', 'متوسط الاختبارات', '#7c3aed') +
+    card('fa-trophy', p.activityScore, 'مستوى النشاط', '#059669') +
+    '</div>';
+
+  // Streak
+  var streak = d.streak || {};
+  html += '<div style="background:var(--card);border-radius:var(--radius-lg);padding:16px;border:1px solid var(--border);margin-bottom:16px;text-align:center;">' +
+    '<div style="font-size:36px;font-weight:900;color:var(--accent);">' + (streak.current || 0) + '</div>' +
+    '<div style="font-size:13px;color:var(--text-muted);">أيام المواظبة <span style="color:var(--text-light);font-size:11px;">(الأطول: ' + (streak.longest || 0) + ')</span></div></div>';
+
+  // Course progress
+  html += '<div style="background:var(--card);border-radius:var(--radius-lg);padding:16px;border:1px solid var(--border);margin-bottom:16px;">' +
+    '<h3 style="font-size:15px;margin-bottom:12px;"><i class="fas fa-book" style="color:var(--accent);"></i> تقدم المواد</h3>';
+  d.courseProgress.forEach(function(cp) {
+    html += '<div style="margin-bottom:10px;">' +
+      '<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;"><strong>' + cp.courseTitle + '</strong><span>' + cp.completedLessons + '/' + cp.totalLessons + '</span></div>' +
+      '<div style="height:6px;background:var(--bg);border-radius:3px;overflow:hidden;"><div style="height:100%;width:' + cp.completionPercent + '%;background:linear-gradient(135deg,var(--accent),#4338ca);border-radius:3px;transition:width 0.3s;"></div></div></div>';
+  });
+  html += '</div>';
+
+  // Achievements
+  html += '<div style="background:var(--card);border-radius:var(--radius-lg);padding:16px;border:1px solid var(--border);margin-bottom:16px;">' +
+    '<h3 style="font-size:15px;margin-bottom:12px;"><i class="fas fa-medal" style="color:var(--accent);"></i> الإنجازات <span style="font-size:12px;color:var(--text-muted);">(' + d.unlockedAchievements + '/' + d.totalAchievements + ')</span></h3>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px;">';
+  d.achievements.forEach(function(a) {
+    html += '<div style="background:' + (a.unlocked ? 'linear-gradient(135deg,#7c3aed,#4f46e5)' : 'var(--bg)') + ';color:' + (a.unlocked ? '#fff' : 'var(--text-muted)') + ';border-radius:var(--radius-lg);padding:12px;text-align:center;opacity:' + (a.unlocked ? '1' : '0.4') + ';" title="' + (a.desc || '') + '">' +
+      '<i class="fas ' + a.icon + '" style="font-size:20px;margin-bottom:4px;"></i>' +
+      '<div style="font-size:11px;font-weight:600;">' + a.name + '</div></div>';
+  });
+  html += '</div></div>';
+
+  // Quiz results
+  html += '<div style="background:var(--card);border-radius:var(--radius-lg);padding:16px;border:1px solid var(--border);margin-bottom:16px;">' +
+    '<h3 style="font-size:15px;margin-bottom:12px;"><i class="fas fa-question-circle" style="color:var(--accent);"></i> نتائج الاختبارات</h3>';
+  if (d.quizResults.length) {
+    html += '<table style="width:100%;font-size:13px;border-collapse:collapse;"><thead><tr style="background:var(--bg);">' +
+      '<th style="padding:8px;text-align:right;">الاختبار</th><th style="padding:8px;text-align:center;">الدرجة</th><th style="padding:8px;text-align:center;">المحاولة</th><th style="padding:8px;text-align:center;">التاريخ</th></tr></thead><tbody>';
+    d.quizResults.forEach(function(r) {
+      html += '<tr style="border-bottom:1px solid var(--border);">' +
+        '<td style="padding:8px;">' + (r.quizTitle || 'اختبار') + '</td>' +
+        '<td style="padding:8px;text-align:center;font-weight:700;color:' + ((r.percentage || 0) >= 50 ? '#059669' : '#dc2626') + ';">' + (r.percentage || 0) + '%</td>' +
+        '<td style="padding:8px;text-align:center;color:var(--text-muted);font-size:12px;">#' + (r.attemptNumber || 1) + '</td>' +
+        '<td style="padding:8px;text-align:center;color:var(--text-muted);">' + (r.date ? new Date(r.date).toLocaleDateString('ar-EG') : '—') + '</td></tr>';
+    });
+    html += '</tbody></table>';
+  } else { html += '<div style="text-align:center;padding:12px;color:var(--text-muted);">لم تبدأ أي اختبار بعد</div>'; }
+  html += '</div>';
+
+  // Recent activity
+  html += '<div style="background:var(--card);border-radius:var(--radius-lg);padding:16px;border:1px solid var(--border);">' +
+    '<h3 style="font-size:15px;margin-bottom:12px;"><i class="fas fa-history" style="color:var(--accent);"></i> آخر الأنشطة</h3>';
+  if (d.recentActivity.length) {
+    html += '<div style="max-height:300px;overflow-y:auto;">';
+    d.recentActivity.slice(0, 20).forEach(function(a) {
+      var action = a.action || '';
+      var icon = 'fa-circle', color = 'var(--accent)', text = action;
+      if (action.indexOf('lesson_completed') >= 0) { icon = 'fa-check-circle'; color = '#059669'; text = 'أكملت محاضرة'; if (a.metadata && a.metadata.courseName) text += ' في ' + a.metadata.courseName; }
+      else if (action.indexOf('quiz_submitted') >= 0) { icon = 'fa-question-circle'; color = '#7c3aed'; text = 'حللت اختبار'; if (a.metadata && a.metadata.quizTitle) text += ' ' + a.metadata.quizTitle; if (a.metadata && a.metadata.percentage) text += ' (' + a.metadata.percentage + '%)'; }
+      else if (action.indexOf('pdf_opened') >= 0) { icon = 'fa-file-pdf'; color = '#dc2626'; text = 'فتحت ملف PDF'; }
+      else if (action.indexOf('achievement_unlocked') >= 0) { icon = 'fa-trophy'; color = '#d97706'; text = 'حصلت على: ' + (a.metadata && a.metadata.achievementName ? a.metadata.achievementName : 'إنجاز'); }
+      else if (action.indexOf('logged_in') >= 0) { icon = 'fa-sign-in-alt'; color = '#3b82f6'; text = 'سجلت دخول'; }
+      else { text = action; }
+      html += '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;">' +
+        '<i class="fas ' + icon + '" style="color:' + color + ';font-size:14px;"></i>' +
+        '<span>' + text + '</span>' +
+        '<span style="margin-right:auto;color:var(--text-muted);font-size:12px;">' + (a.timestamp ? new Date(a.timestamp).toLocaleDateString('ar-EG') : '') + '</span></div>';
+    });
+    html += '</div>';
+  } else { html += '<div style="text-align:center;padding:12px;color:var(--text-muted);">لا توجد أنشطة بعد</div>'; }
+  html += '</div>';
+
+  document.getElementById('progressContent').innerHTML = html;
+})();
+
+function card(icon, value, label, color) {
+  return '<div style="background:var(--card);border-radius:var(--radius-lg);padding:14px;border:1px solid var(--border);text-align:center;">' +
+    '<i class="fas ' + icon + '" style="color:' + color + ';font-size:20px;margin-bottom:4px;"></i>' +
+    '<div style="font-size:24px;font-weight:800;line-height:1.2;">' + value + '</div>' +
+    '<div style="font-size:11px;color:var(--text-muted);">' + label + '</div></div>';
+}
+</script>
+<%- include('../partials/footer') %>

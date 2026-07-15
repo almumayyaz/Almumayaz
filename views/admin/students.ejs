@@ -32,6 +32,7 @@
       <thead>
         <tr>
           <th>#</th>
+          <th>الصورة</th>
           <th>الاسم</th>
           <th>البريد الإلكتروني</th>
           <th>المرحلة</th>
@@ -45,6 +46,9 @@
           <% students.forEach(function(s, i) { %>
             <tr>
               <td><%= i + 1 %></td>
+              <td>
+                <% if (s.avatar) { %><img src="<%= s.avatar %>" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid var(--border);"><% } else { %><div style="width:40px;height:40px;border-radius:50%;background:var(--purple);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px;"><%= (s.name||'?').charAt(0) %></div><% } %>
+              </td>
               <td><strong><a href="#" onclick="event.preventDefault();openStudentDetails(<%= JSON.stringify(s) %>)" style="color:var(--accent);text-decoration:none;"><%= s.name %></a></strong></td>
               <td dir="ltr" style="font-size:12px;"><%= s.email || '---' %></td>
               <td><%= s.stage || '---' %></td>
@@ -71,7 +75,7 @@
             </tr>
           <% }) %>
         <% } else { %>
-          <tr><td colspan="7" style="text-align:center;color:var(--text-light);">لا يوجد طلاب مسجلين</td></tr>
+          <tr><td colspan="8" style="text-align:center;color:var(--text-light);">لا يوجد طلاب مسجلين</td></tr>
         <% } %>
       </tbody>
     </table>
@@ -232,7 +236,8 @@ document.getElementById('studentModal').addEventListener('click', function(e) { 
 function openStudentDetails(s) {
   var statusMap = { active: 'نشط', inactive: 'غير مشترك', expired: 'منتهي', stopped: 'موقوف', cancelled: 'ملغي' };
   var status = statusMap[s.subscriptionStatus] || 'غير مشترك';
-  var html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">' +
+  var av = s.avatar ? '<img src="'+s.avatar+'" style="width:84px;height:84px;border-radius:50%;object-fit:cover;border:3px solid var(--border);margin:0 auto 14px;display:block;">' : '<div style="width:84px;height:84px;border-radius:50%;background:var(--purple);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:30px;margin:0 auto 14px;">'+(s.name?s.name.charAt(0):'?')+'</div>';
+  var html = '<div style="text-align:center;">'+av+'</div>' + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">' +
     '<div style="background:var(--bg);padding:12px;border-radius:8px;"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">المعرف</div><div style="font-weight:700;font-family:monospace;direction:ltr;font-size:14px;">' + escHtml(s.id||'---') + ' <i class="fas fa-copy" style="cursor:pointer;font-size:11px;opacity:0.6;" onclick="copyToClipboard(\'' + (s.id||'') + '\')"></i></div></div>' +
     '<div style="background:var(--bg);padding:12px;border-radius:8px;"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">الاسم</div><div style="font-weight:700;">' + escHtml(s.name||'---') + '</div></div>' +
     '<div style="background:var(--bg);padding:12px;border-radius:8px;"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">حالة الاشتراك</div><div style="font-weight:700;">' + status + '</div></div>' +

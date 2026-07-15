@@ -136,12 +136,8 @@ async function readData(key) {
       console.error('Firebase read error, using local store:', e.message);
     }
   }
-  // Fallback: read from local store (has seed data)
+  // Fallback: read from local store
   const local = await localStore.readData(key);
-  // If local has data and Firebase was empty/unavailable, migrate to Firebase
-  if (fbDb && local && (Array.isArray(local) ? local.length > 0 : Object.keys(local).length > 0)) {
-    fbDb.ref(key).set(local).catch(function(){});
-  }
   return local;
 }
 
@@ -220,10 +216,10 @@ async function sendFCM(userId, title, body, url) {
     const user = users.find(u => u.id === userId);
     if (!user || !user.fcmToken) { console.log('sendFCM: no user or no fcmToken for', userId); return false; }
     if (!admin.messaging) { console.error('sendFCM: admin.messaging not available'); return false; }
-    const message = {
-      token: user.fcmToken,
-      data: { title: title, body: body, url: url || '/' }
-    };
+        const message = {
+          token: user.fcmToken,
+          data: { title: title, body: body, url: url || '/', click_action: 'FLUTTER_NOTIFICATION_CLICK' }
+        };
     await admin.messaging().send(message);
     console.log('sendFCM: sent to', userId, title);
     return true;
@@ -249,7 +245,7 @@ async function sendFCMToRole(role, title, body, url) {
       try {
         const message = {
           token: u.fcmToken,
-          data: { title: title, body: body, url: url || '/' }
+          data: { title: title, body: body, url: url || '/', click_action: 'FLUTTER_NOTIFICATION_CLICK' }
         };
         await admin.messaging().send(message);
         sent++;

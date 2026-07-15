@@ -3,10 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <script>document.documentElement.setAttribute('data-theme',localStorage.getItem('lughati-theme')||'<%= darkMode ? "dark" : "light" %>')</script>
+  <script>document.documentElement.setAttribute('data-theme',localStorage.getItem('lughati-theme')||'<%= typeof darkMode !== 'undefined' && darkMode ? "dark" : "light" %>')</script>
+  <script>if(sessionStorage.getItem('lughati-splash')==='1'){document.documentElement.classList.add('splash-hidden');}</script>
   <title><%= typeof title !== 'undefined' ? title : 'المُميز' %></title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css">
+  <link rel="stylesheet" href="/css/plyr.css">
   <link rel="stylesheet" href="/css/style.css">
   <link rel="icon" type="image/png" href="/icon.png">
   <link rel="apple-touch-icon" href="/icon.png">
@@ -15,10 +16,10 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="المُميز">
+  <meta name="apple-mobile-web-app-orientation" content="default">
   <% if (typeof firebaseConfig !== 'undefined' && firebaseConfig.apiKey) { %>
   <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-database-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-messaging-compat.js"></script>
   <script>
 var fbConfig = <%- JSON.stringify(firebaseConfig) %>;
@@ -26,8 +27,8 @@ firebase.initializeApp(fbConfig);
   </script>
   <% } %>
   <script>
-if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js')}
-function toggleNav(){var sb=document.getElementById('sidebar');if(sb){sb.classList.add('open');document.getElementById('sidebarOverlay')?.classList.add('show')}else{document.getElementById('navOverlay')?.classList.toggle('open')}}
+if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').then(function(reg){try{reg.addEventListener('updatefound',function(){var nw=reg.installing;if(nw)nw.addEventListener('statechange',function(){if(nw.state==='activated'&&!sessionStorage.getItem('swRL')){sessionStorage.setItem('swRL','1');location.reload();}});});}catch(e){}});}
+function toggleNav(){var sb=document.getElementById('sidebar');if(!sb){document.getElementById('navOverlay')?.classList.toggle('open');return}if(window.innerWidth>768){sb.classList.toggle('collapsed');var state=sb.classList.contains('collapsed')?'collapsed':'';localStorage.setItem('sidebar-toggle',state);localStorage.setItem('admin-sidebar-toggle',state)}else{sb.classList.toggle('open');var o=document.getElementById('sidebarOverlay');if(o)o.classList.toggle('show');document.body.style.overflow=sb.classList.contains('open')?'hidden':''}}
 function setTheme(t){document.documentElement.setAttribute('data-theme',t);localStorage.setItem('lughati-theme',t);document.querySelectorAll('.theme-toggle i').forEach(i=>{i.className=t==='dark'?'fas fa-sun':'fas fa-moon'});const mb=document.querySelector('.nav-buttons-mobile .btn-outline');if(mb){mb.innerHTML=t==='dark'?'<i class="fas fa-sun"></i> الوضع النهاري':'<i class="fas fa-moon"></i> الوضع الليلي'}}
 function spinTheme(el){el.classList.remove('spin');void el.offsetWidth;el.classList.add('spin')}
 function toggleTheme(){fetch('/api/toggle-dark-mode',{method:'POST'}).then(r=>r.json()).then(d=>setTheme(d.darkMode?'dark':'light'))}
@@ -35,6 +36,7 @@ function toggleTheme(){fetch('/api/toggle-dark-mode',{method:'POST'}).then(r=>r.
 (function(){if(window.matchMedia('(display-mode:standalone)').matches||window.navigator.standalone||localStorage.getItem('lughati-install-prompt'))return;function initPWA(){var d=document;var b=d.createElement('div');b.id='install-banner';var isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)&&!window.MSStream;b.innerHTML='<div style="display:flex;align-items:center;gap:12px;flex:1;"><i class="fas fa-mobile-alt" style="font-size:22px;color:var(--accent);"></i><div><div style="font-weight:700;font-size:14px;">ثبّت تطبيق المُميز</div><div style="font-size:12px;color:var(--text-light);">'+(isIOS?'اضغط على زر المشاركة ← إضافة إلى الشاشة الرئيسية':'حمّل التطبيق للوصول السريع')+'</div></div></div><button id="install-close" style="background:none;border:none;color:var(--text-light);font-size:18px;cursor:pointer;padding:4px;"><i class="fas fa-times"></i></button>';var bs=b.style;bs.cssText='position:fixed;bottom:0;left:0;right:0;z-index:99998;display:flex;align-items:center;gap:10px;padding:14px 16px;background:var(--card);border-top:1px solid var(--border);box-shadow:0 -4px 20px rgba(0,0,0,.1);transform:translateY(100%);transition:transform .4s cubic-bezier(.22,1,.36,1);';document.body.appendChild(b);var ev=null;window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();ev=e;b.querySelector('#install-close').insertAdjacentHTML('beforebegin','<button id="install-btn" style="background:var(--accent);color:#fff;border:none;border-radius:var(--radius);padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;">تثبيت</button>');var btn=d.getElementById('install-btn');if(btn)btn.onclick=function(){ev.prompt();ev.userChoice.then(function(r){if(r.outcome==='accepted'){b.style.transform='translateY(100%)';localStorage.setItem('lughati-install-prompt','1')}})}});setTimeout(function(){b.style.transform='translateY(0)'},2000);d.getElementById('install-close').onclick=function(){b.style.transform='translateY(100%)';localStorage.setItem('lughati-install-prompt','1')}};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initPWA);else initPWA();})();</script>
 </head>
 <body class="<%= typeof bodyClass !== 'undefined' ? bodyClass : '' %>">
+  <%- include('../partials/splash') %>
   <nav class="navbar">
     <div class="container">
       <div class="nav-right">
@@ -53,13 +55,18 @@ function toggleTheme(){fetch('/api/toggle-dark-mode',{method:'POST'}).then(r=>r.
       </div>
       <% } %>
       <div class="nav-left">
-        <span class="nav-page-title"><%= typeof navPageTitle !== 'undefined' ? navPageTitle : '' %></span>
+        <span class="nav-page-title<%= (typeof navPageTitle !== 'undefined' && navPageTitle === 'المُميز') ? ' brand-title' : '' %>"><%= typeof navPageTitle !== 'undefined' ? navPageTitle : '' %></span>
         <button class="theme-toggle" onclick="spinTheme(this);toggleTheme()" title="الوضع الليلي/النهاري">
           <i class="fas <%= darkMode ? 'fa-sun' : 'fa-moon' %>"></i>
         </button>
+        <% if (user && user.role === 'student') { %>
+        <a href="/student/notifications" style="position:relative;display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:10px;background:var(--bg);color:var(--accent);border:1px solid var(--border);" title="مركز الإشعارات">
+          <i class="fas fa-bell"></i>
+          <% if (typeof unreadCount !== 'undefined' && unreadCount > 0) { %><span style="position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:var(--danger);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px var(--card);"><%= unreadCount > 99 ? '99+' : unreadCount %></span><% } %>
+        </a>
+        <% } %>
         <% if (!user) { %>
           <a href="/login" class="btn btn-outline">تسجيل الدخول</a>
-          <a href="/register" class="btn btn-primary">إنشاء حساب</a>
         <% } %>
       </div>
     </div>
@@ -75,15 +82,14 @@ function toggleTheme(){fetch('/api/toggle-dark-mode',{method:'POST'}).then(r=>r.
         <i class="fas <%= darkMode ? 'fa-sun' : 'fa-moon' %>"></i> <%= darkMode ? 'الوضع النهاري' : 'الوضع الليلي' %>
       </button>
       <% if (user) { %>
-        <a href="<%= user.role === 'admin' ? '/admin' : '/student' %>" class="btn btn-primary" onclick="toggleNav()">
+        <a href="<%= user.role === 'admin' ? '/admin' : (user.role === 'parent' ? '/parent/dashboard' : '/student') %>" class="btn btn-primary" onclick="toggleNav()">
           <i class="fas fa-user"></i> <%= user.name %>
         </a>
         <a href="/logout" class="btn btn-outline btn-logout" onclick="toggleNav()">
           <i class="fas fa-sign-out-alt"></i> خروج
         </a>
       <% } else { %>
-        <a href="/login" class="btn btn-outline" onclick="toggleNav()">تسجيل الدخول</a>
-        <a href="/register" class="btn btn-primary" onclick="toggleNav()">إنشاء حساب</a>
+          <a href="/login" class="btn btn-outline" onclick="toggleNav()">تسجيل الدخول</a>
         <a href="/parent-login" class="btn btn-outline" onclick="toggleNav()" style="font-size:13px;"><i class="fas fa-user-friends"></i> دخول ولي الأمر</a>
       <% } %>
     </div>

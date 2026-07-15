@@ -1,0 +1,22 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "chats": {
+      ".read": false,
+      ".write": false,
+      "$chatId": {
+        ".read": false,
+        ".write": false,
+        "messages": {
+          ".read": "auth != null",
+          ".write": false,
+          "$messageId": {
+            ".read": "auth != null"
+          }
+        }
+      }
+    }
+  }
+}

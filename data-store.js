@@ -17,6 +17,7 @@ try { memoryCache.set('questionBanks.json', require('./data/questionBanks.json')
 try { memoryCache.set('payments.json', require('./data/payments.json')); } catch(e) {}
 try { memoryCache.set('settings.json', require('./data/settings.json')); } catch(e) {}
 try { memoryCache.set('quotes.json', require('./data/quotes.json')); } catch(e) {}
+try { memoryCache.set('parentInvites.json', require('./data/parentInvites.json')); } catch(e) {}
 
 async function readJSON(filename) {
   if (memoryCache.has(filename)) {
@@ -53,7 +54,7 @@ async function writeData(key, data) {
 }
 
 async function init() {
-  const files = ['users.json', 'courses.json', 'announcements.json', 'subscriptions.json', 'reviews.json', 'payments.json'];
+  const files = ['users.json', 'courses.json', 'announcements.json', 'subscriptions.json', 'reviews.json', 'payments.json', 'notifications.json', 'parentInvites.json'];
   for (const file of files) {
     try {
       const content = await fs.readFile(path.join(dataDir, file), 'utf8');

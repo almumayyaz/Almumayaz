@@ -1,6 +1,132 @@
-<%- include('../partials/header', { title: title, navPageTitle: 'الرئيسية', bodyClass: 'student-body' }) %>
+<%- include('../partials/header', { title: title, navPageTitle: 'المُميز', bodyClass: 'student-body' }) %>
 <%- include('../partials/student-sidebar') %>
 <main class="main-content">
+  <!-- الإعلانات المتحركة -->
+  <% var annItems = (announcements && announcements.length > 0) ? announcements : [
+    { title: 'مرحباً بك في منصة المُميز', content: 'نتمنى لك عاماً دراسياً مليئاً بالنجاح والتفوق', important: false },
+    { title: 'عرض الحجز المبكر', content: 'احجز الآن واستفد من خصومات الحجز المبكر للعام الدراسي', important: true },
+    { title: 'متابعة المحاضرات', content: 'تأكد من متابعة أحدث المحاضرات أولاً بأول', important: false }
+  ]; %>
+  <% if (annItems.length > 0) { %>
+  <div style="background:linear-gradient(135deg, rgba(251,191,36,0.12) 0%, rgba(251,191,36,0.06) 100%);border:1px solid rgba(251,191,36,0.3);border-radius:var(--radius-lg);padding:10px 16px;margin-bottom:16px;overflow:hidden;">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+      <i class="fas fa-bullhorn" style="color:var(--accent);font-size:13px;"></i>
+      <span style="font-weight:700;font-size:12px;color:var(--accent);">الإعلانات</span>
+    </div>
+    <div style="overflow:hidden;position:relative;mask-image:linear-gradient(to left,transparent 0,#000 20px,#000 calc(100% - 20px),transparent 100%);-webkit-mask-image:linear-gradient(to left,transparent 0,#000 20px,#000 calc(100% - 20px),transparent 100%);">
+      <div id="annTrack" style="display:flex;width:max-content;flex-wrap:nowrap;align-items:center;gap:12px;white-space:nowrap;will-change:transform;">
+        <% annItems.forEach(function(a) { %>
+        <div style="display:inline-flex;align-items:center;gap:6px;padding:4px 14px;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.2);border-radius:20px;font-size:12px;flex:0 0 auto;width:auto;">
+          <span style="font-weight:600;color:var(--accent);"><%= a.title %></span>
+          <% if (a.important) { %><span style="background:var(--danger);color:#fff;font-size:8px;padding:1px 5px;border-radius:3px;font-weight:700;">مهم</span><% } %>
+          <span style="color:var(--text-muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;"><%= a.content %></span>
+        </div>
+        <% }); %>
+      </div>
+    </div>
+  </div>
+  <script id="annData" type="application/json"><%- JSON.stringify(annItems).replace(/<\//g, '<\\/') %></script>
+  <script>
+  (function(){
+    var track = document.getElementById('annTrack');
+    if (!track || !track.children.length) return;
+    var mask = track.parentElement;
+    if (!mask) return;
+    var outer = mask.parentElement;
+    if (!outer) return;
+
+    var annData = [];
+    try { annData = JSON.parse(document.getElementById('annData').textContent); } catch(e) {}
+    var speed = 33;
+    var paused = false, pendingRebuild = false, kfId = 'annKF';
+
+    function createItem(a) {
+      var d = document.createElement('div');
+      d.style.cssText = 'display:inline-flex;align-items:center;gap:6px;padding:4px 14px;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.2);border-radius:20px;font-size:12px;flex:0 0 auto;width:auto;';
+      var ts = document.createElement('span');
+      ts.style.cssText = 'font-weight:600;color:var(--accent);';
+      ts.textContent = a.title;
+      d.appendChild(ts);
+      if (a.important) {
+        var b = document.createElement('span');
+        b.style.cssText = 'background:var(--danger);color:#fff;font-size:8px;padding:1px 5px;border-radius:3px;font-weight:700;';
+        b.textContent = 'مهم';
+        d.appendChild(b);
+      }
+      var cs = document.createElement('span');
+      cs.style.cssText = 'color:var(--text-muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;';
+      cs.textContent = a.content;
+      d.appendChild(cs);
+      return d;
+    }
+
+    function buildTrack(data) {
+      if (!track) return;
+      track.innerHTML = '';
+      for (var i = 0; i < data.length; i++) track.appendChild(createItem(data[i]));
+      if (!track.children.length) return;
+      var ch = track.children, n = ch.length, setW = 0;
+      for (var i = 0; i < n; i++) setW += ch[i].offsetWidth;
+      setW += (n - 1) * 12;
+      var cw = mask.offsetWidth;
+      if (setW <= 0 || cw <= 0) return;
+      var copies = Math.max(Math.ceil(cw * 3 / setW), 2);
+      for (var c = 1; c < copies; c++) for (var j = 0; j < n; j++) track.appendChild(ch[j].cloneNode(true));
+      var dist = -setW, dur = setW / speed;
+      var old = document.getElementById(kfId);
+      if (old) old.remove();
+      var nm = 'ann' + Date.now();
+      var st = document.createElement('style');
+      st.id = kfId;
+      st.textContent = '@keyframes ' + nm + '{from{transform:translateX(0px)}to{transform:translateX(' + dist + 'px)}}';
+      document.head.appendChild(st);
+      track.style.animation = nm + ' ' + dur + 's linear infinite';
+      if (paused) track.style.animationPlayState = 'paused';
+    }
+
+    buildTrack(annData.length ? annData : Array.from(track.children).map(function(el){
+      var sp = el.querySelectorAll('span');
+      return { title: sp[0]?sp[0].textContent:'', content: sp[sp.length-1]?sp[sp.length-1].textContent:'', important: sp.length>2 };
+    }));
+
+    outer.addEventListener('mouseenter', function(){ paused = true; pendingRebuild = false; track.style.animationPlayState = 'paused'; });
+    outer.addEventListener('mouseleave', function(){ paused = false; track.style.animationPlayState = 'running'; if (pendingRebuild && annData.length) { pendingRebuild = false; buildTrack(annData); } });
+
+    var rt;
+    window.addEventListener('resize', function(){ clearTimeout(rt); rt = setTimeout(function(){ if (annData.length) buildTrack(annData); }, 300); });
+
+    (function initFB(){
+      if (typeof firebase === 'undefined') return;
+      if (typeof firebase.database === 'undefined') {
+        var s = document.createElement('script');
+        s.src = 'https://www.gstatic.com/firebasejs/11.0.1/firebase-database-compat.js';
+        s.async = true;
+        s.onload = function(){
+          firebase.database().ref('announcements').on('value', function(snap){
+            var v = snap.val(); if (!v) return;
+            var list = Object.keys(v).map(function(k){ return v[k]; });
+            list.sort(function(a,b){ return (a.createdAt||0)-(b.createdAt||0); });
+            annData = list;
+            if (paused) { pendingRebuild = true; return; }
+            buildTrack(annData);
+          });
+        };
+        document.head.appendChild(s);
+      } else {
+        firebase.database().ref('announcements').on('value', function(snap){
+          var v = snap.val(); if (!v) return;
+          var list = Object.keys(v).map(function(k){ return v[k]; });
+          list.sort(function(a,b){ return (a.createdAt||0)-(b.createdAt||0); });
+          annData = list;
+          if (paused) { pendingRebuild = true; return; }
+          buildTrack(annData);
+        });
+      }
+    })();
+  })();
+  </script>
+  <% } %>
+
   <div class="page-header">
     <div>
       <h1 style="font-size:20px;">مرحباً، <%= user.name %></h1>
@@ -22,124 +148,176 @@
   }).catch(function(){document.getElementById('quoteBanner').style.display='none'});
   </script>
 
+  <!-- الحصص المباشرة - بطاقة ديناميكية (API polling لتفادي Firebase security rules) -->
+  <script>
+  (function() {
+    var card = document.getElementById('liveSessionCard');
+    if (!card) return;
+    var sessions = [];
+    var currentSession = null;
+
+    function renderCard() {
+      var live = sessions.filter(function(s) { return s.status === 'Live'; }).sort(function(a,b) { return new Date(a.startTime) - new Date(b.startTime); });
+      var upcoming = sessions.filter(function(s) { return s.status === 'Scheduled'; }).sort(function(a,b) { return new Date(a.startTime) - new Date(b.startTime); });
+      currentSession = live.length > 0 ? live[0] : (upcoming.length > 0 ? upcoming[0] : null);
+      if (!currentSession) { card.style.display = 'none'; card.innerHTML = ''; return; }
+      var isLive = currentSession.status === 'Live';
+      var startDate = new Date(currentSession.startTime);
+      card.style.display = 'block';
+      card.innerHTML =
+        '<div style="background:var(--card);border:2px solid ' + (isLive ? '#dc2626' : 'var(--accent)') + ';border-radius:var(--radius-lg);padding:16px 20px;box-shadow:0 4px 16px rgba(245,158,11,0.15);">' +
+          '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">' +
+            '<i class="fas fa-video" style="color:' + (isLive ? '#dc2626' : 'var(--accent)') + ';font-size:20px;"></i>' +
+            '<span style="font-weight:700;font-size:15px;">🎥 الحصص المباشرة</span>' +
+            (isLive ? '<span style="background:#dc262620;color:#dc2626;padding:2px 10px;border-radius:6px;font-size:11px;font-weight:700;display:flex;align-items:center;gap:4px;"><span style="width:6px;height:6px;background:#dc2626;border-radius:50%;display:inline-block;animation:pulse 1.5s infinite;"></span> مباشر الآن</span>' : '') +
+          '</div>' +
+          '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;">' +
+            '<div style="flex:1;min-width:150px;">' +
+              '<div style="font-weight:700;font-size:14px;margin-bottom:4px;">' + (currentSession.title || '') + '</div>' +
+              '<div style="font-size:12px;color:var(--text-muted);display:flex;flex-wrap:wrap;gap:4px 12px;">' +
+                (currentSession.subject ? '<span><i class="fas fa-book" style="color:var(--accent);font-size:10px;"></i> ' + currentSession.subject + '</span>' : '') +
+                (currentSession.grade ? '<span><i class="fas fa-layer-group" style="color:var(--accent);font-size:10px;"></i> ' + currentSession.grade + '</span>' : '') +
+                '<span><i class="fas fa-calendar" style="color:var(--accent);font-size:10px;"></i> ' + startDate.toLocaleDateString('ar-EG', { weekday:'short', month:'short', day:'numeric' }) + '</span>' +
+                '<span><i class="fas fa-clock" style="color:var(--accent);font-size:10px;"></i> ' + startDate.toLocaleTimeString('ar-EG', { hour:'2-digit', minute:'2-digit' }) + '</span>' +
+                (currentSession.duration ? '<span><i class="fas fa-hourglass-half" style="color:var(--accent);font-size:10px;"></i> ' + currentSession.duration + ' دقيقة</span>' : '') +
+              '</div>' +
+            '</div>' +
+            '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' +
+              '<a href="/student/live-session/' + currentSession.id + '" style="display:inline-flex;align-items:center;gap:6px;background:' + (isLive ? '#dc2626' : 'var(--accent)') + ';color:#fff;padding:8px 16px;border-radius:10px;font-size:13px;font-weight:700;text-decoration:none;">' +
+                (isLive ? '<i class="fas fa-video"></i> انضم الآن' : '<i class="fas fa-info-circle"></i> عرض التفاصيل') +
+              '</a>' +
+            '</div>' +
+          '</div>' +
+          (!isLive ? '<div class="ls-countdown" data-start="' + currentSession.startTime + '" style="margin-top:8px;font-size:12px;color:var(--accent);font-weight:600;"></div>' : '') +
+        '</div>';
+      if (!isLive) startCountdown();
+    }
+
+    function startCountdown() {
+      var cd = card.querySelector('.ls-countdown');
+      if (!cd) return;
+      function tick() {
+        if (!cd) return;
+        var start = new Date(cd.getAttribute('data-start')).getTime();
+        var diff = start - Date.now();
+        if (diff <= 0) { cd.textContent = 'الحصة بدأت الآن!'; return; }
+        var h = Math.floor(diff / 3600000);
+        var m = Math.floor((diff % 3600000) / 60000);
+        var s = Math.floor((diff % 60000) / 1000);
+        cd.textContent = 'تبدأ بعد ' + h + 'س ' + m + 'د ' + s + 'ث';
+      }
+      tick();
+      setInterval(tick, 1000);
+    }
+
+    function checkSessions() {
+      fetch('/api/live-sessions/upcoming')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          if (d && Array.isArray(d.sessions)) sessions = d.sessions;
+          renderCard();
+        })
+        .catch(function() {});
+    }
+
+    checkSessions();
+    setInterval(checkSessions, 15000);
+  })();
+  </script>
+
   <% if (!isGuest) { %>
-  <% if (user.subscriptionStatus === 'active') { %>
-  <div style="background:linear-gradient(135deg,var(--success-glow),transparent);border:1px solid var(--success);border-radius:var(--radius-lg);padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:12px;">
-    <i class="fas fa-check-circle" style="color:var(--success);font-size:22px;"></i>
-    <div>
-      <div style="font-weight:700;font-size:14px;color:var(--success);">اشتراكك نشط</div>
-      <div style="font-size:12px;color:var(--text-light);">مشترك حتى <%= new Date(user.subscriptionEnd).toLocaleDateString('ar-EG') %></div>
+    <!-- بلاطات مربعة للتنقل (فوق اسأل عفيفي) -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:12px;margin-bottom:16px;">
+      <a href="/student/courses" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;color:var(--text);font-size:12px;font-weight:600;transition:all 0.2s;">
+        <i class="fas fa-video" style="color:var(--accent);font-size:22px;"></i> المحاضرات
+      </a>
+      <a href="/student/question-bank" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;color:var(--text);font-size:12px;font-weight:600;transition:all 0.2s;">
+        <i class="fas fa-question-circle" style="color:var(--accent);font-size:22px;"></i> بنك الأسئلة
+      </a>
+      <a href="/student/notes" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;color:var(--text);font-size:12px;font-weight:600;transition:all 0.2s;">
+        <i class="fas fa-file-pdf" style="color:var(--accent);font-size:22px;"></i> المذكرات
+      </a>
+      <a href="/student/reviews" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;color:var(--text);font-size:12px;font-weight:600;transition:all 0.2s;">
+        <i class="fas fa-sync-alt" style="color:var(--accent);font-size:22px;"></i> المراجعات
+      </a>
+      <a href="/student/subscription" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;color:var(--text);font-size:12px;font-weight:600;transition:all 0.2s;">
+        <i class="fas fa-credit-card" style="color:var(--accent);font-size:22px;"></i> الاشتراك
+      </a>
+      <a href="/student/profile" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;color:var(--text);font-size:12px;font-weight:600;transition:all 0.2s;">
+        <i class="fas fa-user" style="color:var(--accent);font-size:22px;"></i> حسابي
+      </a>
+    </div>
+
+    <!-- الحصص المباشرة - تظهر تلقائياً عند وجود حصة -->
+    <div id="liveSessionCard" style="display:none;margin-bottom:16px;"></div>
+
+    <!-- الحصص المباشرة -->
+    <a href="/student/live-sessions" style="display:block;text-align:center;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;border-radius:var(--radius-lg);padding:16px;margin-bottom:8px;">
+      <i class="fas fa-video" style="font-size:24px;"></i>
+      <div style="font-size:13px;font-weight:700;margin-top:4px;">الحصص المباشرة</div>
+    </a>
+
+    <!-- اسأل عفيفي -->
+    <a href="/student/chat" style="display:block;text-align:center;background:linear-gradient(135deg,#1a73e8,#0d47a1);color:#fff;border-radius:var(--radius-lg);padding:16px;margin-bottom:16px;">
+      <i class="fas fa-comment-dots" style="font-size:24px;"></i>
+      <div style="font-size:13px;font-weight:700;margin-top:4px;">اسأل عفيفي</div>
+    </a>
+  <% } else { %>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+      <a href="/register" style="background:linear-gradient(135deg,var(--accent),#4338ca);color:#fff;border-radius:var(--radius-lg);padding:16px;text-align:center;">
+        <i class="fas fa-user-plus" style="font-size:24px;"></i>
+        <div style="font-size:13px;font-weight:700;margin-top:4px;">إنشاء حساب</div>
+      </a>
+      <a href="/register" style="background:linear-gradient(135deg,var(--success),#1b6b36);color:#fff;border-radius:var(--radius-lg);padding:16px;text-align:center;">
+        <i class="fas fa-gem" style="font-size:24px;"></i>
+        <div style="font-size:13px;font-weight:700;margin-top:4px;">اشترك وتمتع بالكامل</div>
+      </a>
+    </div>
+  <% } %>
+
+  <% if (analyticsData) { var ap = analyticsData.progress; %>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:16px;">
+    <div style="background:var(--card);border-radius:var(--radius-lg);padding:14px;text-align:center;border:1px solid var(--border);">
+      <div style="font-size:22px;font-weight:800;color:var(--accent);"><%= ap.completedLessons %></div>
+      <div style="font-size:11px;color:var(--text-light);margin-top:4px;">الدروس المكتملة</div>
+    </div>
+    <div style="background:var(--card);border-radius:var(--radius-lg);padding:14px;text-align:center;border:1px solid var(--border);">
+      <div style="font-size:22px;font-weight:800;color:var(--primary);"><%= Math.floor(ap.totalWatchTime / 60) %>:<%= String(ap.totalWatchTime % 60).padStart(2,'0') %></div>
+      <div style="font-size:11px;color:var(--text-light);margin-top:4px;">وقت المشاهدة</div>
+    </div>
+    <div style="background:var(--card);border-radius:var(--radius-lg);padding:14px;text-align:center;border:1px solid var(--border);">
+      <div style="font-size:22px;font-weight:800;color:var(--success);"><%= ap.currentStreak %></div>
+      <div style="font-size:11px;color:var(--text-light);margin-top:4px;">أيام المواظبة</div>
+    </div>
+    <div style="background:var(--card);border-radius:var(--radius-lg);padding:14px;text-align:center;border:1px solid var(--border);">
+      <div style="font-size:22px;font-weight:800;color:var(--danger);"><%= ap.averageQuizScore %>%</div>
+      <div style="font-size:11px;color:var(--text-light);margin-top:4px;">متوسط الاختبارات</div>
+    </div>
+    <div style="background:var(--card);border-radius:var(--radius-lg);padding:14px;text-align:center;border:1px solid var(--border);background:linear-gradient(135deg,var(--accent-glow),transparent);">
+      <div style="font-size:22px;font-weight:800;color:var(--accent);"><%= ap.activityScore %></div>
+      <div style="font-size:11px;color:var(--text-light);margin-top:4px;">مستوى النشاط</div>
     </div>
   </div>
-  <% } else if (user.subscriptionStatus === 'expired') { %>
-  <div style="background:linear-gradient(135deg,var(--danger-glow),transparent);border:1px solid var(--danger);border-radius:var(--radius-lg);padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:12px;">
-    <i class="fas fa-exclamation-triangle" style="color:var(--danger);font-size:22px;"></i>
-    <div>
-      <div style="font-weight:700;font-size:14px;color:var(--danger);">انتهى اشتراكك</div>
-      <div style="font-size:12px;color:var(--text-light);">جدد اشتراكك الآن للوصول إلى المحاضرات</div>
+
+  <% if (analyticsData.courseProgress && analyticsData.courseProgress.length > 0) { %>
+  <div style="background:var(--card);border-radius:var(--radius-lg);padding:24px;box-shadow:var(--shadow);border:1px solid var(--border);margin-bottom:16px;">
+    <h3 style="font-size:16px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px;">
+      <i class="fas fa-chart-line" style="color:var(--accent);"></i> تقدمك في المحاضرات
+    </h3>
+    <% analyticsData.courseProgress.slice(0, 6).forEach(function(c) { %>
+    <div style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;margin-bottom:4px;">
+        <span style="display:flex;align-items:center;gap:6px;"><i class="fas <%= c.courseIcon || 'fa-book' %>" style="color:<%= c.courseColor || 'var(--accent)' %>;"></i> <%= c.courseTitle %></span>
+        <span><%= c.completedLessons %>/<%= c.totalLessons %></span>
+      </div>
+      <div style="background:var(--bg);border-radius:10px;height:8px;overflow:hidden;">
+        <div style="background:linear-gradient(90deg,var(--accent),var(--primary));border-radius:10px;height:100%;width:<%= c.completionPercent %>%"></div>
+      </div>
     </div>
-    <a href="/student/subscription" style="margin-right:auto;background:var(--danger);color:#fff;padding:8px 16px;border-radius:var(--radius);font-size:13px;font-weight:700;">تجديد</a>
+    <% }); %>
   </div>
   <% } %>
-  <% } %>
-
-  <div class="welcome-banner" style="overflow:hidden;padding:8px 12px;">
-    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
-      <i class="fas fa-bullhorn" style="color:var(--accent);font-size:12px;"></i>
-      <span style="font-size:11px;font-weight:600;color:var(--accent);">آخر الإعلانات</span>
-    </div>
-    <div style="overflow:hidden;height:100px;position:relative;">
-      <div id="announcementTrack" style="position:absolute;width:100%;">
-        <% 
-        var items = (announcements && announcements.length > 0) ? announcements : [
-          { title: 'مرحباً بك في منصة المُميز', content: 'نتمنى لك عاماً دراسياً مليئاً بالنجاح والتفوق', important: false },
-          { title: 'عرض الحجز المبكر', content: 'احجز الآن واستفد من خصومات الحجز المبكر للعام الدراسي', important: true },
-          { title: 'متابعة المحاضرات', content: 'تأكد من متابعة أحدث المحاضرات أولاً بأول', important: false }
-        ];
-        items.slice(0, 5).forEach(function(a) { 
-        %>
-        <div class="carousel-item" data-title="<%= a.title.replace(/"/g, '&quot;') %>" data-content="<%= a.content.replace(/"/g, '&quot;') %>" style="cursor:pointer;display:flex;flex-direction:column;justify-content:center;height:100px;">
-          <div style="font-size:12px;font-weight:700;color:var(--text);"><%= a.title %><% if (a.important) { %><span style="background:var(--danger);color:#fff;font-size:9px;padding:1px 6px;border-radius:3px;font-weight:700;margin-right:6px;">مهم</span><% } %></div>
-          <div style="font-size:11px;color:var(--text-light);margin-top:2px;"><%= a.content %></div>
-        </div>
-        <% }) %>
-      </div>
-    </div>
-    <style>
-      .carousel-item { transition: background 0.3s; border-radius: 6px; padding: 6px 14px; box-sizing:border-box; }
-      .carousel-item:hover { background: var(--accent-glow); }
-    </style>
-    <script>
-    (function(){
-      var track = document.getElementById('announcementTrack');
-      if (!track) return;
-      var items = Array.from(track.children);
-      if (items.length > 0) items.forEach(function(el) {
-        el.addEventListener('click', function() {
-          alert(this.dataset.title + '\n\n' + this.dataset.content);
-        });
-      });
-      if (items.length < 2) return;
-      var firstClone = items[0].cloneNode(true);
-      firstClone.addEventListener('click', function() {
-        alert(this.dataset.title + '\n\n' + this.dataset.content);
-      });
-      track.appendChild(firstClone);
-      var total = items.length + 1, idx = 0, itemH = 100;
-      setInterval(function(){
-        idx++;
-        track.style.transition = 'transform 0.6s ease';
-        track.style.transform = 'translateY(-' + (idx * itemH) + 'px)';
-        if (idx === total - 1) {
-          setTimeout(function(){
-            track.style.transition = 'none';
-            track.style.transform = 'translateY(0)';
-            idx = 0;
-          }, 700);
-        }
-      }, 3500);
-    })();
-    </script>
-  </div>
-
-  <div class="dashboard-grid">
-    <div class="stat-card" style="padding:12px;">
-      <div style="display:grid;gap:6px;">
-        <a href="/student/courses" style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;font-size:13px;font-weight:600;color:var(--text);transition:all 0.2s;">
-          <i class="fas fa-video" style="color:var(--accent);font-size:16px;width:20px;text-align:center;"></i> المحاضرات
-        </a>
-        <% if (!isGuest) { %>
-        <a href="/student/question-bank" style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;font-size:13px;font-weight:600;color:var(--text);transition:all 0.2s;">
-          <i class="fas fa-question-circle" style="color:var(--accent);font-size:16px;width:20px;text-align:center;"></i> بنك الأسئلة
-        </a>
-        <a href="/student/notes" style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;font-size:13px;font-weight:600;color:var(--text);transition:all 0.2s;">
-          <i class="fas fa-file-pdf" style="color:var(--accent);font-size:16px;width:20px;text-align:center;"></i> المذكرات
-        </a>
-        <a href="/student/reviews" style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;font-size:13px;font-weight:600;color:var(--text);transition:all 0.2s;">
-          <i class="fas fa-sync-alt" style="color:var(--accent);font-size:16px;width:20px;text-align:center;"></i> المراجعات
-        </a>
-        <% } %>
-      </div>
-      <style>.dashboard-grid .stat-card a:hover{background:var(--accent-glow);padding-right:18px;}</style>
-    </div>
-    <div class="stat-card" style="padding:12px;">
-      <div style="display:grid;gap:6px;">
-        <% if (!isGuest) { %>
-        <a href="/student/subscription" style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;font-size:13px;font-weight:600;color:var(--text);transition:all 0.2s;">
-          <i class="fas fa-credit-card" style="color:var(--accent);font-size:16px;width:20px;text-align:center;"></i> الاشتراك
-        </a>
-        <a href="/student/profile" style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;font-size:13px;font-weight:600;color:var(--text);transition:all 0.2s;">
-          <i class="fas fa-user" style="color:var(--accent);font-size:16px;width:20px;text-align:center;"></i> حسابي
-        </a>
-        <% } %>
-        <a href="/logout" style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;font-size:13px;font-weight:600;color:var(--text);transition:all 0.2s;">
-          <i class="fas fa-sign-out-alt" style="color:var(--danger);font-size:16px;width:20px;text-align:center;"></i> تسجيل الخروج
-        </a>
-      </div>
-    </div>
-  </div>
-
-  <% if (progress && Object.keys(progress).length > 0) { %>
+  <% } else if (progress && Object.keys(progress).length > 0) { %>
   <div style="background:var(--card);border-radius:var(--radius-lg);padding:24px;box-shadow:var(--shadow);border:1px solid var(--border);margin-bottom:16px;">
     <h3 style="font-size:16px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px;">
       <i class="fas fa-chart-line" style="color:var(--accent);"></i> تقدمك في المحاضرات
@@ -206,28 +384,6 @@
   </div>
   <% } %>
   <% } %>
-
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
-    <% if (isGuest) { %>
-    <a href="/register" style="background:linear-gradient(135deg,var(--accent),#4338ca);color:#fff;border-radius:var(--radius-lg);padding:16px;text-align:center;">
-      <i class="fas fa-user-plus" style="font-size:24px;"></i>
-      <div style="font-size:13px;font-weight:700;margin-top:4px;">إنشاء حساب</div>
-    </a>
-    <a href="/register" style="background:linear-gradient(135deg,var(--success),#1b6b36);color:#fff;border-radius:var(--radius-lg);padding:16px;text-align:center;">
-      <i class="fas fa-gem" style="font-size:24px;"></i>
-      <div style="font-size:13px;font-weight:700;margin-top:4px;">اشترك وتمتع بالكامل</div>
-    </a>
-    <% } else { %>
-    <a href="/student/chat" style="background:linear-gradient(135deg,#1a73e8,#0d47a1);color:#fff;border-radius:var(--radius-lg);padding:16px;text-align:center;">
-      <i class="fas fa-comment-dots" style="font-size:24px;"></i>
-      <div style="font-size:13px;font-weight:700;margin-top:4px;">اسأل عفيفي</div>
-    </a>
-    <a href="/student/subscription" style="background:linear-gradient(135deg,var(--success),#1b6b36);color:#fff;border-radius:var(--radius-lg);padding:16px;text-align:center;">
-      <i class="fas fa-credit-card" style="font-size:24px;"></i>
-      <div style="font-size:13px;font-weight:700;margin-top:4px;">الاشتراك</div>
-    </a>
-    <% } %>
-  </div>
 
   <div style="background:var(--card);border-radius:var(--radius-lg);padding:24px;box-shadow:var(--shadow);border:1px solid var(--border);">
     <h3 style="font-size:18px;font-weight:700;color:var(--primary);margin-bottom:16px;display:flex;align-items:center;gap:10px;">

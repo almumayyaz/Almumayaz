@@ -127,6 +127,7 @@ async function getOrCreate(uid) {
   if (!a.achievements) a.achievements = { unlocked: [], total: 0, perfectQuiz: false };
   if (!a.streak) a.streak = { current: 0, longest: 0, lastStudyDate: null };
   if (!a.watchHistory) a.watchHistory = { totalSeconds: 0, lessons: {} };
+  if (!a.watchHistory.lessons) a.watchHistory.lessons = {};
   if (!a.lessonProgress) a.lessonProgress = {};
   if (!a.courseProgress) a.courseProgress = {};
   if (!a.quizHistory) a.quizHistory = {};
@@ -235,6 +236,7 @@ async function trackVideoHeartbeat(uid, cid, lid, position, duration, watchedSec
   const pct = duration > 0 ? Math.min(Math.round((position / duration) * 100), 100) : 0;
   const isComplete = forceComplete || pct >= 95;
   const wh = a.watchHistory;
+  if (!wh || !wh.lessons) { console.error('ANALYTICS_BUG: wh.lessons is falsy', JSON.stringify({ uid, cid, lid, whType: typeof wh, wh })); }
   wh.lessons[lk] = wh.lessons[lk] || { lessonId: lid, courseId: cid, firstWatch: now(), lastWatch: now(), opens: 0, totalSeconds: 0, completionPercent: 0, completed: false, resumePosition: 0 };
   const wl = wh.lessons[lk];
   if (!wl.firstWatch) wl.firstWatch = now();

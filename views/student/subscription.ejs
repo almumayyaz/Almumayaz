@@ -25,7 +25,7 @@
       <div>
         <div id="subStatusText" style="font-size:13px;font-weight:700;">
           <% if (user.subscriptionStatus === 'active') { %>
-            <span style="color:var(--success);">مشترك <i class="fas fa-check-circle"></i></span>
+            <span style="color:var(--success);">مشترك <i class="fas fa-check-circle"></i><% if (user.planName) { %> — <%= user.planName %><% } %><% if (user.planPeriod) { %> · <%= user.planPeriod %><% } %></span>
           <% } else if (user.subscriptionStatus === 'expired') { %>
             <span style="color:#ca8a04;">منتهي <i class="fas fa-exclamation-circle"></i></span>
           <% } else if (user.subscriptionStatus === 'stopped' || user.subscriptionStatus === 'cancelled') { %>
@@ -167,6 +167,13 @@
         <input type="text" id="subTransactionId" class="form-input" placeholder="أدخل كود العملية من المحفظة" style="direction:rtl;">
       </div>
       <div class="form-group">
+        <label>المرحلة الدراسية</label>
+        <select id="subStage" class="form-input">
+          <option value="إعدادية" <%= (user.stage === 'إعدادية') ? 'selected' : '' %>>إعدادية</option>
+          <option value="ثانوية" <%= (user.stage === 'ثانوية') ? 'selected' : '' %>>ثانوية</option>
+        </select>
+      </div>
+      <div class="form-group">
         <label>طريقة التحويل</label>
         <select id="subPaymentMethod" class="form-input">
           <option value="vodafone-cash">فودافون كاش</option>
@@ -259,7 +266,7 @@ function submitSubscription() {
   btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الإرسال...';
   fetch('/api/student/subscribe', {
     method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ planName: planName, price: Number(price), transactionId: transactionId, paymentMethod: paymentMethod })
+    body: JSON.stringify({ planName: planName, price: Number(price), transactionId: transactionId, paymentMethod: paymentMethod, stage: document.getElementById('subStage').value })
   }).then(function(r) { return r.json(); }).then(function(d) {
     if (d.success) {
       document.getElementById('subPopup').innerHTML = '<div style="padding:60px 24px;text-align:center;"><i class="fas fa-check-circle" style="font-size:56px;color:var(--success);display:block;margin-bottom:16px;"></i><h2 style="font-family:\'Aref Ruqaa\',serif;font-size:22px;font-weight:700;margin-bottom:8px;">✅ تم إرسال طلب الاشتراك</h2><p style="font-size:14px;color:var(--text-light);margin-bottom:20px;">في انتظار موافقة الأستاذ محمد عفيفي. سيتم تفعيل اشتراكك فور الموافقة.</p><button class="btn btn-primary" onclick="location.reload()"><i class="fas fa-home"></i> العودة</button></div>';

@@ -1,11 +1,10 @@
-<aside class="sidebar" id="sidebar">
+<aside class="sidebar collapsed" id="sidebar">
   <div class="sidebar-header">
     <a href="/student" class="sidebar-logo">المُميز</a>
-    <button class="sidebar-close-btn" id="sidebarClose"><i class="fas fa-times"></i></button>
-    <button class="sidebar-toggle-btn" id="sidebarToggle"></button>
+      <button class="sidebar-toggle-btn" id="sidebarToggle"></button>
   </div>
   <div class="sidebar-user">
-    <div class="sidebar-avatar"><%= (user ? user.name : 'ز') ? (user ? user.name.charAt(0) : 'ز') : 'ز' %></div>
+    <div class="sidebar-avatar" id="sidebarAvatarWrap"><% if (user && user.avatar) { %><img src="<%= user.avatar %>" style="width:100%;height:100%;object-fit:cover;border-radius:50%;"><% } else { %><%= (user && user.name) ? user.name.charAt(0) : 'ز' %><% } %></div>
     <div class="sidebar-user-info">
       <h4><%= user ? user.name : 'زائر' %></h4>
       <span><%= user ? (user.grade || '') : 'ضيف' %></span>
@@ -30,8 +29,8 @@
     </a>
     <% } %>
     <% if (user && !isGuest) { %>
-    <a href="/student/chat" class="<%= currentPath === '/student/chat' ? 'active' : '' %>">
-      <i class="fas fa-comments"></i> اسأل عفيفي
+    <a href="/student/chat" class="<%= currentPath.startsWith('/student/chat') ? 'active' : '' %>">
+      <i class="fas fa-comment-dots"></i> اسأل عفيفي
     </a>
     <% } %>
     <% if (isGuest) { %>
@@ -46,6 +45,9 @@
     <% if (!isGuest) { %>
     <a href="/student/profile" class="<%= currentPath === '/student/profile' ? 'active' : '' %>">
       <i class="fas fa-user"></i> حسابي
+    </a>
+    <a href="/student/my-progress" class="<%= currentPath === '/student/my-progress' ? 'active' : '' %>">
+      <i class="fas fa-chart-line"></i> تقدّمي
     </a>
     <% } %>
     <div class="sidebar-theme-toggle" onclick="spinTheme(this.querySelector('i'));toggleTheme();">
@@ -94,9 +96,10 @@
     document.body.style.overflow = '';
   }
 
-  var toggleState = localStorage.getItem('sidebar-toggle');
-  if (toggleState === 'collapsed' && window.innerWidth > 768) {
-    sidebar.classList.add('collapsed');
+  if (window.innerWidth > 768) {
+    var toggleState = localStorage.getItem('sidebar-toggle');
+    if (toggleState === '') { sidebar.classList.remove('collapsed'); }
+    else if (toggleState === 'collapsed') { sidebar.classList.add('collapsed'); }
   }
 
   if (toggleBtn) toggleBtn.addEventListener('click', function(e) {

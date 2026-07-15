@@ -8,11 +8,6 @@
       </a>
       <h1><%= course.title %></h1>
       <p><%= course.subtitle %></p>
-      <% if (course.semester) { %>
-        <span style="display:inline-block;background:<%= course.semester === 'all' ? 'rgba(99,102,241,0.08)' : 'rgba(99,102,241,0.1)' %>;color:var(--accent);font-size:12px;padding:3px 10px;border-radius:4px;font-weight:600;margin-top:6px;">
-          <i class="fas fa-calendar-alt"></i> <%= course.semester === 'first' ? 'الترم الأول' : course.semester === 'second' ? 'الترم الثاني' : 'الترمين' %>
-        </span>
-      <% } %>
     </div>
   </div>
 
@@ -39,9 +34,43 @@
   <% } %>
 
   <% if ((course.lessons||[]).length > 0) { %>
-      <% 
+      <%
         var hasSections = course.sections && course.sections.length > 0;
         var sortedLessons = (course.lessons || []).slice().sort(function(a,b){ return (a.order||0) - (b.order||0); });
+        function lessonBadge(lesson, canAccess, idx) {
+          var ls = lessonStatuses ? lessonStatuses.find(function(s) { return s.lessonId === lesson.id; }) : null;
+          var isUnlocked = ls ? ls.isUnlocked : canAccess;
+          var isCompleted = ls ? ls.isCompleted : false;
+          var isWatching = ls ? ls.isWatching : false;
+          var badge = '';
+          if (lesson.isFree) badge += '<span class="tree-free-badge">&#160;مجاني&#160;</span>';
+          if (isGuest && lesson.guestVisible) badge += '<span class="tree-free-badge" style="background:rgba(99,102,241,0.1);color:var(--accent);">&#160;تجريبي&#160;</span>';
+          if (!canAccess && !isUnlocked) badge += '<i class="fas fa-lock" style="color:var(--text-muted);font-size:10px;margin-right:4px;"></i>';
+          if (canAccess && !isUnlocked && !isGuest) badge += '<span style="font-size:10px;color:#d97706;margin-right:4px;"><i class="fas fa-lock"></i> أكمل السابق</span>';
+          return badge;
+        }
+        function lessonIcon(lesson, idx) {
+          var ls = lessonStatuses ? lessonStatuses.find(function(s) { return s.lessonId === lesson.id; }) : null;
+          if (ls && ls.isCompleted) return '<i class="fas fa-check-circle" style="color:var(--success);font-size:14px;"></i>';
+          return (idx + 1);
+        }
+        function lessonAttrs(lesson, canAccess) {
+          var ls = lessonStatuses ? lessonStatuses.find(function(s) { return s.lessonId === lesson.id; }) : null;
+          var isUnlocked = ls ? ls.isUnlocked : canAccess;
+          if (canAccess && isUnlocked) return 'href="/student/lesson/' + course.id + '/' + lesson.id + '"';
+          if (!canAccess && isGuest) return 'href="#" onclick="alert(\'هذا الدرس تجريبي للضيوف فقط. سجل للوصول الكامل.\');return false;"';
+          return 'href="#" onclick="alert(\'يجب إكمال الدرس السابق أولاً\');return false;"';
+        }
+        function lessonLockedClass(lesson, canAccess) {
+          var ls = lessonStatuses ? lessonStatuses.find(function(s) { return s.lessonId === lesson.id; }) : null;
+          var isUnlocked = ls ? ls.isUnlocked : canAccess;
+          var isCompleted = ls ? ls.isCompleted : false;
+          var cls = '';
+          if (!canAccess) cls += ' locked';
+          if (!isUnlocked && !isGuest) cls += ' sequential-locked';
+          if (isCompleted) cls += ' completed';
+          return cls;
+        }
       %>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
         <h2 style="font-size:20px;font-weight:700;color:var(--primary);display:flex;align-items:center;gap:10px;">
@@ -51,9 +80,11 @@
       </div>
 
       <% if (hasSections) { %>
-        <div class="tree-view">
+          <div class="tree-view" style="--cc:<%= course.color || '#A07200' %>;">
+          <% var sectionIds = (course.sections || []).map(function(s) { return s.id; }); %>
+          <% var unsectioned = sortedLessons.filter(function(l) { return !l.sectionId || sectionIds.indexOf(l.sectionId) === -1; }); %>
           <% course.sections.forEach(function(section) { %>
-            <% var sectionLessons = section.lessons.map(function(lid) { return sortedLessons.find(function(l) { return l.id === lid; }); }).filter(function(l) { return l; }); %>
+            <% var sectionLessons = sortedLessons.filter(function(l) { return l.sectionId === section.id; }); %>
             <% if (sectionLessons.length === 0) return; %>
             <div class="tree-section">
               <div class="tree-section-header" onclick="this.parentElement.classList.toggle('expanded')">
@@ -67,22 +98,32 @@
               <div class="tree-section-children">
                 <%- sectionLessons.map(function(lesson, idx) {
                   var canAccess = isSubscribed || lesson.isFree || (isGuest && lesson.guestVisible);
-                  var progressData = (user && user.progress && user.progress[course.id]) || null;
-                  var isCompleted = progressData && progressData.completedLessons && progressData.completedLessons.includes(lesson.id);
-                  var attrs = 'href="' + (canAccess ? '/student/lesson/' + course.id + '/' + lesson.id : '#') + '" class="tree-lesson-item ' + (!canAccess ? 'locked' : '') + (isCompleted ? ' completed' : '') + '"' + (!canAccess ? ' onclick="alert(\'هذا الدرس تجريبي للضيوف فقط. سجل للوصول الكامل.\');return false;"' : '');
-                  var badge = '';
-                  if (lesson.isFree) badge += '<span class="tree-free-badge">&#160;مجاني&#160;</span>';
-                  if (isGuest && lesson.guestVisible) badge += '<span class="tree-free-badge" style="background:rgba(99,102,241,0.1);color:var(--accent);">&#160;تجريبي&#160;</span>';
-                  if (!canAccess) badge += '<i class="fas fa-lock" style="color:var(--text-muted);font-size:10px;margin-right:4px;"></i>';
-                  return '<a ' + attrs + '><span class="tree-lesson-num">' + (isCompleted ? '<i class="fas fa-check-circle" style="color:var(--success);font-size:14px;"></i>' : (idx + 1)) + '</span><span class="tree-lesson-title">' + lesson.title + '</span>' + badge + '<span class="tree-lesson-duration"><i class="fas fa-clock"></i> ' + lesson.duration + '</span></a>';
+                  return '<a ' + lessonAttrs(lesson, canAccess) + ' class="tree-lesson-item' + lessonLockedClass(lesson, canAccess) + '"><span class="tree-lesson-num">' + lessonIcon(lesson, idx) + '</span><span class="tree-lesson-title">' + lesson.title + '</span>' + lessonBadge(lesson, canAccess, idx) + '<span class="tree-lesson-duration"><i class="fas fa-clock"></i> ' + lesson.duration + '</span></a>';
                 }).join('\n') %>
               </div>
             </div>
           <% }) %>
+          <% if (unsectioned.length > 0) { %>
+            <div class="tree-section">
+              <div class="tree-section-header" onclick="this.parentElement.classList.toggle('expanded')">
+                <div class="tree-section-icon"><i class="fas fa-folder"></i></div>
+                <div class="tree-section-info">
+                  <h4>عام</h4>
+                  <span class="tree-section-count"><%= unsectioned.length %> درس</span>
+                </div>
+                <i class="fas fa-chevron-left tree-arrow"></i>
+              </div>
+              <div class="tree-section-children">
+                <%- unsectioned.map(function(lesson, idx) {
+                  var canAccess = isSubscribed || lesson.isFree || (isGuest && lesson.guestVisible);
+                  return '<a ' + lessonAttrs(lesson, canAccess) + ' class="tree-lesson-item' + lessonLockedClass(lesson, canAccess) + '"><span class="tree-lesson-num">' + lessonIcon(lesson, idx) + '</span><span class="tree-lesson-title">' + lesson.title + '</span>' + lessonBadge(lesson, canAccess, idx) + '<span class="tree-lesson-duration"><i class="fas fa-clock"></i> ' + lesson.duration + '</span></a>';
+                }).join('\n') %>
+              </div>
+            </div>
+          <% } %>
         </div>
       <% } else { %>
-        <!-- No sections — group by sectionId or flat list -->
-        <% 
+        <%
           var groups = {};
           sortedLessons.forEach(function(l) {
             var key = l.sectionId || 'main';
@@ -93,31 +134,34 @@
         %>
         <% if (groupKeys.length === 1 && groupKeys[0] === 'main') { %>
           <!-- Flat list -->
-          <div class="lessons-list" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="lessons-list" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;--cc:<%= course.color || '#A07200' %>;">
             <% sortedLessons.forEach(function(lesson, idx) {
               var canAccess = isSubscribed || lesson.isFree || (isGuest && lesson.guestVisible);
-              var progressData = (user && user.progress && user.progress[course.id]) || null;
-              var isCompleted = progressData && progressData.completedLessons && progressData.completedLessons.includes(lesson.id);
+              var ls = lessonStatuses ? lessonStatuses.find(function(s) { return s.lessonId === lesson.id; }) : null;
+              var isUnlocked = ls ? ls.isUnlocked : canAccess;
+              var isCompleted = ls ? ls.isCompleted : false;
+              var isWatching = ls ? ls.isWatching : false;
+              var href = canAccess && isUnlocked ? '/student/lesson/' + course.id + '/' + lesson.id : '#';
             %>
-            <a href="<%= canAccess ? '/student/lesson/' + course.id + '/' + lesson.id : '#' %>" class="lesson-item" style="flex-direction:column;align-items:stretch;gap:10px;padding:14px 16px;position:relative;opacity:<%= canAccess ? 1 : 0.6 %>;" <%= !canAccess ? 'onclick="alert(\'هذا الدرس تجريبي للضيوف فقط. سجل للوصول الكامل.\');return false;"' : '' %>>
+            <a href="<%= href %>" class="lesson-item" style="flex-direction:column;align-items:stretch;gap:10px;padding:14px 16px;position:relative;opacity:<%= (!canAccess || (!isUnlocked && !isGuest)) ? 0.6 : 1 %>;" <%= (!canAccess && isGuest) ? 'onclick="alert(\'هذا الدرس تجريبي للضيوف فقط. سجل للوصول الكامل.\');return false;"' : '' %> <%= (!isUnlocked && !isGuest) ? 'onclick="alert(\'يجب إكمال الدرس السابق أولاً\');return false;"' : '' %>>
               <div style="display:flex;align-items:center;gap:12px;">
                 <div style="width:32px;height:32px;background:var(--bg);border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--primary);font-size:12px;font-weight:700;flex-shrink:0;">
-                  <%- isCompleted ? '<i class="fas fa-check-circle" style="color:var(--success);font-size:16px;"></i>' : (idx + 1) %>
+                  <%- isCompleted ? '<i class="fas fa-check-circle" style="color:var(--success);font-size:16px;"></i>' : (isWatching ? '<i class="fas fa-play-circle" style="color:var(--accent);font-size:16px;"></i>' : (idx + 1)) %>
                 </div>
                 <div class="lesson-info" style="flex:1;">
-                  <h3 style="font-size:14px;font-weight:600;margin-bottom:2px;font-family:\'Cairo\',sans-serif;"><%= lesson.title %></h3>
+                  <h3 style="font-size:14px;font-weight:600;margin-bottom:2px;font-family:'Cairo',sans-serif;"><%= lesson.title %></h3>
                   <p style="font-size:11px;margin:0;"><i class="fas fa-clock" style="color:var(--accent);font-size:10px;"></i> <%= lesson.duration %></p>
                 </div>
                 <% if (lesson.isFree) { %><span style="background:rgba(5,150,105,0.1);color:var(--success);font-size:10px;padding:2px 6px;border-radius:3px;font-weight:600;">مجاني</span><% } %>
                 <% if (isGuest && lesson.guestVisible) { %><span style="background:rgba(99,102,241,0.1);color:var(--accent);font-size:10px;padding:2px 6px;border-radius:3px;font-weight:600;">تجريبي</span><% } %>
+                <% if (!isUnlocked && !isGuest && canAccess) { %><span style="background:rgba(217,119,6,0.1);color:#d97706;font-size:10px;padding:2px 6px;border-radius:3px;font-weight:600;"><i class="fas fa-lock"></i> أكمل السابق</span><% } %>
               </div>
-              <% if (canAccess) { %><span class="watch-btn" style="align-self:flex-start;font-size:11px;padding:3px 10px;">مشاهدة</span><% } else { %><span style="align-self:flex-start;font-size:11px;color:var(--text-muted);"><i class="fas fa-lock"></i> مشترك</span><% } %>
+              <% if (canAccess && isUnlocked) { %><span class="watch-btn" style="align-self:flex-start;font-size:11px;padding:3px 10px;">مشاهدة</span><% } else { %><span style="align-self:flex-start;font-size:11px;color:var(--text-muted);"><i class="fas fa-lock"></i> مقفول</span><% } %>
             </a>
             <% }) %>
           </div>
         <% } else { %>
-          <!-- Grouped by sectionId fallback -->
-          <div class="tree-view">
+        <div class="tree-view" style="--cc:<%= course.color || '#A07200' %>;">
             <% groupKeys.forEach(function(key) {
               var lessons = groups[key];
               var sectionName = key === 'main' ? 'عام' : ((course.sections||[]).find(function(s){return s.id===key;})||{}).name || key;
@@ -134,14 +178,7 @@
               <div class="tree-section-children">
                 <%- lessons.map(function(lesson, idx) {
                   var canAccess = isSubscribed || lesson.isFree || (isGuest && lesson.guestVisible);
-                  var progressData = (user && user.progress && user.progress[course.id]) || null;
-                  var isCompleted = progressData && progressData.completedLessons && progressData.completedLessons.includes(lesson.id);
-                  var attrs = 'href="' + (canAccess ? '/student/lesson/' + course.id + '/' + lesson.id : '#') + '" class="tree-lesson-item ' + (!canAccess ? 'locked' : '') + (isCompleted ? ' completed' : '') + '"' + (!canAccess ? ' onclick="alert(\'هذا الدرس تجريبي للضيوف فقط. سجل للوصول الكامل.\');return false;"' : '');
-                  var badge = '';
-                  if (lesson.isFree) badge += '<span class="tree-free-badge">&#160;مجاني&#160;</span>';
-                  if (isGuest && lesson.guestVisible) badge += '<span class="tree-free-badge" style="background:rgba(99,102,241,0.1);color:var(--accent);">&#160;تجريبي&#160;</span>';
-                  if (!canAccess) badge += '<i class="fas fa-lock" style="color:var(--text-muted);font-size:10px;margin-right:4px;"></i>';
-                  return '<a ' + attrs + '><span class="tree-lesson-num">' + (isCompleted ? '<i class="fas fa-check-circle" style="color:var(--success);font-size:14px;"></i>' : (idx + 1)) + '</span><span class="tree-lesson-title">' + lesson.title + '</span>' + badge + '<span class="tree-lesson-duration"><i class="fas fa-clock"></i> ' + lesson.duration + '</span></a>';
+                  return '<a ' + lessonAttrs(lesson, canAccess) + ' class="tree-lesson-item' + lessonLockedClass(lesson, canAccess) + '"><span class="tree-lesson-num">' + lessonIcon(lesson, idx) + '</span><span class="tree-lesson-title">' + lesson.title + '</span>' + lessonBadge(lesson, canAccess, idx) + '<span class="tree-lesson-duration"><i class="fas fa-clock"></i> ' + lesson.duration + '</span></a>';
                 }).join('\n') %>
               </div>
             </div>

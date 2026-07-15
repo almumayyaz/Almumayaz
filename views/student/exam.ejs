@@ -120,6 +120,18 @@ document.querySelectorAll('.btn-submit-quiz').forEach(btn => {
     this.style.display = 'none';
     quiz.querySelector('.quiz-results')?.remove();
     quiz.insertAdjacentHTML('beforeend', results);
+
+    // Save quiz result to server
+    fetch('/api/analytics/quiz/submit', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        courseId: '<%= course.id %>',
+        quizId: '<%= (course.quiz.id || course.id) %>',
+        quizTitle: '<%= (course.quiz.title || "اختبار") %>',
+        score: score, total: total, correct: score, wrong: total - score, timeTaken: 0
+      })
+    }).catch(function(){});
   });
 });
 </script>

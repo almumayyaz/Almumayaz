@@ -1,0 +1,139 @@
+<%- include('../partials/header', { title: title, navPageTitle: 'المُميز', bodyClass: 'admin-body' }) %>
+<%- include('../partials/admin-sidebar') %>
+<main class="main-content">
+  <div class="page-header"><h1><i class="fas fa-user-graduate"></i> تقدم الطلاب</h1></div>
+
+  <div style="background:var(--card);border-radius:var(--radius-lg);padding:16px;border:1px solid var(--border);margin-bottom:16px;">
+    <div style="display:flex;gap:8px;">
+      <input id="searchInput" type="text" placeholder="ابحث باسم الطالب..." style="flex:1;padding:10px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;">
+      <button onclick="searchStudent()" class="btn btn-primary"><i class="fas fa-search"></i> بحث</button>
+    </div>
+    <div id="searchResults" style="margin-top:12px;"></div>
+  </div>
+
+  <div id="studentProgress" style="display:none;"></div>
+</main>
+
+<script>
+var currentStudentId = '<%= typeof sid !== 'undefined' ? sid : '' %>';
+
+if (currentStudentId) { loadStudent(currentStudentId); }
+
+var studentListCache = null;
+async function getStudentList() {
+  if (studentListCache) return studentListCache;
+  var v2 = await (await fetch('/api/admin/analytics/v2/overview')).json();
+  studentListCache = (v2.allStudentsSummary || []).map(function(s) {
+    return { id: s.uid, name: s.name, grade: s.profile.grade || '', governorate: s.profile.governorate || '', activityScore: s.summary.activityScore || 0 };
+  });
+  return studentListCache;
+}
+
+function searchStudent() {
+  var q = document.getElementById('searchInput').value.trim();
+  if (!q) return;
+  getStudentList().then(function(data) {
+    var results = data.filter(function(s) { return s.name && s.name.indexOf(q) !== -1; });
+    var el = document.getElementById('searchResults');
+    if (!results.length) { el.innerHTML = '<div style="padding:12px;color:var(--text-muted);text-align:center;">لا توجد نتائج</div>'; return; }
+    el.innerHTML = results.map(function(s) {
+      return '<div style="padding:10px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;justify-content:space-between;align-items:center;" onclick="loadStudent(\'' + s.id + '\')">' +
+        '<div><strong>' + s.name + '</strong> <span style="color:var(--text-muted);font-size:12px;">' + (s.grade || '') + ' - ' + (s.governorate || '') + '</span></div>' +
+        '<span style="background:' + (s.activityScore >= 70 ? '#059669' : s.activityScore >= 40 ? '#d97706' : '#dc2626') + ';color:#fff;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:700;">' + s.activityScore + '</span></div>';
+    }).join('');
+  });
+}
+
+document.getElementById('searchInput').addEventListener('keydown', function(e) { if (e.key === 'Enter') searchStudent(); });
+
+function loadStudent(sid) {
+  currentStudentId = sid;
+  var container = document.getElementById('studentProgress');
+  container.style.display = 'block';
+  container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">جاري التحميل...</div>';
+
+  fetch('/api/admin/analytics/v2/student/' + sid).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.error || d.success === false) { container.innerHTML = '<div style="color:#dc2626;padding:20px;text-align:center;">' + (d.error || 'خطأ') + '</div>'; return; }
+    var s = d.student, sm = d.analyticsSummary || {}, cp = d.courseProgress || [], qr = d.quizResults || [], ra = d.recentActivity || [];
+    var completedLessons = sm.completedLessons || 0;
+    var watchMin = Math.floor((sm.totalWatchTime || 0) / 60);
+    var html = '';
+
+    // Student info
+    html += '<div style="background:var(--card);border-radius:var(--radius-lg);padding:16px;border:1px solid var(--border);margin-bottom:16px;">' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;">' +
+      '<div><strong>' + (s.name || '—') + '</strong><br><span style="font-size:12px;color:var(--text-muted);">' + (s.email || '') + '</span></div>' +
+      '<div><span style="color:var(--text-muted);font-size:12px;">الصف</span><br>' + ((s.profile && s.profile.grade) || s.grade || '—') + '</div>' +
+      '<div><span style="color:var(--text-muted);font-size:12px;">المحافظة</span><br>' + ((s.profile && s.profile.governorate) || s.governorate || '—') + '</div>' +
+      '<div><span style="color:var(--text-muted);font-size:12px;">الاشتراك</span><br><span style="color:' + ((s.profile && s.profile.subscriptionStatus) === 'active' ? '#059669' : '#dc2626') + ';font-weight:600;">' + ((s.profile && s.profile.subscriptionStatus) === 'active' ? 'نشط' : '—') + '</span></div>' +
+      '<div><span style="color:var(--text-muted);font-size:12px;">التسجيل</span><br>' + (s.createdAt ? new Date(s.createdAt).toLocaleDateString('ar-EG') : '—') + '</div>' +
+      '<div><span style="color:var(--text-muted);font-size:12px;">آخر دخول</span><br>' + (s.lastLogin ? new Date(s.lastLogin).toLocaleDateString('ar-EG') : ((s.profile && s.profile.lastLogin) ? new Date(s.profile.lastLogin).toLocaleDateString('ar-EG') : '—')) + '</div></div></div>';
+
+    // Overall progress
+    var avgPct = sm.averageQuizScore || 0;
+    var actScore = sm.activityScore || 0;
+    html += '<div style="background:var(--card);border-radius:var(--radius-lg);padding:16px;border:1px solid var(--border);margin-bottom:16px;">' +
+      '<h3 style="font-size:14px;margin-bottom:12px;"><i class="fas fa-chart-pie" style="color:var(--accent);"></i> التقدم العام</h3>' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;text-align:center;">' +
+      '<div><div style="font-size:24px;font-weight:800;color:var(--accent);">' + (sm.overallProgress || 0) + '%</div><div style="font-size:11px;color:var(--text-muted);">إنجاز</div></div>' +
+      '<div><div style="font-size:24px;font-weight:800;color:#059669;">' + completedLessons + '</div><div style="font-size:11px;color:var(--text-muted);">مكتملة</div></div>' +
+      '<div><div style="font-size:24px;font-weight:800;color:#dc2626;">' + sm.completedCourses + '</div><div style="font-size:11px;color:var(--text-muted);;">كورسات كاملة</div></div>' +
+      '<div><div style="font-size:24px;font-weight:800;">' + (watchMin >= 60 ? Math.round(watchMin/60) + 'س' : watchMin + 'د') + '</div><div style="font-size:11px;color:var(--text-muted);">وقت المشاهدة</div></div>' +
+      '<div><div style="font-size:24px;font-weight:800;color:#7c3aed;">' + avgPct + '%</div><div style="font-size:11px;color:var(--text-muted);">متوسط الاختبارات</div></div>' +
+      '<div><div style="font-size:24px;font-weight:800;color:#d97706;">' + actScore + '</div><div style="font-size:11px;color:var(--text-muted);">مستوى النشاط</div></div></div></div>';
+
+    // Course progress
+    html += '<div style="background:var(--card);border-radius:var(--radius-lg);padding:16px;border:1px solid var(--border);margin-bottom:16px;">' +
+      '<h3 style="font-size:14px;margin-bottom:12px;"><i class="fas fa-book" style="color:var(--accent);"></i> المحاضرات</h3>';
+    (cp || []).forEach(function(c) {
+      html += '<div style="margin-bottom:10px;">' +
+        '<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;"><strong>' + (c.courseTitle || '') + '</strong><span>' + (c.completedLessons || 0) + '/' + (c.totalLessons || 0) + '</span></div>' +
+        '<div style="height:6px;background:var(--bg);border-radius:3px;overflow:hidden;"><div style="height:100%;width:' + (c.completionPercent || 0) + '%;background:linear-gradient(135deg,var(--accent),#4338ca);border-radius:3px;transition:width 0.3s;"></div></div></div>';
+    });
+    html += '</div>';
+
+    // Quiz results
+    html += '<div style="background:var(--card);border-radius:var(--radius-lg);padding:16px;border:1px solid var(--border);margin-bottom:16px;">' +
+      '<h3 style="font-size:14px;margin-bottom:12px;"><i class="fas fa-question-circle" style="color:var(--accent);"></i> نتائج الاختبارات</h3>';
+    if (qr.length) {
+      html += '<table style="width:100%;font-size:12px;border-collapse:collapse;"><thead><tr style="background:var(--bg);">' +
+        '<th style="padding:6px 8px;text-align:right;">الاختبار</th><th style="padding:6px 8px;text-align:center;">الدرجة</th><th style="padding:6px 8px;text-align:center;">التاريخ</th></tr></thead><tbody>';
+      qr.forEach(function(r) {
+        html += '<tr style="border-bottom:1px solid var(--border);">' +
+          '<td style="padding:6px 8px;">' + (r.quizTitle || 'اختبار') + '</td>' +
+          '<td style="padding:6px 8px;text-align:center;font-weight:700;color:' + ((r.percentage || 0) >= 50 ? '#059669' : '#dc2626') + ';">' + (r.percentage || r.score || 0) + '%</td>' +
+          '<td style="padding:6px 8px;text-align:center;color:var(--text-muted);">' + (r.date ? new Date(r.date).toLocaleDateString('ar-EG') : '—') + '</td></tr>';
+      });
+      html += '</tbody></table>';
+    } else { html += '<div style="text-align:center;padding:12px;color:var(--text-muted);font-size:13px;">لم يقم الطالب بأي اختبار بعد</div>'; }
+    html += '</div>';
+
+    // Recent activity
+    html += '<div style="background:var(--card);border-radius:var(--radius-lg);padding:16px;border:1px solid var(--border);">' +
+      '<h3 style="font-size:14px;margin-bottom:12px;"><i class="fas fa-history" style="color:var(--accent);"></i> آخر الأنشطة</h3>';
+    if (ra.length) {
+      html += '<div style="max-height:300px;overflow-y:auto;">';
+      ra.slice(0, 20).forEach(function(a) {
+        var action = a.action || a.type || '';
+        var icon = 'fa-circle';
+        var color = 'var(--accent)';
+        var text = action;
+        if (action.indexOf('lesson_completed') >= 0) { icon = 'fa-check-circle'; color = '#059669'; text = 'أكمل محاضرة'; }
+        else if (action.indexOf('quiz_submitted') >= 0) { icon = 'fa-question-circle'; color = '#7c3aed'; text = 'حل اختبار' + (a.metadata && a.metadata.quizTitle ? ': ' + a.metadata.quizTitle : '') + (a.metadata && a.metadata.percentage ? ' (' + a.metadata.percentage + '%)' : ''); }
+        else if (action.indexOf('pdf_opened') >= 0) { icon = 'fa-file-pdf'; color = '#dc2626'; text = 'فتح ملف PDF'; }
+        else if (action.indexOf('logged_in') >= 0) { icon = 'fa-sign-in-alt'; color = '#3b82f6'; text = 'تسجيل دخول'; }
+        else if (action.indexOf('achievement_unlocked') >= 0) { icon = 'fa-trophy'; color = '#d97706'; text = a.metadata && a.metadata.achievementName ? 'إنجاز: ' + a.metadata.achievementName : 'إنجاز جديد'; }
+        html += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;">' +
+          '<i class="fas ' + icon + '" style="color:' + color + ';font-size:14px;"></i>' +
+          '<span>' + text + '</span>' +
+          '<span style="margin-right:auto;color:var(--text-muted);font-size:11px;">' + (a.timestamp || a.date ? new Date(a.timestamp || a.date).toLocaleDateString('ar-EG') : '') + '</span></div>';
+      });
+      html += '</div>';
+    } else { html += '<div style="text-align:center;padding:12px;color:var(--text-muted);font-size:13px;">لا توجد أنشطة بعد</div>'; }
+    html += '</div>';
+
+    container.innerHTML = html;
+  }).catch(function(e) { container.innerHTML = '<div style="color:#dc2626;padding:20px;text-align:center;">خطأ في تحميل البيانات: ' + e.message + '</div>'; });
+}
+</script>
+<%- include('../partials/footer') %>

@@ -1,0 +1,19 @@
+[
+  {
+    "id": "SUB-1783979424091",
+    "userId": "2tWF7DJ0u6VzRabOLG4tOwdkCAq1",
+    "userName": "عبدالرحمن",
+    "userPhone": "01211275526",
+    "planName": "اشتراك شهري",
+    "price": 150,
+    "transactionId": "tyryeryety",
+    "paymentMethod": "vodafone-cash",
+    "planId": "monthly",
+    "planStage": "إعدادية",
+    "period": "شهرياً",
+    "durationDays": 30,
+    "status": "pending",
+    "date": "2026-07-13T21:50:24.091Z",
+    "discount": 0
+  }
+]

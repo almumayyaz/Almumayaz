@@ -6,31 +6,14 @@
           <p>منصة تعليمية متخصصة في تدريس اللغة العربية لطلاب الثانوية العامة. نقدم شرحاً مبسطاً، مراجعات قوية، واختبارات متخصصة لضمان التفوق والتميز.</p>
         </div>
         <div>
-          <h4>روابط سريعة</h4>
-          <ul class="footer-links">
-            <li><a href="/"><i class="fas fa-chevron-left"></i> الرئيسية</a></li>
-            <li><a href="/courses"><i class="fas fa-chevron-left"></i> المحاضرات</a></li>
-            <li><a href="/subscriptions"><i class="fas fa-chevron-left"></i> الاشتراكات</a></li>
-            <li><a href="/contact"><i class="fas fa-chevron-left"></i> تواصل معنا</a></li>
-          </ul>
-        </div>
-        <div>
-          <h4>المحاضرات</h4>
-          <ul class="footer-links">
-            <li><a href="/courses"><i class="fas fa-chevron-left"></i> النحو</a></li>
-            <li><a href="/courses"><i class="fas fa-chevron-left"></i> البلاغة</a></li>
-            <li><a href="/courses"><i class="fas fa-chevron-left"></i> الأدب</a></li>
-            <li><a href="/courses"><i class="fas fa-chevron-left"></i> النصوص</a></li>
-          </ul>
-        </div>
-        <div>
           <h4>تواصل معنا</h4>
-          <ul class="footer-contact">
-            <li><i class="fas fa-phone"></i> 0100 000 0000</li>
-            <li><i class="fas fa-envelope"></i> info@lughati.com</li>
-            <li><i class="fas fa-map-marker-alt"></i> القاهرة، مصر</li>
-            <li><i class="fas fa-whatsapp"></i> واتساب: 0100 000 0000</li>
-          </ul>
+          <div class="footer-contact" style="display:flex;flex-wrap:wrap;gap:16px;align-items:center;">
+            <% var cs = (typeof siteSettings !== 'undefined' && siteSettings) ? siteSettings : {}; %>
+            <% if (cs.contactPhone) { %><a href="tel:<%= cs.contactPhone %>" class="footer-contact-item" style="display:inline-flex;align-items:center;gap:6px;"><i class="fas fa-phone"></i> <%= cs.contactPhone %></a><% } %>
+            <% if (cs.contactEmail) { %><a href="mailto:<%= cs.contactEmail %>" class="footer-contact-item" style="display:inline-flex;align-items:center;gap:6px;"><i class="fas fa-envelope"></i> <%= cs.contactEmail %></a><% } %>
+            <% if (cs.contactAddress) { %><span class="footer-contact-item" style="display:inline-flex;align-items:center;gap:6px;"><i class="fas fa-map-marker-alt"></i> <%= cs.contactAddress %></span><% } %>
+            <% if (cs.contactWhatsapp) { var _w = (cs.contactWhatsapp + '').replace(/\D/g,'').replace(/^0/,''); %><a href="https://wa.me/20<%= _w %>" class="footer-contact-item" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;"><i class="fab fa-whatsapp"></i> واتساب: <%= cs.contactWhatsapp %></a><% } %>
+          </div>
         </div>
       </div>
       <div class="footer-bottom">
@@ -64,12 +47,12 @@
     window._initFCM = null;
     (function() {
       if (typeof firebase === 'undefined' || !firebase.messaging) return;
-      if (!Notification) return;
+      var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) && !window.MSStream;
       window._initFCM = initFCM;
-      if (Notification.permission === 'granted') {
+      if (Notification && Notification.permission === 'granted') {
         initFCM(true);
-      } else if (Notification.permission !== 'denied') {
-        if (!/Android|iPhone|iPad|iPod|webOS/i.test(navigator.userAgent)) {
+      } else if (!Notification || (Notification && Notification.permission !== 'denied')) {
+        if (!isIOS) {
           Notification.requestPermission().then(function(p) {
             if (p === 'granted') initFCM(true);
           }).catch(function(e) { console.error('FCM permission error:', e); });
@@ -126,33 +109,48 @@
     // Notification enable banner (shows on mobile if permission not granted)
     (function() {
       if (!window._initFCM) return;
-      if (!Notification || Notification.permission === 'granted' || Notification.permission === 'denied') return;
+      var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) && !window.MSStream;
+      var supported = Notification && (Notification.permission === 'default' || Notification.permission === 'granted');
+      if (!supported && !isIOS) return;
+      if (Notification && (Notification.permission === 'granted' || Notification.permission === 'denied')) return;
       var bar = document.createElement('div');
       bar.id = 'notif-bar';
       bar.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:var(--gold-gradient);color:#fff;padding:12px 20px;text-align:center;font-size:14px;z-index:9999;cursor:pointer;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;animation:slideUp 0.3s ease;';
-      bar.innerHTML = '<i class="fas fa-bell"></i> اضغط لتفعيل الإشعارات';
-      var barClickHandler = function() {
-        var bar = document.getElementById('notif-bar');
-        if (!bar) return;
-        bar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري تفعيل الإشعارات...';
-        bar.onclick = null;
-        if (window._initFCM) {
-          window._initFCM(false);
-          if (Notification.permission === 'default') {
-            Notification.requestPermission().then(function(p) {
-              if (p === 'granted') { window._initFCM(false); bar.remove(); }
-            });
+      if (isIOS && !Notification) {
+        bar.innerHTML = '<i class="fas fa-plus-square"></i> أضف الموقع للشاشة الرئيسية لتفعيل الإشعارات';
+        bar.onclick = function() {
+          var msg = document.createElement('div');
+          msg.style.cssText = 'position:fixed;bottom:60px;left:10px;right:10px;background:#1e293b;color:#fff;padding:16px;border-radius:12px;font-size:13px;text-align:center;z-index:99999;direction:rtl;box-shadow:0 4px 20px rgba(0,0,0,0.4);animation:slideUp 0.3s ease;';
+          msg.innerHTML = '<i class="fas fa-share-square" style="font-size:24px;display:block;margin-bottom:8px;color:var(--accent);"></i> اذهب إلى زر المشاركة <strong style="color:var(--accent);">Share</strong> في شريط المتصفح السفلي، ثم اختر <strong style="color:var(--accent);">أضف إلى الشاشة الرئيسية</strong> (Add to Home Screen)';
+          msg.onclick = function() { msg.remove(); };
+          document.body.appendChild(msg);
+          setTimeout(function() { msg.remove(); }, 8000);
+        };
+      } else {
+        bar.innerHTML = '<i class="fas fa-bell"></i> اضغط لتفعيل الإشعارات';
+        var barClickHandler = function() {
+          var bar = document.getElementById('notif-bar');
+          if (!bar) return;
+          bar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري تفعيل الإشعارات...';
+          bar.onclick = null;
+          if (window._initFCM) {
+            window._initFCM(false);
+            if (Notification && Notification.permission === 'default') {
+              Notification.requestPermission().then(function(p) {
+                if (p === 'granted') { window._initFCM(false); bar.remove(); }
+              });
+            }
           }
-        }
-        setTimeout(barClickHandlerReset, 5000);
-      };
-      var barClickHandlerReset = function() {
-        var bar = document.getElementById('notif-bar');
-        if (!bar) return;
-        bar.innerHTML = '<i class="fas fa-bell"></i> اضغط مرة أخرى لتفعيل الإشعارات';
+          setTimeout(barClickHandlerReset, 5000);
+        };
+        var barClickHandlerReset = function() {
+          var bar = document.getElementById('notif-bar');
+          if (!bar) return;
+          bar.innerHTML = '<i class="fas fa-bell"></i> اضغط مرة أخرى لتفعيل الإشعارات';
+          bar.onclick = barClickHandler;
+        };
         bar.onclick = barClickHandler;
-      };
-      bar.onclick = barClickHandler;
+      }
       document.body.appendChild(bar);
       var style = document.createElement('style');
       style.textContent = '@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}';
