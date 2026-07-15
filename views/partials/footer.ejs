@@ -68,42 +68,43 @@
         }
         try {
           var vapidKey = '<%= (typeof vapidKey !== 'undefined' && vapidKey) ? vapidKey : '' %>';
-          if (!vapidKey) console.warn('FCM: FIREBASE_VAPID_KEY is not set — web push tokens cannot be generated. Add FIREBASE_VAPID_KEY to your env vars.');
-          // Register the dedicated messaging SW if not already controlling the page.
-          var swReady = navigator.serviceWorker.ready;
-          if (!navigator.serviceWorker.controller || (navigator.serviceWorker.getRegistration && !navigator.serviceWorker.getRegistration('/firebase-messaging-sw.js'))) {
-            swReady = navigator.serviceWorker.register('/firebase-messaging-sw.js').then(function() { return navigator.serviceWorker.ready; }).catch(function() { return navigator.serviceWorker.ready; });
-          }
-          swReady.then(function(reg) {
-            var messaging = firebase.messaging();
-            messaging.onMessage(function(payload) {
-              var title = payload.data?.title || payload.notification?.title || 'المُميز';
-              var body = payload.data?.body || payload.notification?.body || '';
-              showToast('🔔 ' + title + (body ? ': ' + body : ''), '');
-            });
-            var getTokenOpts = {serviceWorkerRegistration: reg};
-            if (vapidKey) getTokenOpts.vapidKey = vapidKey;
-            return messaging.getToken(getTokenOpts);
+          if (!vapidKey) { console.warn('FCM: FIREBASE_VAPID_KEY is not set — web push tokens cannot be generated.'); if (!silent) showToast('⚠️ مفتاح VAPID غير مُعد', 'error'); return; }
+          var messaging = firebase.messaging();
+          messaging.onMessage(function(payload) {
+            var title = payload.data?.title || payload.notification?.title || 'المُميز';
+            var body = payload.data?.body || payload.notification?.body || '';
+            showToast('🔔 ' + title + (body ? ': ' + body : ''), '');
+          });
+          // Use the already-registered /sw.js (the controlling SW) — do NOT register a second SW.
+          navigator.serviceWorker.ready.then(function(reg) {
+            return messaging.getToken({ serviceWorkerRegistration: reg, vapidKey: vapidKey });
           }).then(function(token) {
-              if (token) {
-                fetch('/api/fcm/register', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({fcmToken: token}) })
-                  .then(function(r) { return r.json(); })
-                  .then(function(d) {
-                    if (d.success) { if (!silent) showToast('✅ تم تفعيل الإشعارات بنجاح', ''); }
-                    else { console.warn('FCM register failed:', d); if (!silent) showToast('❌ فشل تسجيل الإشعارات: ' + (d.error || 'error'), 'error'); }
-                  })
-                  .catch(function(e) { console.error('FCM register error:', e); if (!silent) showToast('❌ خطأ في تسجيل الإشعارات', 'error'); });
-              } else {
-                if (!silent) showToast('⚠️ لم يتم الحصول على رمز الإشعارات', 'error');
-              }
-            }).catch(function(e) {
-              console.error('FCM getToken error:', e.code || e.message);
-              if (e.code === 'messaging/permission-blocked') {
-                if (!silent) showToast('⚠️ الإشعارات محظورة في المتصفح. اذهب للإعدادات > الإشعارات > اسمح للموقع', 'error');
-              } else {
-                if (!silent) showToast('❌ خطأ في تفعيل الإشعارات: ' + (e.message || e), 'error');
-              }
-            });
+            if (!token) {
+              if (!silent) showToast('⚠️ لم يتم الحصول على رمز الإشعارات', 'error');
+              return;
+            }
+            console.log('FCM token obtained, length:', token.length);
+            fetch('/api/fcm/register', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({fcmToken: token}) })
+              .then(function(r) { return r.json(); })
+              .then(function(d) {
+                if (d.success) { if (!silent) showToast('✅ تم تفعيل الإشعارات بنجاح', ''); }
+                else { console.warn('FCM register failed:', d); if (!silent) showToast('❌ فشل تسجيل الإشعارات: ' + (d.error || 'error'), 'error'); }
+              })
+              .catch(function(e) { console.error('FCM register error:', e); if (!silent) showToast('❌ خطأ في تسجيل الإشعارات', 'error'); });
+          }).catch(function(e) {
+            console.error('FCM getToken error:', e.code || e.message);
+            if (e.code === 'messaging/permission-blocked') {
+              if (!silent) showToast('⚠️ الإشعارات محظورة في المتصفح. اذهب للإعدادات > الإشعارات > اسمح للموقع', 'error');
+            } else {
+              if (!silent) showToast('❌ خطأ في تفعيل الإشعارات: ' + (e.message || e), 'error');
+            }
+          });
+          // Re-register the token automatically if Firebase rotates it.
+          messaging.onTokenRefresh(function() {
+            messaging.getToken({ vapidKey: vapidKey }).then(function(refreshedToken) {
+              if (refreshedToken) fetch('/api/fcm/register', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({fcmToken: refreshedToken}) });
+            }).catch(function(e) { console.error('FCM onTokenRefresh error:', e); });
+          });
         } catch(e) { console.error('FCM init error:', e); }
       }
     })();

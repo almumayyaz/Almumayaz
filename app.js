@@ -3714,15 +3714,25 @@ app.delete('/api/admin/reviews/:id', requireAdmin, async (req, res) => {
 
 app.post('/api/fcm/register', requireAuth, async (req, res) => {
   try {
-    const { fcmToken } = req.body;
-    console.log('FCM register: user', req.session.user.id, 'token length:', fcmToken ? fcmToken.length : 0);
+    let { fcmToken } = req.body;
+    if (!fcmToken || typeof fcmToken !== 'string' || fcmToken.length < 20) {
+      return res.status(400).json({ success: false, error: 'invalid token' });
+    }
+    fcmToken = fcmToken.trim();
+    console.log('FCM register: user', req.session.user.id, 'token length:', fcmToken.length);
     const users = await readData('users');
-    const idx = users.findIndex(u => u.id === req.session.user.id);
+    const uid = req.session.user.id;
+    for (const u of users) {
+      if (u.id !== uid && u.fcmToken === fcmToken) {
+        u.fcmToken = null;
+      }
+    }
+    const idx = users.findIndex(u => u.id === uid);
     if (idx !== -1) {
       users[idx].fcmToken = fcmToken;
       await writeData('users', users);
       req.session.user = sessionUser(users[idx]);
-      console.log('FCM register: saved for user', req.session.user.id);
+      console.log('FCM register: saved for user', uid);
     } else {
       console.warn('FCM register: user not found in data store');
     }
