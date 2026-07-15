@@ -143,6 +143,16 @@ app.use(session({
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
+// Patch EJS to enable async mode (fixes catch keyword in templates)
+const ejs = require('ejs');
+const origRenderFile = ejs.renderFile;
+ejs.renderFile = function(filePath, options, cb) {
+  if (typeof cb === 'function') {
+    return origRenderFile(filePath, options, { async: true }, cb);
+  }
+  return origRenderFile(filePath, options, { async: true });
+};
+
 const multer = require('multer');
 const mammoth = require('mammoth');
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
