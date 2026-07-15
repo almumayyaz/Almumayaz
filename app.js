@@ -4167,12 +4167,19 @@ app.get('/api/admin/fcm-project', requireAdmin, async (req, res) => {
       databaseURL = opts.databaseURL || 'unknown';
     } catch (e) {}
     const dbProject = (databaseURL.match(/https:\/\/([^.]+)\.firebaseio\.com/) || [])[1] || 'unknown';
+    const saRawEnv = process.env.FIREBASE_SERVICE_ACCOUNT || '';
+    let saInfo = 'NO SERVICE ACCOUNT';
+    if (saRawEnv) {
+      try { const p = JSON.parse(saRawEnv); saInfo = { project_id: p.project_id || 'MISSING', client_email: p.client_email || 'MISSING' }; }
+      catch (e1) { try { const p = JSON.parse(Buffer.from(saRawEnv, 'base64').toString('utf8')); saInfo = { project_id: p.project_id || 'MISSING', client_email: p.client_email || 'MISSING' }; } catch (e2) { saInfo = 'PARSE FAILED'; } }
+    }
     res.json({
       serverProjectId: projectId,
       dbProjectId: dbProject,
       databaseURL: databaseURL,
       envProjectId: process.env.FIREBASE_PROJECT_ID || 'NOT SET',
-      envSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || 'NOT SET'
+      envSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || 'NOT SET',
+      serviceAccount: saInfo
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
