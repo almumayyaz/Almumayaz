@@ -59,7 +59,8 @@
     { label: 'نشط هذا الشهر', value: ov.activeThisMonth, icon: 'fa-calendar', color: '#d97706' },
     { label: 'بدون نشاط', value: ov.noActivity, icon: 'fa-user-slash', color: '#dc2626' },
     { label: 'متوسط المشاهدة', value: Math.floor(ov.avgWatchTime / 60) + ':' + String(ov.avgWatchTime % 60).padStart(2,'0'), icon: 'fa-clock', color: '#2563eb' },
-    { label: 'متوسط الإنجاز', value: Math.round((ov.completedStudents / (ov.totalStudents || 1)) * 100) + '%', icon: 'fa-percent', color: '#059669' },
+    { label: 'نسبة إكمال الدروس', value: ov.completionPercentage + '%', icon: 'fa-percent', color: '#059669' },
+    { label: 'متوسط الإنجاز', value: Math.round((ov.completedStudents / (ov.totalStudents || 1)) * 100) + '%', icon: 'fa-tasks', color: '#0ea5e9' },
     { label: 'متوسط الاختبارات', value: ov.avgQuizScore + '%', icon: 'fa-chart-line', color: '#7c3aed' }
   ];
   document.getElementById('overviewCards').innerHTML = cards.map(function(c) {

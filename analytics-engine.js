@@ -502,10 +502,34 @@ async function computeAdminAnalytics() {
     return { examId: e.examId, examTitle: e.examTitle, courseId: e.courseId, students: e.students, totalAttempts: e.totalAttempts, averageScore: avgScore, passRate, averageAttempts, highestScore, lowestScore };
   });
   examAnalytics.sort((a, b) => b.students - a.students);
+
+  // Completion percentage: per-student = (completed lessons ÷ available lessons) × 100,
+  // clamped to [0,100]; platform-wide = average of per-student percentages, clamped to [0,100].
+  const clampPct = v => Math.max(0, Math.min(100, v || 0));
+  const studentCompletion = studentRows.map(r => {
+    const a = allAnalytics[r.uid] || {};
+    const studentStage = (a.profile || {}).stage;
+    let available = 0, completed = 0;
+    (courses || []).forEach(c => {
+      if (c.stage !== studentStage && c.stage) return;
+      available += (c.lessons || []).length;
+      (c.lessons || []).forEach(l => {
+        const lp = (a.lessonProgress || {})[c.id + '_' + l.id];
+        if (lp && lp.status === 'completed') completed++;
+      });
+    });
+    const pct = available > 0 ? clampPct((completed / available) * 100) : 0;
+    return { uid: r.uid, completed, available, percentage: pct };
+  });
+  const completionPercentage = studentCompletion.length
+    ? clampPct(Math.round(studentCompletion.reduce((s, r) => s + r.percentage, 0) / studentCompletion.length))
+    : 0;
+
   return {
     totalStudents: students.length, studentsWithAnalytics: studentRows.length,
     activeToday: dailyActive, activeThisWeek: weeklyActive, activeThisMonth: monthlyActive,
     noActivity, totalWatchTime, avgWatchTime, completedStudents: completedCount, avgQuizScore,
+    completionPercentage, studentCompletion,
     topActive, leastActive, mostCompletedLessons,
     lessonAnalytics, examAnalytics,
     allStudentsSummary: studentRows.map(r => ({ uid: r.uid, name: r.name, email: r.email, summary: r.summary, profile: r.profile }))
