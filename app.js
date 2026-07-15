@@ -4140,7 +4140,13 @@ app.get('/api/admin/fcm-project', requireAdmin, async (req, res) => {
       databaseURL = opts.databaseURL || 'unknown';
     } catch (e) {}
     const dbProject = (databaseURL.match(/https:\/\/([^.]+)\.firebaseio\.com/) || [])[1] || 'unknown';
-    res.json({ serverProjectId: projectId, dbProjectId: dbProject, databaseURL: databaseURL });
+    res.json({
+      serverProjectId: projectId,
+      dbProjectId: dbProject,
+      databaseURL: databaseURL,
+      envProjectId: process.env.FIREBASE_PROJECT_ID || 'NOT SET',
+      envSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || 'NOT SET'
+    });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
