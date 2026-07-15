@@ -87,7 +87,13 @@
             fetch('/api/fcm/register', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({fcmToken: token}) })
               .then(function(r) { return r.json(); })
               .then(function(d) {
-                if (d.success) { if (!silent) showToast('✅ تم تفعيل الإشعارات بنجاح', ''); }
+                if (d.success) {
+                  if (!silent) showToast('✅ تم تفعيل الإشعارات بنجاح', '');
+                  // Verify the stored token matches the browser token
+                  return fetch('/api/fcm/verify', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({fcmToken: token}) })
+                    .then(function(r) { return r.json(); })
+                    .then(function(v) { console.log('FCM verify:', JSON.stringify(v)); if (!v.matches) console.warn('FCM token mismatch between browser and DB!'); });
+                }
                 else { console.warn('FCM register failed:', d); if (!silent) showToast('❌ فشل تسجيل الإشعارات: ' + (d.error || 'error'), 'error'); }
               })
               .catch(function(e) { console.error('FCM register error:', e); if (!silent) showToast('❌ خطأ في تسجيل الإشعارات', 'error'); });

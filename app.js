@@ -3712,6 +3712,24 @@ app.delete('/api/admin/reviews/:id', requireAdmin, async (req, res) => {
 
 /* ===================== NOTIFICATIONS API ===================== */
 
+app.post('/api/fcm/verify', requireAuth, async (req, res) => {
+  try {
+    const { fcmToken } = req.body;
+    const users = await readData('users');
+    const idx = users.findIndex(u => u.id === req.session.user.id);
+    const stored = idx !== -1 ? (users[idx].fcmToken || '') : '';
+    res.json({
+      matches: !!fcmToken && fcmToken === stored,
+      storedLen: stored.length,
+      browserLen: fcmToken ? fcmToken.length : 0,
+      storedPreview: stored ? stored.slice(0, 20) + '...' : '',
+      browserPreview: fcmToken ? fcmToken.slice(0, 20) + '...' : ''
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post('/api/fcm/register', requireAuth, async (req, res) => {
   try {
     let { fcmToken } = req.body;
@@ -3730,6 +3748,8 @@ app.post('/api/fcm/register', requireAuth, async (req, res) => {
     const idx = users.findIndex(u => u.id === uid);
     if (idx !== -1) {
       users[idx].fcmToken = fcmToken;
+      users[idx].fcmTokenSavedAt = new Date().toISOString();
+      users[idx].fcmUid = uid;
       await writeData('users', users);
       req.session.user = sessionUser(users[idx]);
       console.log('FCM register: saved for user', uid);
@@ -4146,12 +4166,20 @@ app.get('/api/admin/fcm-debug', requireAdmin, async (req, res) => {
     const users = await readData('users');
     const adminUser = users.find(u => u.role === 'admin');
     const token = adminUser && adminUser.fcmToken ? adminUser.fcmToken : '';
+    const vapid = process.env.FIREBASE_VAPID_KEY || '';
     res.json({
       adminHasToken: !!token,
       tokenLength: token.length,
-      tokenPreview: token ? token.slice(0, 30) + '...' : '',
       tokenFull: token,
-      tokenPrefix: token ? token.split(':')[0] : ''
+      tokenPrefix: token ? token.split(':')[0] : '',
+      savedAt: adminUser && adminUser.fcmTokenSavedAt ? adminUser.fcmTokenSavedAt : 'NOT RECORDED',
+      uid: adminUser ? adminUser.id : 'NO ADMIN',
+      role: adminUser ? adminUser.role : 'none',
+      projectId: process.env.FIREBASE_PROJECT_ID || 'NOT SET',
+      senderId: process.env.FIREBASE_MESSAGING_SENDER_ID || 'NOT SET',
+      vapidFirst10: vapid ? vapid.slice(0, 10) : 'NOT SET',
+      vapidLast10: vapid ? vapid.slice(-10) : 'NOT SET',
+      vapidLength: vapid.length
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -4196,7 +4224,14 @@ app.get('/api/admin/test-send-fcm', requireAdmin, async (req, res) => {
       const result = await admin.messaging().send(message);
       res.json({ success: true, result: result });
     } catch (e) {
-      res.json({ success: false, error: e.code || e.message, fullError: e.message });
+      // Auto-delete unregistered/invalid token so the browser regenerates a fresh one.
+      if (e.code === 'messaging/invalid-registration-token' || e.code === 'messaging/registration-token-not-registered') {
+        const idx = users.findIndex(u => u.id === adminUser.id);
+        if (idx !== -1) { users[idx].fcmToken = ''; users[idx].fcmTokenSavedAt = ''; await writeData('users', users); }
+        res.json({ success: false, error: e.code || e.message, fullError: e.message, autoDeleted: true, action: 'token removed from DB — please re-open site to regenerate' });
+      } else {
+        res.json({ success: false, error: e.code || e.message, fullError: e.message });
+      }
     }
   } catch (e) {
     res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' });
