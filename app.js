@@ -4141,6 +4141,23 @@ app.get('/api/admin/test-send-raw-fcm', requireAdmin, async (req, res) => {
   }
 });
 
+app.get('/api/admin/fcm-debug', requireAdmin, async (req, res) => {
+  try {
+    const users = await readData('users');
+    const adminUser = users.find(u => u.role === 'admin');
+    const token = adminUser && adminUser.fcmToken ? adminUser.fcmToken : '';
+    res.json({
+      adminHasToken: !!token,
+      tokenLength: token.length,
+      tokenPreview: token ? token.slice(0, 30) + '...' : '',
+      tokenFull: token,
+      tokenPrefix: token ? token.split(':')[0] : ''
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/api/admin/fcm-project', requireAdmin, async (req, res) => {
   try {
     let projectId = 'unknown', databaseURL = 'unknown';

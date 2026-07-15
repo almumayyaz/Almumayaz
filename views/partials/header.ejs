@@ -27,7 +27,16 @@ firebase.initializeApp(fbConfig);
   </script>
   <% } %>
   <script>
-if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').then(function(reg){try{reg.addEventListener('updatefound',function(){var nw=reg.installing;if(nw)nw.addEventListener('statechange',function(){if(nw.state==='activated'&&!sessionStorage.getItem('swRL')){sessionStorage.setItem('swRL','1');location.reload();}});});}catch(e){}});}
+if('serviceWorker' in navigator){
+  // Clean up any stale/duplicate SW registrations (e.g. old /firebase-messaging-sw.js) so only /sw.js controls the page.
+  navigator.serviceWorker.getRegistrations().then(function(regs){
+    regs.forEach(function(r){
+      if (r.active && r.active.scriptURL && r.active.scriptURL.indexOf('/sw.js') === -1) {
+        r.unregister().catch(function(){});
+      }
+    });
+  }).catch(function(){});
+  navigator.serviceWorker.register('/sw.js').then(function(reg){try{reg.addEventListener('updatefound',function(){var nw=reg.installing;if(nw)nw.addEventListener('statechange',function(){if(nw.state==='activated'&&!sessionStorage.getItem('swRL')){sessionStorage.setItem('swRL','1');location.reload();}});});}catch(e){}});}
 function toggleNav(){var sb=document.getElementById('sidebar');if(!sb){document.getElementById('navOverlay')?.classList.toggle('open');return}if(window.innerWidth>768){sb.classList.toggle('collapsed');var state=sb.classList.contains('collapsed')?'collapsed':'';localStorage.setItem('sidebar-toggle',state);localStorage.setItem('admin-sidebar-toggle',state)}else{sb.classList.toggle('open');var o=document.getElementById('sidebarOverlay');if(o)o.classList.toggle('show');document.body.style.overflow=sb.classList.contains('open')?'hidden':''}}
 function setTheme(t){document.documentElement.setAttribute('data-theme',t);localStorage.setItem('lughati-theme',t);document.querySelectorAll('.theme-toggle i').forEach(i=>{i.className=t==='dark'?'fas fa-sun':'fas fa-moon'});const mb=document.querySelector('.nav-buttons-mobile .btn-outline');if(mb){mb.innerHTML=t==='dark'?'<i class="fas fa-sun"></i> الوضع النهاري':'<i class="fas fa-moon"></i> الوضع الليلي'}}
 function spinTheme(el){el.classList.remove('spin');void el.offsetWidth;el.classList.add('spin')}
