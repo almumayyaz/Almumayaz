@@ -4113,16 +4113,24 @@ app.get('/api/admin/test-fcm', requireAdmin, async (req, res) => {
   }
 });
 
-app.get('/api/admin/test-send-fcm', requireAdmin, async (req, res) => {
+app.get('/api/admin/test-send-raw-fcm', requireAdmin, async (req, res) => {
   try {
-    const users = await readData('users');
-    const adminUser = users.find(u => u.role === 'admin' && u.fcmToken);
-    if (!adminUser) return res.json({ success: false, error: 'Admin has no FCM token' });
-    const message = { token: adminUser.fcmToken, data: { title: 'Test', body: 'This is a test notification', url: '/' } };
+    const token = req.query.token || '';
+    if (!token) return res.json({ success: false, error: 'Missing ?token=' });
+    const messaging = admin.messaging ? admin.messaging() : null;
+    if (!messaging) return res.json({ success: false, error: 'admin.messaging() not available' });
     try {
-      const result = await admin.messaging().send(message);
+      const result = await messaging.send({ token: token, data: { title: 'Test', body: 'raw fcm test', url: '/' } });
       res.json({ success: true, result: result });
     } catch (e) {
+      res.json({ success: false, errorCode: e.code || '', errorMessage: e.message, fullError: e.errorInfo || null });
+    }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/admin/test-send-fcm', requireAdmin, async (req, res) => {
       res.json({ success: false, error: e.code || e.message, fullError: e.message });
     }
   } catch (e) {
