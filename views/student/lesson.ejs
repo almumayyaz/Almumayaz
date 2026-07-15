@@ -38,8 +38,7 @@
     <div style="text-align:center;padding:40px;background:var(--glass-bg);border-radius:var(--radius-xl);margin-bottom:28px;border:1px solid var(--border);">
       <i class="fas fa-video-slash" style="font-size:36px;color:var(--border);display:block;margin-bottom:12px;"></i>
       <p style="color:var(--text-muted);">لا يوجد فيديو لهذا الدرس بعد</p>
-    </div>
-  <% } %>
+  </div>
 
   <!-- Lesson Info Bar (below player) -->
   <% if (lesson.videos || lesson.videoUrl) { %>
@@ -47,11 +46,6 @@
     <% if (lesson.pdfFiles && lesson.pdfFiles.length > 0) { %>
     <a href="#pdfSection" style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--danger);text-decoration:none;font-weight:600;padding:6px 10px;background:rgba(239,68,68,0.05);border-radius:8px;">
       <i class="fas fa-file-pdf"></i> <%= lesson.pdfFiles.length %> ملف<%= lesson.pdfFiles.length > 1 ? 'ات' : '' %> PDF
-    </a>
-    <% } %>
-    <% if (course.quiz && !isGuest) { %>
-    <a href="/student/exam/<%= course.id %>" style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--accent);text-decoration:none;font-weight:600;padding:6px 10px;background:var(--accent-glow);border-radius:8px;">
-      <i class="fas fa-pen"></i> الاختبار
     </a>
     <% } %>
     <div style="margin-right:auto;display:flex;align-items:center;gap:8px;">
@@ -104,20 +98,32 @@
     </div>
   </div>
 
-  <% if (lesson.quiz && lesson.quiz.enabled && !isGuest) { %>
-  <div id="lessonQuizBanner" class="welcome-banner" style="padding:12px 16px;margin-top:20px;">
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-      <i class="fas fa-question-circle" style="color:var(--accent);font-size:14px;"></i>
-      <span style="font-size:13px;font-weight:700;color:var(--accent);">اختبار الدرس</span>
+  <div style="margin-top:20px;display:flex;flex-direction:column;gap:12px;">
+    <% if (lesson.quiz && lesson.quiz.enabled && !isGuest) { %>
+    <div class="welcome-banner" style="padding:12px 16px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <i class="fas fa-question-circle" style="color:var(--accent);font-size:14px;"></i>
+        <span style="font-size:13px;font-weight:700;color:var(--accent);">اختبار الدرس</span>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <p style="font-size:13px;color:var(--text-light);margin:0;"><%= (lesson.quiz.questions||[]).length %> أسئلة</p>
+        <a href="/student/lesson-quiz/<%= course.id %>/<%= lesson.id %>" class="btn btn-primary btn-sm" style="cursor:pointer;z-index:999;position:relative;">
+          <i class="fas fa-pen"></i> ابدأ اختبار الدرس
+        </a>
+      </div>
     </div>
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-      <p style="font-size:13px;color:var(--text-light);margin:0;"><%= (lesson.quiz.questions||[]).length %> أسئلة - أجب عن جميع الأسئلة</p>
-      <a href="/student/lesson-quiz/<%= course.id %>/<%= lesson.id %>" class="btn btn-primary btn-sm">
-        <i class="fas fa-pen"></i> ابدأ اختبار الدرس
-      </a>
-    </div>
+    <% } %>
+    <% if (course.quiz && !isGuest) { %>
+    <a href="/student/exam/<%= course.id %>" class="welcome-banner" style="padding:12px 16px;display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit;">
+      <div style="display:flex;align-items:center;gap:8px;flex:1;">
+        <i class="fas fa-question-circle" style="color:var(--accent);font-size:14px;"></i>
+        <span style="font-size:13px;font-weight:700;color:var(--accent);">الاختبار الشامل</span>
+        <span style="font-size:12px;color:var(--text-light);">(<%= (course.quiz.questions||[]).length %> أسئلة)</span>
+      </div>
+      <i class="fas fa-chevron-left" style="color:var(--text-light);font-size:12px;"></i>
+    </a>
+    <% } %>
   </div>
-  <% } %>
 
 </main>
 
