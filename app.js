@@ -78,7 +78,7 @@ app.use((req, res, next) => {
   res.setHeader('Content-Security-Policy',
     "default-src 'self'; " +
     "script-src 'self' 'unsafe-inline' https://www.gstatic.com https://cdnjs.cloudflare.com https://www.youtube.com https://www.youtube-nocookie.com https://source.zoom.us https://*.zoom.us https://zoom.us; " +
-    "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.plyr.io https://fonts.googleapis.com https://source.zoom.us; " +
+    "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.plyr.io https://fonts.googleapis.com https://source.zoom.us https://*.zoom.us https://zoom.us; " +
     "img-src 'self' data: https: blob:; " +
     "font-src 'self' data: https://cdnjs.cloudflare.com https://fonts.gstatic.com https://source.zoom.us; " +
     "media-src 'self' https: blob:; " +
@@ -4287,7 +4287,7 @@ app.get('/zoom-embed/:id', requireStudentOrGuest, async (req, res) => {
     res.setHeader('Content-Security-Policy',
       "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; " +
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://source.zoom.us https://*.zoom.us https://zoom.us; " +
-      "style-src 'self' 'unsafe-inline' https://source.zoom.us; " +
+      "style-src 'self' 'unsafe-inline' https://source.zoom.us https://*.zoom.us https://zoom.us; " +
       "img-src * data: blob:; " +
       "media-src * blob:; " +
       "connect-src * wss: blob:; " +
