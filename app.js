@@ -1,5 +1,7 @@
 try { require('dotenv').config(); } catch (e) {}
 
+require('express-async-errors');
+
 const express = require('express');
 const session = require('cookie-session');
 const bodyParser = require('body-parser');
@@ -4868,6 +4870,13 @@ app.get('/api/debug/notifications', async (req, res) => {
   } catch(e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// Global error handler
+app.use(function(err, req, res, next) {
+  console.error('[ERROR]', req.method, req.url, err.stack || err.message || err);
+  if (res.headersSent) return;
+  res.status(500).send('خطأ في الخادم: ' + (err.message || ''));
 });
 
 module.exports = app;
