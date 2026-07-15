@@ -407,22 +407,37 @@ async function getAdminAnalytics() {
   const monthlyActive = studentRows.filter(r => (r.profile.lastLogin || '').slice(0, 10) >= monthStr).length;
   const noActivity = studentRows.filter(r => !r.summary.totalWatchTime && !r.summary.completedLessons).length;
   const mostCompletedLessons = [...studentRows].sort((a, b) => (b.summary.completedLessons || 0) - (a.summary.completedLessons || 0)).slice(0, 10);
-  const allLessons = {};
+  const lessonAnalytics = [];
   (courses || []).forEach(c => (c.lessons || []).forEach(l => {
     const k = c.id + '_' + l.id;
-    allLessons[k] = allLessons[k] || { courseTitle: c.title, lessonTitle: l.title, courseId: c.id, lessonId: l.id, totalStudents: 0, completedStudents: 0 };
-    allLessons[k].totalStudents = studentRows.length;
-    let completed = 0;
+    let opens = 0, completed = 0, totalWatchSecs = 0, watchers = 0;
+    const studentSecs = [];
     analyticsIds.forEach(uid => {
       const a = allAnalytics[uid];
-      if (a && a.lessonProgress && a.lessonProgress[k] && a.lessonProgress[k].status === 'completed') completed++;
+      if (!a) return;
+      const lp = a.lessonProgress && a.lessonProgress[k];
+      const wh = a.watchHistory && a.watchHistory.lessons && a.watchHistory.lessons[k];
+      const hasOpened = lp || wh;
+      if (!hasOpened) return;
+      opens++;
+      if (lp && lp.status === 'completed') completed++;
+      const secs = (wh && wh.totalSeconds) || (lp && lp.watchTime) || 0;
+      if (secs > 0) { totalWatchSecs += secs; watchers++; }
+      studentSecs.push(secs);
     });
-    allLessons[k].completedStudents = completed;
+    if (opens === 0) {
+      lessonAnalytics.push({ lessonId: l.id, courseId: c.id, courseTitle: c.title, lessonTitle: l.title, opens: 0, completed: 0, completionRate: 0, averageWatchTimeSeconds: 0, averageWatchPercent: 0, activityScore: 0 });
+      return;
+    }
+    const completionRate = Math.round((completed / opens) * 100);
+    const averageWatchTimeSeconds = watchers > 0 ? Math.round(totalWatchSecs / watchers) : 0;
+    const maxSecs = Math.max(...studentSecs, 1);
+    const avgPct = Math.round(studentSecs.reduce((s, v) => s + (v / maxSecs) * 100, 0) / studentSecs.length);
+    const opensPct = (opens / (studentRows.length || 1)) * 100;
+    const activityScore = Math.round((opensPct * 0.3) + (completionRate * 0.4) + (avgPct * 0.3));
+    lessonAnalytics.push({ lessonId: l.id, courseId: c.id, courseTitle: c.title, lessonTitle: l.title, opens, completed, completionRate, averageWatchTimeSeconds, averageWatchPercent: avgPct, activityScore });
   }));
-  const lessonAnalysis = Object.values(allLessons).map(l => ({
-    ...l, completionRate: l.totalStudents ? Math.round((l.completedStudents / l.totalStudents) * 100) : 0
-  })).sort((a, b) => a.completionRate - b.completionRate);
-  const mostDifficult = lessonAnalysis.slice(0, 10);
+  lessonAnalytics.sort((a, b) => b.activityScore - a.activityScore);
   const allQuizzes = {};
   analyticsIds.forEach(uid => {
     const a = allAnalytics[uid];
@@ -449,8 +464,8 @@ async function getAdminAnalytics() {
     activeToday: dailyActive, activeThisWeek: weeklyActive, activeThisMonth: monthlyActive,
     noActivity, totalWatchTime, avgWatchTime, completedStudents: completedCount, avgQuizScore,
     topActive, leastActive, mostCompletedLessons,
-    mostDifficultLessons: mostDifficult, mostFailedQuizzes: mostFailed,
-    lessonAnalysis, quizAnalysis,
+    lessonAnalytics, mostFailedQuizzes: mostFailed,
+    quizAnalysis,
     allStudentsSummary: studentRows.map(r => ({ uid: r.uid, name: r.name, email: r.email, summary: r.summary, profile: r.profile }))
   };
 }
