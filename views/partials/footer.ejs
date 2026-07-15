@@ -68,17 +68,19 @@
         }
         try {
           var vapidKey = '<%= (typeof vapidKey !== 'undefined' && vapidKey) ? vapidKey : '' %>';
-          // Wait for existing SW, then use it instead of firebase-messaging-sw.js
-          navigator.serviceWorker.ready.then(function(reg) {
+          if (!vapidKey) console.warn('FCM: FIREBASE_VAPID_KEY is not set — web push tokens cannot be generated. Add FIREBASE_VAPID_KEY to your env vars.');
+          // Register the dedicated messaging SW if not already controlling the page.
+          var swReady = navigator.serviceWorker.ready;
+          if (!navigator.serviceWorker.controller || (navigator.serviceWorker.getRegistration && !navigator.serviceWorker.getRegistration('/firebase-messaging-sw.js'))) {
+            swReady = navigator.serviceWorker.register('/firebase-messaging-sw.js').then(function() { return navigator.serviceWorker.ready; }).catch(function() { return navigator.serviceWorker.ready; });
+          }
+          swReady.then(function(reg) {
             var messaging = firebase.messaging();
-            // Setup foreground handler - show toast instead of system notification
             messaging.onMessage(function(payload) {
               var title = payload.data?.title || payload.notification?.title || 'المُميز';
               var body = payload.data?.body || payload.notification?.body || '';
-              // Only toast in foreground, no system notification (SW handles that)
               showToast('🔔 ' + title + (body ? ': ' + body : ''), '');
             });
-            // Get token with existing SW registration
             var getTokenOpts = {serviceWorkerRegistration: reg};
             if (vapidKey) getTokenOpts.vapidKey = vapidKey;
             return messaging.getToken(getTokenOpts);
