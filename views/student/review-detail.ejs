@@ -87,9 +87,9 @@
 </main>
 
 <script>
-let seconds = <%= (review.quiz.timerMinutes || 15) * 60 %>;
+let seconds = <%= ((review.quiz && review.quiz.timerMinutes) || 15) * 60 %>;
 let timerInterval;
-var hasTimer = <%= !!review.quiz.timerMinutes %>;
+var hasTimer = <%= !!(review.quiz && review.quiz.timerMinutes) %>;
 
 function startReviewTimer() {
   if (!hasTimer) return;
