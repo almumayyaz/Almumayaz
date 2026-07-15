@@ -104,6 +104,49 @@
     </div>
   </div>
 
+  <% if (lesson.quiz && lesson.quiz.enabled && !isGuest) { %>
+  <div id="lessonQuizBanner" class="welcome-banner" style="padding:12px 16px;margin-top:20px;">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+      <i class="fas fa-question-circle" style="color:var(--accent);font-size:14px;"></i>
+      <span style="font-size:13px;font-weight:700;color:var(--accent);">اختبار الدرس</span>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+      <p style="font-size:13px;color:var(--text-light);margin:0;"><%= (lesson.quiz.questions||[]).length %> أسئلة - أجب عن جميع الأسئلة</p>
+      <button id="startLessonQuizBtn" class="btn btn-primary btn-sm">
+        <i class="fas fa-pen"></i> ابدأ اختبار الدرس
+      </button>
+    </div>
+  </div>
+  <div id="lessonQuizSection" style="display:none;margin-top:16px;">
+    <div style="background:var(--card);border-radius:var(--radius);border:1px solid var(--border);padding:16px;">
+      <h3 style="font-size:16px;font-weight:700;margin-bottom:4px;"><i class="fas fa-question-circle" style="color:var(--accent);"></i> اختبار الدرس</h3>
+      <p style="font-size:13px;color:var(--text-light);margin-bottom:16px;">أجب عن الأسئلة التالية ثم اضغط على تقييم</p>
+      <% (lesson.quiz.questions||[]).forEach(function(q, qi) { %>
+      <div class="lesson-quiz-question" data-correct="<%= q.correct %>" style="margin-bottom:16px;padding:12px;background:var(--bg);border-radius:8px;border:1px solid var(--border);">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+          <span style="background:var(--accent);color:var(--primary);width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;"><%= qi + 1 %></span>
+          <span style="font-size:14px;font-weight:600;"><%= q.question %></span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <% q.options.forEach(function(o, oi) { %>
+          <label style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--card);border-radius:6px;border:2px solid var(--border);cursor:pointer;font-size:13px;transition:border-color 0.15s;">
+            <input type="radio" name="lq_<%= qi %>" value="<%= oi %>" style="accent-color:var(--accent);">
+            <span><%= o %></span>
+          </label>
+          <% }) %>
+        </div>
+      </div>
+      <% }) %>
+      <button id="submitLessonQuizBtn" class="btn btn-primary" style="width:100%;"><i class="fas fa-check-circle"></i> تقييم الإجابات</button>
+      <div id="lessonQuizResult" style="display:none;margin-top:16px;padding:20px;background:var(--gold-gradient);border-radius:12px;text-align:center;color:var(--primary);">
+        <div id="lessonQuizScore" style="font-size:36px;font-weight:900;"></div>
+        <div id="lessonQuizPct" style="font-size:18px;opacity:0.85;"></div>
+        <div id="lessonQuizStatus" style="font-size:20px;font-weight:700;margin-top:4px;"></div>
+      </div>
+    </div>
+  </div>
+  <% } %>
+
   <% if (course.quiz && !isGuest) { %>
   <div class="welcome-banner" style="padding:12px 16px;margin-top:20px;">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
@@ -401,6 +444,54 @@
       }
     });
   });
+
+  // Lesson quiz logic
+  var quizBanner = document.getElementById('lessonQuizBanner');
+  var startQuizBtn = document.getElementById('startLessonQuizBtn');
+  var quizSection = document.getElementById('lessonQuizSection');
+  var submitQuizBtn = document.getElementById('submitLessonQuizBtn');
+  var quizResult = document.getElementById('lessonQuizResult');
+
+  if (startQuizBtn) {
+    startQuizBtn.addEventListener('click', function() {
+      if (quizBanner) quizBanner.style.display = 'none';
+      if (quizSection) quizSection.style.display = '';
+    });
+  }
+
+  if (submitQuizBtn) {
+    submitQuizBtn.addEventListener('click', function() {
+      var questions = document.querySelectorAll('.lesson-quiz-question');
+      var score = 0, total = questions.length, allAnswered = true;
+      questions.forEach(function(q, idx) {
+        var selected = q.querySelector('input[type="radio"]:checked');
+        var options = q.querySelectorAll('label');
+        var correct = parseInt(q.dataset.correct);
+        if (!selected) { allAnswered = false; return; }
+        var selIdx = parseInt(selected.value);
+        options.forEach(function(o, oi) {
+          o.style.borderColor = oi === correct ? '#059669' : '';
+          o.style.background = oi === correct ? 'rgba(5,150,105,0.08)' : '';
+        });
+        if (selIdx === correct) { score++; }
+        else { selected.closest('label').style.borderColor = '#DC2626'; }
+      });
+      if (!allAnswered) { alert('يرجى الإجابة على جميع الأسئلة أولاً'); return; }
+      var pct = Math.round((score / total) * 100);
+      submitQuizBtn.style.display = 'none';
+      if (quizResult) {
+        quizResult.style.display = '';
+        document.getElementById('lessonQuizScore').textContent = score + '/' + total;
+        document.getElementById('lessonQuizPct').textContent = pct + '%';
+        document.getElementById('lessonQuizStatus').textContent = pct >= (<%= (lesson.quiz && lesson.quiz.passPercentage) || 60 %>) ? 'ناجح ✓' : 'لم تحقق نسبة النجاح';
+      }
+      fetch('/api/analytics/quiz/submit', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ courseId: courseId, quizId: lessonId, quizTitle: '<%= lesson.title %>', score: score, total: total, correct: score, wrong: total - score, timeTaken: 0 })
+      }).catch(function(){});
+    });
+  }
 
   // Initial load
   loadServerProgress();

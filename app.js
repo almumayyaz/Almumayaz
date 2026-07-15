@@ -2826,7 +2826,7 @@ app.put('/api/admin/courses/:id/lessons/:lessonId', requireAdmin, async (req, re
     if (!course) return res.status(404).json({ error: 'المادة غير موجودة' });
     const lesson = (course.lessons||[]).find(l => l.id === req.params.lessonId);
     if (!lesson) return res.status(404).json({ error: 'المحاضرة غير موجودة' });
-    const { title, description, videos, pdfFiles, duration, order, isFree, guestVisible, sectionId } = req.body;
+    const { title, description, videos, pdfFiles, duration, order, isFree, guestVisible, sectionId, quiz } = req.body;
     if (title !== undefined) lesson.title = title;
     if (description !== undefined) lesson.description = description;
     if (videos !== undefined) lesson.videos = videos;
@@ -2835,6 +2835,7 @@ app.put('/api/admin/courses/:id/lessons/:lessonId', requireAdmin, async (req, re
     if (order !== undefined) lesson.order = order;
     if (isFree !== undefined) lesson.isFree = isFree;
     if (guestVisible !== undefined) lesson.guestVisible = guestVisible;
+    if (quiz !== undefined) lesson.quiz = quiz;
     if (sectionId !== undefined) {
       (course.sections || []).forEach(s => { if (s.lessons) s.lessons = s.lessons.filter(id => id !== lesson.id); });
       lesson.sectionId = sectionId;

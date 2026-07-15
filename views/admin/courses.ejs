@@ -434,6 +434,29 @@
         <label>الباب</label>
         <select id="lessonSectionId"><option value="">بدون باب</option></select>
       </div>
+
+      <div style="margin-top:16px;padding:14px;background:var(--bg);border-radius:10px;border:1px solid var(--border);">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+          <input type="checkbox" id="lessonQuizEnabled" onchange="document.getElementById('lessonQuizSettings').style.display=this.checked?'':'none'">
+          <label style="font-weight:600;font-size:13px;cursor:pointer;">تفعيل اختبار الدرس</label>
+        </div>
+        <div id="lessonQuizSettings" style="display:none;">
+          <div class="form-group" style="margin-bottom:10px;">
+            <label style="font-size:12px;">نسبة النجاح (%)</label>
+            <input type="number" id="lessonQuizPassPct" value="60" min="0" max="100" style="width:80px;padding:6px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;">
+          </div>
+          <div id="lessonQuizQuestions">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+              <label style="font-size:12px;color:var(--text-light);">أسئلة الاختبار</label>
+              <div style="display:flex;gap:6px;">
+                <button class="btn btn-sm" style="background:var(--accent);color:#fff;" onclick="addLessonQuestion()"><i class="fas fa-plus"></i></button>
+                <button class="btn btn-sm" style="background:var(--primary);color:#fff;" onclick="uploadLessonWordFile()"><i class="fas fa-file-word"></i> رفع Word</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <button class="btn btn-primary" onclick="saveLesson()" style="width:100%;margin-top:8px;"><i class="fas fa-save"></i> حفظ</button>
     </div>
   </div>
@@ -499,6 +522,23 @@
         <input id="qbuWordFilePopup" type="file" accept=".docx" style="padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;width:100%;">
       </div>
       <button class="btn btn-sm" style="background:var(--success);color:#fff;width:100%;" onclick="extractQbQuestionsFromPopup()"><i class="fas fa-magic"></i> استخراج</button>
+    </div>
+  </div>
+</div>
+
+<!-- Word Upload Popup (Lesson Quiz) -->
+<div class="modal-overlay" id="lqWordUploadModal" style="z-index:3000;">
+  <div class="modal" style="max-width:500px;">
+    <div class="modal-header">
+      <h3>رفع ملف Word لاختبار الدرس</h3>
+      <button class="modal-close" onclick="closeModal('lqWordUploadModal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>اختيار ملف Word يحتوي على الأسئلة</label>
+        <input id="lqWordFilePopup" type="file" accept=".docx" style="padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;width:100%;">
+      </div>
+      <button class="btn btn-sm" style="background:var(--success);color:#fff;width:100%;" onclick="extractLessonQuestionsFromPopup()"><i class="fas fa-magic"></i> استخراج</button>
     </div>
   </div>
 </div>
@@ -794,6 +834,19 @@ function openLessonModal(course, lesson) {
     });
   }
   document.getElementById('lessonSectionId').value = lesson ? (lesson.sectionId || '') : '';
+
+  // Quiz fields
+  var quiz = lesson && lesson.quiz;
+  document.getElementById('lessonQuizEnabled').checked = quiz ? !!quiz.enabled : false;
+  document.getElementById('lessonQuizPassPct').value = quiz ? (quiz.passPercentage || 60) : 60;
+  document.getElementById('lessonQuizSettings').style.display = quiz && quiz.enabled ? '' : 'none';
+  var lqContainer = document.getElementById('lessonQuizQuestions');
+  var existing = lqContainer.querySelectorAll('.question-block');
+  existing.forEach(function(el){ el.remove(); });
+  if (quiz && quiz.questions) {
+    quiz.questions.forEach(function(q, i){ addLessonQuestion(q, i); });
+  }
+
   var vc = document.getElementById('videosContainer');
   vc.innerHTML = '';
   var videos = (lesson && lesson.videos) || [];
@@ -856,6 +909,17 @@ function saveLesson() {
     }
   });
   chain.then(function() {
+    var quizEnabled = document.getElementById('lessonQuizEnabled').checked;
+    var quizQuestions = [];
+    if (quizEnabled) {
+      var lqBlocks = document.querySelectorAll('#lessonQuizQuestions .question-block');
+      lqBlocks.forEach(function(b) {
+        var q = b.querySelector('.lq-text').value;
+        var opts = [0,1,2,3].map(function(i){ return b.querySelector('.lq-opt-' + i).value; });
+        var c = parseInt(b.querySelector('.lq-correct').value) || 0;
+        if (q && opts.some(function(o){ return o; })) quizQuestions.push({ question: q, options: opts, correct: c });
+      });
+    }
     var data = {
       title: document.getElementById('lessonTitle').value,
       description: document.getElementById('lessonDescription').value,
@@ -863,7 +927,8 @@ function saveLesson() {
       pdfFiles: pdfFiles,
       isFree: document.getElementById('lessonIsFree').checked,
       guestVisible: document.getElementById('lessonGuestVisible').checked,
-      sectionId: document.getElementById('lessonSectionId').value
+      sectionId: document.getElementById('lessonSectionId').value,
+      quiz: quizEnabled ? { enabled: true, passPercentage: parseInt(document.getElementById('lessonQuizPassPct').value) || 60, questions: quizQuestions } : null
     };
     var url = lessonId ? '/api/admin/courses/' + courseId + '/lessons/' + lessonId : '/api/admin/courses/' + courseId + '/lessons';
     var method = lessonId ? 'PUT' : 'POST';
@@ -1245,6 +1310,46 @@ function extractQbQuestionsFromPopup() {
     if (d.success && d.questions) {
       d.questions.forEach(function(q){ addQbQuestion(q); });
       closeModal('qbuWordUploadModal');
+      fileInput.value = '';
+      alert('تم استخراج ' + d.questions.length + ' سؤال');
+    } else {
+      alert(d.error || 'فشل استخراج الأسئلة');
+      btn.disabled = false; btn.innerHTML = '<i class="fas fa-magic"></i> استخراج';
+    }
+  }).catch(function(){
+    alert('فشل الاتصال بالخادم');
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-magic"></i> استخراج';
+  });
+}
+
+// ===== LESSON QUIZ CRUD =====
+function addLessonQuestion(q, idx) {
+  var container = document.getElementById('lessonQuizQuestions');
+  var div = document.createElement('div');
+  div.className = 'question-block';
+  div.style.cssText = 'background:var(--card);border-radius:10px;padding:16px;margin-bottom:12px;border:1px solid var(--border);';
+  var qi = idx !== undefined ? idx : container.querySelectorAll('.question-block').length;
+  div.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><strong style="color:var(--primary);">السؤال ' + (qi + 1) + '</strong><button class="btn btn-sm" style="background:#ef4444;color:#fff;font-size:11px;padding:4px 10px;" onclick="this.closest(\'.question-block\').remove()">حذف</button></div><div class="form-group"><input class="lq-text" placeholder="نص السؤال" value="' + escAttr(q ? q.question : '') + '"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' + ['أ','ب','ج','د'].map(function(letter, oi){ return '<div class="form-group" style="margin-bottom:4px;"><label style="font-size:11px;margin-bottom:2px;">الخيار ' + letter + '</label><input class="lq-opt-' + oi + '" placeholder="الخيار ' + letter + '" value="' + escAttr(q && q.options && q.options[oi] ? q.options[oi] : '') + '"></div>'; }).join('') + '</div><div class="form-group" style="margin-bottom:0;"><label style="font-size:12px;">الإجابة الصحيحة</label><select class="lq-correct" style="width:80px;padding:6px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;">' + ['أ','ب','ج','د'].map(function(letter, oi){ return '<option value="' + oi + '"' + ((q ? q.correct + '' : '0') === '' + oi ? ' selected' : '') + '>' + letter + '</option>'; }).join('') + '</select></div>';
+  container.appendChild(div);
+}
+function uploadLessonWordFile() {
+  document.getElementById('lqWordFilePopup').value = '';
+  document.getElementById('lqWordUploadModal').classList.add('show');
+}
+function extractLessonQuestionsFromPopup() {
+  var btn = document.querySelector('#lqWordUploadModal .modal-body button');
+  var fileInput = document.getElementById('lqWordFilePopup');
+  if (!fileInput.files || !fileInput.files[0]) { alert('يرجى اختيار ملف Word أولاً'); return; }
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الاستخراج...';
+  var formData = new FormData();
+  formData.append('file', fileInput.files[0]);
+  fetch('/api/admin/upload-word-file', {
+    method: 'POST',
+    body: formData
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if (d.success && d.questions) {
+      d.questions.forEach(function(q){ addLessonQuestion(q); });
+      closeModal('lqWordUploadModal');
       fileInput.value = '';
       alert('تم استخراج ' + d.questions.length + ' سؤال');
     } else {

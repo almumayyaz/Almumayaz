@@ -1,62 +1,77 @@
 <%- include('../partials/header', { title: title, navPageTitle: pdfTitle, bodyClass: 'student-body' }) %>
 <%- include('../partials/student-sidebar') %>
 <main class="main-content" oncontextmenu="return false;">
-  <div style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-    <a href="<%= backUrl %>" style="color:var(--accent);font-size:14px;font-weight:600;display:flex;align-items:center;gap:6px;">
+  <div style="margin-bottom:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+    <a href="<%= backUrl %>" style="color:var(--accent);font-size:13px;font-weight:600;display:flex;align-items:center;gap:5px;">
       <i class="fas fa-arrow-right"></i> العودة
     </a>
-    <span style="font-size:14px;font-weight:600;color:var(--text);"><%= pdfTitle %></span>
+    <span style="font-size:13px;font-weight:600;color:var(--text);"><%= pdfTitle %></span>
   </div>
 
-  <div style="background:#202124;border-radius:var(--radius-xl) var(--radius-xl) 0 0;overflow:hidden;box-shadow:var(--shadow-xl);border:1px solid var(--border);border-bottom:none;" oncontextmenu="return false;" ondragstart="return false;" onselectstart="return false;">
-    <div style="display:flex;align-items:center;justify-content:center;padding:6px 16px;gap:8px;flex-wrap:wrap;min-height:44px;">
-      <div style="display:flex;align-items:center;gap:4px;">
-        <button id="pdf-prev" class="pdf-tb-btn" title="الصفحة السابقة"><i class="fas fa-chevron-right"></i></button>
-        <span style="display:flex;align-items:center;gap:4px;font-size:13px;color:#e8eaed;">
-          <input id="pdf-page-num" type="text" value="1" style="width:30px;padding:2px 4px;border:1px solid #5f6368;border-radius:4px;background:#303134;color:#e8eaed;text-align:center;font-size:13px;outline:none;">
-          <span style="color:#9aa0a6;">/</span>
-          <span id="pdf-page-count" style="color:#e8eaed;min-width:16px;">?</span>
-        </span>
-        <button id="pdf-next" class="pdf-tb-btn" title="الصفحة التالية"><i class="fas fa-chevron-left"></i></button>
-      </div>
-      <span style="width:1px;height:20px;background:#5f6368;display:inline-block;"></span>
-      <div style="display:flex;align-items:center;gap:4px;">
-        <button id="pdf-zoom-out" class="pdf-tb-btn" title="تصغير"><i class="fas fa-search-minus"></i></button>
-        <span id="pdf-zoom-level" style="font-size:12px;color:#e8eaed;min-width:38px;text-align:center;font-variant-numeric:tabular-nums;">120%</span>
-        <button id="pdf-zoom-in" class="pdf-tb-btn" title="تكبير"><i class="fas fa-search-plus"></i></button>
-      </div>
+  <div id="pdf-toolbar" style="background:#202124;border-radius:var(--radius-xl) var(--radius-xl) 0 0;overflow:hidden;border:1px solid var(--border);border-bottom:none;user-select:none;" oncontextmenu="return false;" ondragstart="return false;">
+    <div style="display:flex;align-items:center;justify-content:center;padding:4px 12px;gap:6px;flex-wrap:wrap;min-height:40px;">
+      <button id="pdf-prev" class="pdf-btn" title="السابق"><i class="fas fa-chevron-right"></i></button>
+      <span style="display:flex;align-items:center;gap:3px;font-size:12px;color:#e8eaed;">
+        <input id="pdf-page-input" type="text" value="1" style="width:28px;padding:2px 3px;border:1px solid #5f6368;border-radius:3px;background:#303134;color:#e8eaed;text-align:center;font-size:12px;outline:none;">
+        <span style="color:#9aa0a6;">/</span>
+        <span id="pdf-page-total" style="color:#e8eaed;min-width:14px;font-size:12px;">?</span>
+      </span>
+      <button id="pdf-next" class="pdf-btn" title="التالي"><i class="fas fa-chevron-left"></i></button>
+      <span style="width:1px;height:16px;background:#5f6368;display:inline-block;"></span>
+      <button id="pdf-zoom-out" class="pdf-btn" title="تصغير"><i class="fas fa-search-minus"></i></button>
+      <span id="pdf-zoom-label" style="font-size:11px;color:#e8eaed;min-width:34px;text-align:center;">100%</span>
+      <button id="pdf-zoom-in" class="pdf-btn" title="تكبير"><i class="fas fa-search-plus"></i></button>
+      <span style="width:1px;height:16px;background:#5f6368;display:inline-block;"></span>
+      <button id="pdf-search-toggle" class="pdf-btn" title="بحث"><i class="fas fa-search"></i></button>
+    </div>
+    <div id="pdf-search-bar" style="display:none;padding:4px 12px 6px;background:#292a2d;gap:6px;align-items:center;">
+      <input id="pdf-search-input" type="text" placeholder="بحث في الملف..." style="flex:1;padding:4px 8px;border:1px solid #5f6368;border-radius:3px;background:#303134;color:#e8eaed;font-size:12px;outline:none;max-width:260px;">
+      <span id="pdf-search-count" style="font-size:11px;color:#9aa0a6;min-width:40px;"></span>
+      <button id="pdf-search-prev" class="pdf-btn" title="السابق"><i class="fas fa-chevron-up"></i></button>
+      <button id="pdf-search-next" class="pdf-btn" title="التالي"><i class="fas fa-chevron-down"></i></button>
+      <button id="pdf-search-close" class="pdf-btn" title="إغلاق"><i class="fas fa-times"></i></button>
     </div>
   </div>
 
-  <div id="pdf-scroll" style="width:100%;height:80vh;min-height:460px;overflow:hidden;background:#525659;display:flex;justify-content:center;align-items:flex-start;padding:24px 16px;touch-action:none;border-left:1px solid var(--border);border-right:1px solid var(--border);">
-    <div id="pdf-holder" style="position:relative;display:inline-block;">
-      <canvas id="pdf-canvas" style="display:block;box-shadow:0 2px 10px rgba(0,0,0,.35);background:#fff;will-change:transform,opacity;"></canvas>
-      <canvas id="pdf-canvas-b" style="display:block;position:absolute;top:0;left:0;box-shadow:0 2px 10px rgba(0,0,0,.35);background:#fff;opacity:0;pointer-events:none;will-change:transform,opacity;"></canvas>
-    </div>
+  <div id="pdf-viewport" style="width:100%;height:80vh;min-height:420px;overflow:auto;background:#525659;border-left:1px solid var(--border);border-right:1px solid var(--border);touch-action:pan-y;">
+    <div id="pdf-spacer" style="position:relative;margin:0 auto;"></div>
+    <div id="pdf-loading" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#9aa0a6;font-size:14px;">جاري التحميل...</div>
   </div>
 
-  <div style="background:#202124;border-radius:0 0 var(--radius-xl) var(--radius-xl);overflow:hidden;border:1px solid var(--border);border-top:none;padding:6px 16px;display:flex;align-items:center;justify-content:center;gap:12px;min-height:36px;">
-    <span id="pdf-page-indicator" style="font-size:12px;color:#9aa0a6;">الصفحة 1 من ?</span>
-    <span style="width:1px;height:14px;background:#5f6368;display:inline-block;"></span>
-    <span style="font-size:12px;color:#9aa0a6;"><%= pdfTitle %></span>
+  <div style="background:#202124;border-radius:0 0 var(--radius-xl) var(--radius-xl);overflow:hidden;border:1px solid var(--border);border-top:none;padding:4px 12px;display:flex;align-items:center;justify-content:center;gap:10px;min-height:32px;">
+    <span id="pdf-status" style="font-size:11px;color:#9aa0a6;"></span>
   </div>
 
-  <div id="pdf-error" style="display:none;padding:24px;text-align:center;color:var(--danger);font-size:14px;background:var(--card);border-radius:0 0 var(--radius-xl) var(--radius-xl);border:1px solid var(--border);border-top:none;">
-    تعذر تحميل الملف. تأكد من تسجيل الدخول والاشتراك النشط، ثم أعد المحاولة.
+  <div id="pdf-error" style="display:none;padding:20px;text-align:center;color:var(--danger);font-size:13px;background:var(--card);border-radius:0 0 var(--radius-xl) var(--radius-xl);border:1px solid var(--border);border-top:none;">
+    تعذر تحميل الملف. تأكد من تسجيل الدخول والاشتراك النشط.
   </div>
 </main>
 
 <style>
-.pdf-tb-btn{background:none;border:none;color:#e8eaed;padding:6px;border-radius:4px;cursor:pointer;font-size:14px;line-height:1;transition:background 0.15s;}
-.pdf-tb-btn:hover{background:rgba(255,255,255,0.1);}
-.pdf-tb-btn:active{background:rgba(255,255,255,0.2);}
-#pdf-page-num::-webkit-inner-spin-button,#pdf-page-num::-webkit-outer-spin-button{-webkit-appearance:none;margin:0;}
-#pdf-page-num[type=text]{-moz-appearance:textfield;}
+.pdf-btn{background:none;border:none;color:#e8eaed;padding:5px;border-radius:3px;cursor:pointer;font-size:13px;line-height:1;transition:background 0.12s;}
+.pdf-btn:hover{background:rgba(255,255,255,0.1);}
+.pdf-btn:active{background:rgba(255,255,255,0.2);}
+#pdf-page-input::-webkit-inner-spin-button,#pdf-page-input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0;}
+#pdf-page-input[type=text]{-moz-appearance:textfield;}
+.pdf-page-canvas{display:block;margin:0 auto 6px;box-shadow:0 1px 6px rgba(0,0,0,.28);background:#fff;}
+.pdf-text-layer{position:absolute;top:0;left:0;right:0;bottom:0;overflow:hidden;opacity:0.2;pointer-events:none;}
+.pdf-text-layer .highlight{background:#ff0;border-radius:2px;}
+.pdf-text-layer .highlight.active{background:#f80;}
+#pdf-viewport{scroll-behavior:auto;}
+#pdf-viewport::-webkit-scrollbar{width:8px;height:8px;}
+#pdf-viewport::-webkit-scrollbar-track{background:transparent;}
+#pdf-viewport::-webkit-scrollbar-thumb{background:#5f6368;border-radius:4px;}
+#pdf-viewport::-webkit-scrollbar-thumb:hover{background:#7a7f85;}
 </style>
 
 <script src="/js/pdf.min.js"></script>
 <script>
-  window.__PDF_TOKEN_URL__ = '<%= tokenUrl %>';
+  window.__PDF_CONFIG__ = {
+    tokenUrl: '<%= tokenUrl %>',
+    title: '<%= pdfTitle.replace(/'/g, "\\'") %>',
+    courseId: '<%= (typeof courseId !== "undefined" ? courseId : "") %>',
+    lessonId: '<%= (typeof lessonId !== "undefined" ? lessonId : "") %>'
+  };
   if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = '/js/pdf.worker.min.js';
 </script>
 <script>
