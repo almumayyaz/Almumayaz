@@ -503,6 +503,29 @@ async function computeAdminAnalytics() {
   });
   examAnalytics.sort((a, b) => b.students - a.students);
 
+  // Normalized exam list — computed once. Each exam appears exactly once.
+  const allTests = examAnalytics.map(e => ({
+    id: e.examId,
+    name: e.examTitle,
+    studentsCount: e.students,
+    averageScore: e.averageScore,
+    successRate: e.passRate,
+    averageAttempts: e.averageAttempts
+  }));
+
+  // bestTests = highest averageScore first; worstTests = lowest averageScore first,
+  // excluding anything already in bestTests (deduped by id only, never by name).
+  const bestTests = allTests.slice().sort((a, b) => b.averageScore - a.averageScore).slice(0, 4);
+  const bestIds = new Set(bestTests.map(t => t.id));
+  const worstTests = allTests
+    .filter(t => !bestIds.has(t.id))
+    .sort((a, b) => a.averageScore - b.averageScore)
+    .slice(0, 4);
+
+  // Validation: no test may appear in both lists.
+  const ids = [...bestTests.map(x => x.id), ...worstTests.map(x => x.id)];
+  console.assert(ids.length === new Set(ids).size, 'Duplicate tests detected');
+
   // Completion percentage: per-student = (completed lessons ÷ available lessons) × 100,
   // clamped to [0,100]; platform-wide = average of per-student percentages, clamped to [0,100].
   const clampPct = v => Math.max(0, Math.min(100, v || 0));
@@ -531,7 +554,7 @@ async function computeAdminAnalytics() {
     noActivity, totalWatchTime, avgWatchTime, completedStudents: completedCount, avgQuizScore,
     completionPercentage, studentCompletion,
     topActive, leastActive, mostCompletedLessons,
-    lessonAnalytics, examAnalytics,
+    lessonAnalytics, examAnalytics, allTests, bestTests, worstTests,
     allStudentsSummary: studentRows.map(r => ({ uid: r.uid, name: r.name, email: r.email, summary: r.summary, profile: r.profile }))
   };
 }

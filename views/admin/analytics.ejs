@@ -60,7 +60,6 @@
     { label: 'بدون نشاط', value: ov.noActivity, icon: 'fa-user-slash', color: '#dc2626' },
     { label: 'متوسط المشاهدة', value: Math.floor(ov.avgWatchTime / 60) + ':' + String(ov.avgWatchTime % 60).padStart(2,'0'), icon: 'fa-clock', color: '#2563eb' },
     { label: 'نسبة إكمال الدروس', value: ov.completionPercentage + '%', icon: 'fa-percent', color: '#059669' },
-    { label: 'متوسط الإنجاز', value: Math.round((ov.completedStudents / (ov.totalStudents || 1)) * 100) + '%', icon: 'fa-tasks', color: '#0ea5e9' },
     { label: 'متوسط الاختبارات', value: ov.avgQuizScore + '%', icon: 'fa-chart-line', color: '#7c3aed' }
   ];
   document.getElementById('overviewCards').innerHTML = cards.map(function(c) {
@@ -97,10 +96,11 @@
   var exams = (ov.examAnalytics || []);
   document.getElementById('quizzesTable').innerHTML = exams.length ? renderExamAnalytics(exams) : '<div style="text-align:center;padding:20px;color:var(--text-muted);">لا توجد بيانات حتى الآن</div>';
 
-  // Hardest / easiest / most attempted / least attempted
-  var byAvg = exams.slice().sort(function(a, b) { return a.averageScore - b.averageScore; });
-  var hardest = byAvg[0] || null;
-  var easiest = byAvg.length > 1 ? byAvg[byAvg.length - 1] : null;
+  // Best / worst tests come precomputed from the data layer (deduped by id only).
+  var bestTests = (ov.bestTests || []).slice();
+  var worstTests = (ov.worstTests || []).slice();
+  var hardest = bestTests[0] || null;
+  var easiest = worstTests[0] || null;
   var byStudents = exams.slice().sort(function(a, b) { return b.students - a.students; });
   var mostSolved = byStudents[0] || null;
   var leastSolved = byStudents.length > 1 ? byStudents[byStudents.length - 1] : null;
@@ -188,10 +188,12 @@ function renderExamAnalytics(data) {
 }
 
 function renderExamCard(e, icon) {
+  var title = e.examTitle || e.name || '—';
+  var students = (e.students != null) ? e.students : (e.studentsCount != null ? e.studentsCount : '—');
   return '<div style="font-size:13px;">' +
     '<div style="font-size:18px;margin-bottom:4px;">' + icon + '</div>' +
-    '<div style="font-weight:700;font-size:12px;margin-bottom:2px;">' + (e.examTitle || '—') + '</div>' +
-    '<div style="font-size:11px;color:var(--text-muted);">المعدل: <strong>' + e.averageScore + '%</strong> | الطلاب: <strong>' + e.students + '</strong></div></div>';
+    '<div style="font-weight:700;font-size:12px;margin-bottom:2px;">' + title + '</div>' +
+    '<div style="font-size:11px;color:var(--text-muted);">المعدل: <strong>' + (e.averageScore != null ? e.averageScore + '%' : '—') + '</strong> | الطلاب: <strong>' + students + '</strong></div></div>';
 }
 </script>
 <%- include('../partials/footer') %>
