@@ -438,34 +438,38 @@ async function getAdminAnalytics() {
     lessonAnalytics.push({ lessonId: l.id, courseId: c.id, courseTitle: c.title, lessonTitle: l.title, opens, completed, completionRate, averageWatchTimeSeconds, averageWatchPercent: avgPct, activityScore });
   }));
   lessonAnalytics.sort((a, b) => b.activityScore - a.activityScore);
-  const allQuizzes = {};
+  const examMap = {};
   analyticsIds.forEach(uid => {
     const a = allAnalytics[uid];
     if (!a || !a.quizHistory) return;
     Object.keys(a.quizHistory).forEach(qk => {
       const q = a.quizHistory[qk];
-      (q.attempts || []).forEach(at => {
-        allQuizzes[qk] = allQuizzes[qk] || { quizId: qk, quizTitle: q.quizTitle || qk, courseId: q.courseId || '', totalAttempts: 0, totalScore: 0, totalCorrect: 0, totalWrong: 0, passCount: 0 };
-        allQuizzes[qk].totalAttempts++;
-        allQuizzes[qk].totalScore += at.percentage || 0;
-        allQuizzes[qk].totalCorrect += at.correct || 0;
-        allQuizzes[qk].totalWrong += at.wrong || 0;
-        if ((at.percentage || 0) >= 50) allQuizzes[qk].passCount++;
-      });
+      if (!q || !q.attempts || !q.attempts.length) return;
+      const last = q.attempts[q.attempts.length - 1];
+      if (!examMap[qk]) examMap[qk] = { examId: qk, examTitle: q.quizTitle || qk, courseId: q.courseId || '', students: 0, totalAttempts: 0, lastScores: [], passCount: 0 };
+      const e = examMap[qk];
+      e.students++;
+      e.totalAttempts += q.attempts.length;
+      e.lastScores.push(last.percentage || last.score || 0);
+      if ((last.percentage || last.score || 0) >= 50) e.passCount++;
     });
   });
-  const quizAnalysis = Object.values(allQuizzes).map(q => ({
-    ...q, avgScore: q.totalAttempts ? Math.round(q.totalScore / q.totalAttempts) : 0,
-    passRate: q.totalAttempts ? Math.round((q.passCount / q.totalAttempts) * 100) : 0
-  })).sort((a, b) => a.avgScore - b.avgScore);
-  const mostFailed = quizAnalysis.slice(0, 10);
+  const examAnalytics = Object.values(examMap).map(e => {
+    const avgScore = e.lastScores.length ? Math.round(e.lastScores.reduce((s, v) => s + v, 0) / e.lastScores.length) : 0;
+    const passRate = e.students ? Math.round((e.passCount / e.students) * 100) : 0;
+    const averageAttempts = e.students ? Math.round((e.totalAttempts / e.students) * 10) / 10 : 0;
+    const sorted = [...e.lastScores].sort((a, b) => a - b);
+    const highestScore = sorted.length ? sorted[sorted.length - 1] : 0;
+    const lowestScore = sorted.length ? sorted[0] : 0;
+    return { examId: e.examId, examTitle: e.examTitle, courseId: e.courseId, students: e.students, totalAttempts: e.totalAttempts, averageScore: avgScore, passRate, averageAttempts, highestScore, lowestScore };
+  });
+  examAnalytics.sort((a, b) => b.students - a.students);
   return {
     totalStudents: students.length, studentsWithAnalytics: studentRows.length,
     activeToday: dailyActive, activeThisWeek: weeklyActive, activeThisMonth: monthlyActive,
     noActivity, totalWatchTime, avgWatchTime, completedStudents: completedCount, avgQuizScore,
     topActive, leastActive, mostCompletedLessons,
-    lessonAnalytics, mostFailedQuizzes: mostFailed,
-    quizAnalysis,
+    lessonAnalytics, examAnalytics,
     allStudentsSummary: studentRows.map(r => ({ uid: r.uid, name: r.name, email: r.email, summary: r.summary, profile: r.profile }))
   };
 }

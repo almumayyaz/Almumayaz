@@ -24,6 +24,12 @@
     <div style="background:var(--card);border-radius:var(--radius-lg);padding:16px;border:1px solid var(--border);">
       <h3 style="font-size:14px;margin-bottom:12px;"><i class="fas fa-question-circle" style="color:var(--accent);"></i> تحليل الاختبارات</h3>
       <div id="quizzesTable"><div style="text-align:center;padding:20px;color:var(--text-muted);">جاري التحميل...</div></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;">
+        <div style="background:var(--bg);border-radius:8px;padding:10px;text-align:center;" id="hardestExam"><div style="color:var(--text-muted);font-size:12px;">جاري التحميل...</div></div>
+        <div style="background:var(--bg);border-radius:8px;padding:10px;text-align:center;" id="easiestExam"><div style="color:var(--text-muted);font-size:12px;">جاري التحميل...</div></div>
+        <div style="background:var(--bg);border-radius:8px;padding:10px;text-align:center;" id="mostSolvedExam"><div style="color:var(--text-muted);font-size:12px;">جاري التحميل...</div></div>
+        <div style="background:var(--bg);border-radius:8px;padding:10px;text-align:center;" id="leastSolvedExam"><div style="color:var(--text-muted);font-size:12px;">جاري التحميل...</div></div>
+      </div>
     </div>
   </div>
 
@@ -86,11 +92,21 @@
   document.getElementById('mostActiveLesson').innerHTML = mostActive ? renderLessonCard(mostActive, 'fire') : '<div style="text-align:center;padding:20px;color:var(--text-muted);">لا توجد بيانات بعد</div>';
   document.getElementById('leastActiveLesson').innerHTML = leastActive ? renderLessonCard(leastActive, 'chart-line') : '<div style="text-align:center;padding:20px;color:var(--text-muted);">لا توجد بيانات بعد</div>';
 
-  // Load quizzes from v2
-  var quizzes = (ov.mostFailedQuizzes || []).map(function(q) {
-    return { quizTitle: q.quizTitle, averageScore: q.avgScore, highestScore: q.avgScore, lowestScore: q.avgScore, passRate: q.passRate, attempts: q.totalAttempts };
-  });
-  document.getElementById('quizzesTable').innerHTML = quizzes.length ? renderQuizzesTable(quizzes) : '<div style="text-align:center;padding:20px;color:var(--text-muted);">لا توجد اختبارات</div>';
+  // Load exams from v2
+  var exams = (ov.examAnalytics || []);
+  document.getElementById('quizzesTable').innerHTML = exams.length ? renderExamAnalytics(exams) : '<div style="text-align:center;padding:20px;color:var(--text-muted);">لا توجد بيانات حتى الآن</div>';
+
+  // Hardest / easiest / most attempted / least attempted
+  var byAvg = exams.slice().sort(function(a, b) { return a.averageScore - b.averageScore; });
+  var hardest = byAvg[0] || null;
+  var easiest = byAvg.length > 1 ? byAvg[byAvg.length - 1] : null;
+  var byStudents = exams.slice().sort(function(a, b) { return b.students - a.students; });
+  var mostSolved = byStudents[0] || null;
+  var leastSolved = byStudents.length > 1 ? byStudents[byStudents.length - 1] : null;
+  document.getElementById('hardestExam').innerHTML = hardest ? renderExamCard(hardest, '🔥') : '<div style="text-align:center;padding:20px;color:var(--text-muted);">لا توجد بيانات حتى الآن</div>';
+  document.getElementById('easiestExam').innerHTML = easiest ? renderExamCard(easiest, '🏆') : '<div style="text-align:center;padding:20px;color:var(--text-muted);">لا توجد بيانات حتى الآن</div>';
+  document.getElementById('mostSolvedExam').innerHTML = mostSolved ? renderExamCard(mostSolved, '📈') : '<div style="text-align:center;padding:20px;color:var(--text-muted);">لا توجد بيانات حتى الآن</div>';
+  document.getElementById('leastSolvedExam').innerHTML = leastSolved ? renderExamCard(leastSolved, '📉') : '<div style="text-align:center;padding:20px;color:var(--text-muted);">لا توجد بيانات حتى الآن</div>';
 })();
 
 function renderStudentTable(data) {
@@ -117,20 +133,27 @@ function fmtTime(secs) {
 }
 
 function renderLessonAnalytics(data) {
-  var h = '<table style="width:100%;font-size:12px;border-collapse:collapse;"><thead><tr style="background:var(--bg);">' +
-    '<th style="padding:6px 4px;text-align:right;">المحاضرة</th>' +
-    '<th style="padding:6px 4px;text-align:center;">مرات الفتح</th>' +
-    '<th style="padding:6px 4px;text-align:center;">نسبة الإكمال</th>' +
-    '<th style="padding:6px 4px;text-align:center;">متوسط المشاهدة</th></tr></thead><tbody>';
+  var courses = {};
   data.forEach(function(l) {
-    var barColor = l.completionRate >= 70 ? '#059669' : l.completionRate >= 40 ? '#d97706' : '#dc2626';
-    h += '<tr style="border-bottom:1px solid var(--border);">' +
-      '<td style="padding:6px 4px;font-weight:600;font-size:12px;">' + (l.lessonTitle || '—') + '<br><span style="font-weight:400;color:var(--text-muted);font-size:10px;">' + (l.courseTitle || '') + '</span></td>' +
-      '<td style="padding:6px 4px;text-align:center;">' + l.opens + '</td>' +
-      '<td style="padding:6px 4px;text-align:center;"><div style="display:flex;align-items:center;gap:6px;"><div style="flex:1;height:6px;background:var(--bg);border-radius:3px;overflow:hidden;"><div style="height:100%;width:' + l.completionRate + '%;background:' + barColor + ';border-radius:3px;"></div></div><span style="font-weight:700;font-size:11px;color:' + barColor + ';">' + l.completionRate + '%</span></div></td>' +
-      '<td style="padding:6px 4px;text-align:center;font-size:11px;">' + fmtTime(l.averageWatchTimeSeconds) + '</td></tr>';
+    if (!courses[l.courseId]) courses[l.courseId] = { title: l.courseTitle, lessons: [] };
+    courses[l.courseId].lessons.push(l);
   });
-  return h + '</tbody></table>';
+  var h = '<div style="display:flex;align-items:center;padding:4px 0;font-size:11px;color:var(--text-muted);border-bottom:1px solid var(--border);">' +
+    '<div style="flex:2;">المحاضرة</div><div style="flex:1;text-align:center;">الفتح</div>' +
+    '<div style="flex:2;text-align:center;">الإكمال</div><div style="flex:1;text-align:center;">المشاهدة</div></div>';
+  Object.keys(courses).forEach(function(cid) {
+    var c = courses[cid];
+    h += '<div style="font-weight:700;font-size:13px;padding:8px 0 4px;color:var(--accent);border-bottom:1px solid var(--border);margin-top:10px;"><i class="fas fa-book" style="font-size:12px;"></i> ' + c.title + '</div>';
+    c.lessons.forEach(function(l) {
+      var barColor = l.completionRate >= 70 ? '#059669' : l.completionRate >= 40 ? '#d97706' : '#dc2626';
+      h += '<div style="display:flex;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;">' +
+        '<div style="flex:2;font-weight:600;">' + (l.lessonTitle || '—') + '</div>' +
+        '<div style="flex:1;text-align:center;color:var(--text-muted);">' + l.opens + '</div>' +
+        '<div style="flex:2;text-align:center;"><div style="display:flex;align-items:center;gap:4px;"><div style="flex:1;height:5px;background:var(--bg);border-radius:3px;overflow:hidden;"><div style="height:100%;width:' + l.completionRate + '%;background:' + barColor + ';border-radius:3px;"></div></div><span style="font-weight:700;font-size:10px;color:' + barColor + ';">' + l.completionRate + '%</span></div></div>' +
+        '<div style="flex:1;text-align:center;font-size:11px;color:var(--text-muted);">' + fmtTime(l.averageWatchTimeSeconds) + '</div></div>';
+    });
+  });
+  return h || '<div style="text-align:center;padding:20px;color:var(--text-muted);">لا توجد بيانات بعد</div>';
 }
 
 function renderLessonCard(l, icon) {
@@ -143,20 +166,31 @@ function renderLessonCard(l, icon) {
     '<div><span style="color:var(--text-muted);">الفتح</span> <strong>' + l.opens + '</strong></div></div></div>';
 }
 
-function renderQuizzesTable(data) {
+function renderExamAnalytics(data) {
   var h = '<table style="width:100%;font-size:12px;border-collapse:collapse;"><thead><tr style="background:var(--bg);">' +
-    '<th style="padding:6px 4px;text-align:right;">الاختبار</th><th style="padding:6px 4px;text-align:center;">المعدل</th>' +
-    '<th style="padding:6px 4px;text-align:center;">الأعلى</th><th style="padding:6px 4px;text-align:center;">الأدنى</th>' +
-    '<th style="padding:6px 4px;text-align:center;">النسبة</th></tr></thead><tbody>';
-  data.forEach(function(q) {
+    '<th style="padding:6px 4px;text-align:right;">الاختبار</th>' +
+    '<th style="padding:6px 4px;text-align:center;">الطلاب</th>' +
+    '<th style="padding:6px 4px;text-align:center;">متوسط الدرجات</th>' +
+    '<th style="padding:6px 4px;text-align:center;">النجاح</th>' +
+    '<th style="padding:6px 4px;text-align:center;">متوسط المحاولات</th></tr></thead><tbody>';
+  data.forEach(function(e) {
+    var barColor = e.passRate >= 70 ? '#059669' : e.passRate >= 40 ? '#d97706' : '#dc2626';
+    var avgColor = e.averageScore >= 70 ? '#059669' : e.averageScore >= 40 ? '#d97706' : '#dc2626';
     h += '<tr style="border-bottom:1px solid var(--border);">' +
-      '<td style="padding:6px 4px;font-weight:600;">' + (q.quizTitle || q.courseTitle) + '</td>' +
-      '<td style="padding:6px 4px;text-align:center;">' + q.averageScore + '%</td>' +
-      '<td style="padding:6px 4px;text-align:center;color:#059669;font-weight:600;">' + q.highestScore + '%</td>' +
-      '<td style="padding:6px 4px;text-align:center;color:#dc2626;">' + q.lowestScore + '%</td>' +
-      '<td style="padding:6px 4px;text-align:center;">' + q.passRate + '% (' + q.attempts + ')</td></tr>';
+      '<td style="padding:6px 4px;font-weight:600;font-size:12px;">' + (e.examTitle || '—') + '</td>' +
+      '<td style="padding:6px 4px;text-align:center;">' + e.students + '</td>' +
+      '<td style="padding:6px 4px;text-align:center;font-weight:700;color:' + avgColor + ';">' + e.averageScore + '%</td>' +
+      '<td style="padding:6px 4px;text-align:center;"><div style="display:flex;align-items:center;gap:4px;"><div style="flex:1;height:5px;background:var(--bg);border-radius:3px;overflow:hidden;"><div style="height:100%;width:' + e.passRate + '%;background:' + barColor + ';border-radius:3px;"></div></div><span style="font-weight:700;font-size:10px;color:' + barColor + ';">' + e.passRate + '%</span></div></td>' +
+      '<td style="padding:6px 4px;text-align:center;font-size:11px;">' + e.averageAttempts + '</td></tr>';
   });
   return h + '</tbody></table>';
+}
+
+function renderExamCard(e, icon) {
+  return '<div style="font-size:13px;">' +
+    '<div style="font-size:18px;margin-bottom:4px;">' + icon + '</div>' +
+    '<div style="font-weight:700;font-size:12px;margin-bottom:2px;">' + (e.examTitle || '—') + '</div>' +
+    '<div style="font-size:11px;color:var(--text-muted);">المعدل: <strong>' + e.averageScore + '%</strong> | الطلاب: <strong>' + e.students + '</strong></div></div>';
 }
 </script>
 <%- include('../partials/footer') %>
