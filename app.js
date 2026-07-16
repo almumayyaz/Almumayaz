@@ -4257,14 +4257,30 @@ app.get('/api/admin/test-send-raw-fcm', requireAdmin, async (req, res) => {
   }
 });
 
-app.post('/api/admin/clear-all-fcm', requireAdmin, async (req, res) => {
-  try {
+function clearAllFcm() {
+  return (async () => {
     const users = await readData('users');
     let cleared = 0;
     users.forEach(function(u) {
       if (u.fcmToken) { u.fcmToken = ''; u.fcmTokenSavedAt = ''; cleared++; }
     });
     await writeData('users', users);
+    return cleared;
+  })();
+}
+
+app.post('/api/admin/clear-all-fcm', requireAdmin, async (req, res) => {
+  try {
+    const cleared = await clearAllFcm();
+    res.json({ success: true, cleared: cleared });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/admin/clear-all-fcm', requireAdmin, async (req, res) => {
+  try {
+    const cleared = await clearAllFcm();
     res.json({ success: true, cleared: cleared });
   } catch (e) {
     res.status(500).json({ error: e.message });
