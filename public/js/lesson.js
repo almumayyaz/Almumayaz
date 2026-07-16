@@ -53,27 +53,15 @@
             savedSecond = resumePos;
             saveLocalProgress(resumePos, pct, false);
             players.forEach(function(p) {
-              // Try to seek immediately; retry if video hasn't loaded enough data yet
-              var seekTo = function() {
-                try { p.currentTime = resumePos; } catch(e) {}
-                // Verify seek took effect; retry up to 10 times
-                var tries = 0;
-                var checkSeek = function() {
-                  tries++;
-                  try {
-                    if (Math.abs((p.currentTime || 0) - resumePos) > 1 && tries < 10) {
-                      p.currentTime = resumePos;
-                      setTimeout(checkSeek, 500);
-                    }
-                  } catch(e) {
-                    if (tries < 10) setTimeout(checkSeek, 500);
-                  }
-                };
-                setTimeout(checkSeek, 300);
-              };
-              var onCanPlay = function() { seekTo(); p.off ? p.off('canplay', onCanPlay) : null; };
-              if (p.on) p.on('canplay', onCanPlay);
-              seekTo();
+              // Seek to resume position when the video can play (or immediately)
+              function doSeek() {
+                try { p.currentTime = resumePos; } catch(e) {
+                  // Retry once after a short delay
+                  setTimeout(function() { try { p.currentTime = resumePos; } catch(e2) {} }, 1000);
+                }
+              }
+              if (p.on) p.on('canplay', doSeek);
+              doSeek();
               var notice = document.createElement('div');
               notice.style.cssText = 'position:absolute;top:18%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.7);color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;z-index:20;pointer-events:none;text-align:center;animation:fadeOut 3s ease forwards;';
               notice.textContent = 'استكمال من ' + Math.floor(resumePos / 60) + ':' + String(Math.floor(resumePos % 60)).padStart(2, '0');
@@ -184,7 +172,9 @@
       player.on('timeupdate', function () {
         var ct = player.currentTime || 0;
         var dur = player.duration || 1;
-        var pct = Math.min(Math.round((ct / dur) * 100), 100);
+        // Guard: if duration is not yet known (NaN, 0, 1) skip auto-complete to prevent false completion
+        var validDur = dur > 1 && isFinite(dur);
+        var pct = validDur ? Math.min(Math.round((ct / dur) * 100), 100) : 0;
         if (pct >= 95 && !autoCompleteSent) {
           autoCompleteSent = true;
           saveLocalProgress(0, 100, true);
@@ -268,6 +258,8 @@
       saveLocalProgress(Math.floor(ct), pct, false);
       if (!isGuest && ct > 0) {
         navigator.sendBeacon('/api/analytics/video/heartbeat', JSON.stringify({ courseId: courseId, lessonId: lessonId, position: Math.floor(ct), duration: Math.floor(dur), watchedSeconds: 0, forceComplete: false }));
+        // Also save the watch position so resume works even if the tab was closed quickly
+        navigator.sendBeacon('/api/student/progress', JSON.stringify({ courseId: courseId, lessonId: lessonId, completed: false, percentage: pct, position: Math.floor(ct) }));
       }
     });
   });
