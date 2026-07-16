@@ -116,7 +116,8 @@
     hbLastPos = Math.floor(p.currentTime || 0);
     hbTimer = setInterval(function() {
       var pos = Math.floor(p.currentTime || 0);
-      if (pos !== hbLastPos) {
+      var watched = pos - hbLastPos;
+      if (watched > 0) {
         hbLastPos = pos;
         fetch('/api/analytics/video/heartbeat', {
           method: 'POST',
@@ -124,7 +125,7 @@
           body: JSON.stringify({
             courseId: courseId, lessonId: lessonId,
             position: pos, duration: Math.floor(p.duration || 1),
-            watchedSeconds: 0, forceComplete: false
+            watchedSeconds: watched, forceComplete: false
           })
         });
       }
@@ -194,12 +195,14 @@
         loadPosition();
       });
 
-      // ── Timeupdate: check completion + save every 5s ──
+      // ── Timeupdate: update UI immediately + save every 5s ──
       player.on('timeupdate', function() {
         var ct = player.currentTime || 0;
         var dur = player.duration;
         var valid = dur > 1 && isFinite(dur);
         var pct = valid ? Math.min(Math.round((ct / dur) * 100), 100) : 0;
+
+        updateUI(pct, false);
 
         if (pct >= 95 && !completedSent && valid) {
           completeLesson();
@@ -221,6 +224,8 @@
         var dur = player.duration;
         var valid = dur > 1 && isFinite(dur);
         var pct = valid ? Math.min(Math.round((ct / dur) * 100), 100) : 0;
+
+        updateUI(pct, false);
 
         if (pct >= 95 && !completedSent && valid) {
           completeLesson();

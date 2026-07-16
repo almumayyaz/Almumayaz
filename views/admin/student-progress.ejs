@@ -57,7 +57,7 @@ document.getElementById('searchInput').addEventListener('keydown', function(e) {
 
   fetch('/api/admin/analytics/v2/student/' + sid).then(function(r) { return r.json(); }).then(function(d) {
     if (d.error || d.success === false) { container.innerHTML = '<div style="color:#dc2626;padding:20px;text-align:center;">' + (d.error || 'خطأ') + '</div>'; return; }
-    var s = d.student, sm = d.analyticsSummary || {}, cp = d.courseProgress || [], qr = d.quizResults || [], ra = d.recentActivity || [];
+    var s = d.student, sm = d.analyticsSummary || {}, cp = d.courseProgress || [], qr = d.quizResults || [], ra = d.recentActivity || [], ld = d.lessonDetails || [];
     // Compute total watch seconds from analytics + fallback to student.progress
     var totalWatchSecs = sm.totalWatchTime || 0;
     if (!totalWatchSecs && cp && cp.length) {
@@ -99,6 +99,31 @@ document.getElementById('searchInput').addEventListener('keydown', function(e) {
         '<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;"><strong>' + (c.courseTitle || '') + '</strong><span>' + (c.completedLessons || 0) + '/' + (c.totalLessons || 0) + '</span></div>' +
         '<div style="height:6px;background:var(--bg);border-radius:3px;overflow:hidden;"><div style="height:100%;width:' + (c.completionPercent || 0) + '%;background:linear-gradient(135deg,var(--accent),#4338ca);border-radius:3px;transition:width 0.3s;"></div></div></div>';
     });
+    html += '</div>';
+
+    // Per-lesson watch time
+    html += '<div style="background:var(--card);border-radius:var(--radius-lg);padding:16px;border:1px solid var(--border);margin-bottom:16px;">' +
+      '<h3 style="font-size:14px;margin-bottom:12px;"><i class="fas fa-clock" style="color:var(--accent);"></i> وقت المشاهدة لكل درس</h3>';
+    if (ld.length) {
+      var grouped = {};
+      ld.forEach(function(l) {
+        if (!grouped[l.courseTitle]) grouped[l.courseTitle] = [];
+        grouped[l.courseTitle].push(l);
+      });
+      Object.keys(grouped).forEach(function(ct) {
+        html += '<div style="margin-bottom:10px;"><strong style="font-size:13px;">' + ct + '</strong></div>';
+        grouped[ct].forEach(function(l) {
+          var m = Math.floor((l.watchTime || 0) / 60);
+          var s = (l.watchTime || 0) % 60;
+          var statusColor = l.status === 'completed' ? '#059669' : (l.status === 'watching' ? '#d97706' : 'var(--text-muted)');
+          var statusText = l.status === 'completed' ? 'مكتمل' : (l.status === 'watching' ? 'يشاهد' : 'لم يبدأ');
+          html += '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px;">' +
+            '<span style="flex:1;">' + (l.lessonTitle || '') + '</span>' +
+            '<span style="font-weight:600;direction:ltr;text-align:left;">' + m + ':' + String(s).padStart(2, '0') + '</span>' +
+            '<span style="font-size:11px;padding:1px 8px;border-radius:4px;background:' + statusColor + '20;color:' + statusColor + ';font-weight:600;">' + statusText + '</span></div>';
+        });
+      });
+    } else { html += '<div style="text-align:center;padding:12px;color:var(--text-muted);font-size:13px;">لم يشاهد أي درس بعد</div>'; }
     html += '</div>';
 
     // Quiz results

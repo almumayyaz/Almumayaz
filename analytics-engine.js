@@ -593,7 +593,7 @@ async function getAdminStudentDetail(studentId) {
       completionDate: lp.completionDate || ''
     });
   });
-  lessonDetails.sort((a, b) => (b.completionDate || '') > (a.completionDate || '') ? 1 : -1);
+  lessonDetails.sort((a, b) => (a.courseId + '_' + a.lessonId) > (b.courseId + '_' + b.lessonId) ? 1 : -1);
   // Compute total watch seconds from both analytics and user progress as a fallback
   const userProgress = (u && u.progress) || {};
   let progressWatchSecs = 0;
