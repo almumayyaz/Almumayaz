@@ -682,6 +682,10 @@ async function deleteAllAnalytics() {
   if (fbRemove) {
     await Promise.all(uids.map(uid => fbRemove('studentAnalytics/' + uid).catch(() => {})));
   }
+  // Force-clear the whole node regardless of child-removal edge cases
+  if (writeData) {
+    await writeData('studentAnalytics', {});
+  }
   // also drop any backups we manage
   if (fbRemove) {
     try { await fbRemove('analyticsBackups'); } catch (e) {}
