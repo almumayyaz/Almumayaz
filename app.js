@@ -2092,8 +2092,10 @@ app.post('/api/analytics/video/heartbeat', requireAuth, async (req, res) => {
         const dur = Number(duration || 1) || 1;
         const pct = Math.min(100, Math.round((Number(position || 0) / dur) * 100));
         if (!users[idx].progress) users[idx].progress = {};
-        if (!users[idx].progress[courseId]) users[idx].progress[courseId] = { completedLessons: [], percentage: 0 };
+        if (!users[idx].progress[courseId]) users[idx].progress[courseId] = { completedLessons: [], percentage: 0, watchTime: 0 };
         users[idx].progress[courseId].percentage = pct;
+        // Sync total watch seconds so the teacher sees actual watch minutes
+        users[idx].progress[courseId].watchTime = (users[idx].progress[courseId].watchTime || 0) + (Number(watchedSeconds || 0));
         if (forceComplete) {
           const cl = users[idx].progress[courseId].completedLessons;
           if (!cl.includes(lessonId)) cl.push(lessonId);

@@ -591,9 +591,16 @@ async function getAdminStudentDetail(studentId) {
     });
   });
   lessonDetails.sort((a, b) => (b.completionDate || '') > (a.completionDate || '') ? 1 : -1);
+  // Compute total watch seconds from both analytics and user progress as a fallback
+  const userProgress = (u && u.progress) || {};
+  let progressWatchSecs = 0;
+  Object.keys(userProgress).forEach(function(cid) {
+    progressWatchSecs += (userProgress[cid].watchTime || 0);
+  });
+  const totalWatchSeconds = Math.max(a.summary.totalWatchTime || 0, progressWatchSecs);
   return {
-    student: { ...(u || {}), profile: a.profile, streak: a.streak },
-    analyticsSummary: a.summary,
+    student: { ...(u || {}), profile: a.profile, streak: a.streak, totalWatchSeconds },
+    analyticsSummary: { ...a.summary, totalWatchTime: totalWatchSeconds },
     courseProgress: dashboard.courseProgress,
     quizResults: dashboard.quizResults,
     recentActivity: dashboard.recentActivity,

@@ -32,20 +32,29 @@ self.addEventListener('activate', function(e) {
   );
 });
 
-firebase.messaging().onBackgroundMessage(function(payload) {
-  var title = payload.data?.title || payload.notification?.title || 'المُميز';
-  var body = payload.data?.body || payload.notification?.body || '';
-  var icon = payload.notification?.icon || '/icon.png';
-  var clickUrl = payload.data?.url || '/';
-  self.registration.showNotification(title, {
-    body: body,
-    icon: icon,
-    badge: '/icon.png',
-    data: { url: clickUrl },
-    vibrate: [200, 100, 200],
-    requireInteraction: true,
-    tag: 'lughati-notif'
-  });
+// Raw push event listener — handles background push directly (more reliable than Firebase onBackgroundMessage)
+self.addEventListener('push', function(event) {
+  var title = 'المُميز', body = '', clickUrl = '/';
+  try {
+    if (event.data) {
+      var payload = event.data.json();
+      var d = payload && payload.data ? payload.data : payload;
+      title = d.title || d.notificationTitle || 'المُميز';
+      body = d.body || d.notificationBody || '';
+      clickUrl = d.url || '/';
+    }
+  } catch (e) {}
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: body,
+      icon: '/icon.png',
+      badge: '/icon.png',
+      data: { url: clickUrl },
+      vibrate: [200, 100, 200],
+      requireInteraction: true,
+      tag: 'lughati-notif'
+    })
+  );
 });
 
 self.addEventListener('notificationclick', function(event) {

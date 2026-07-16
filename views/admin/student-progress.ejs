@@ -58,8 +58,14 @@ document.getElementById('searchInput').addEventListener('keydown', function(e) {
   fetch('/api/admin/analytics/v2/student/' + sid).then(function(r) { return r.json(); }).then(function(d) {
     if (d.error || d.success === false) { container.innerHTML = '<div style="color:#dc2626;padding:20px;text-align:center;">' + (d.error || 'خطأ') + '</div>'; return; }
     var s = d.student, sm = d.analyticsSummary || {}, cp = d.courseProgress || [], qr = d.quizResults || [], ra = d.recentActivity || [];
+    // Compute total watch seconds from analytics + fallback to student.progress
+    var totalWatchSecs = sm.totalWatchTime || 0;
+    if (!totalWatchSecs && cp && cp.length) {
+      totalWatchSecs = cp.reduce(function(sum, c) { return sum + (c.watchTime || 0); }, 0);
+    }
     var completedLessons = sm.completedLessons || 0;
-    var watchMin = Math.floor((sm.totalWatchTime || 0) / 60);
+    var watchMin = Math.floor(totalWatchSecs / 60);
+    var watchSec = totalWatchSecs % 60;
     var html = '';
 
     // Student info
@@ -81,7 +87,7 @@ document.getElementById('searchInput').addEventListener('keydown', function(e) {
       '<div><div style="font-size:24px;font-weight:800;color:var(--accent);">' + (sm.overallProgress || 0) + '%</div><div style="font-size:11px;color:var(--text-muted);">إنجاز</div></div>' +
       '<div><div style="font-size:24px;font-weight:800;color:#059669;">' + completedLessons + '</div><div style="font-size:11px;color:var(--text-muted);">مكتملة</div></div>' +
       '<div><div style="font-size:24px;font-weight:800;color:#dc2626;">' + sm.completedCourses + '</div><div style="font-size:11px;color:var(--text-muted);;">كورسات كاملة</div></div>' +
-      '<div><div style="font-size:24px;font-weight:800;">' + (watchMin >= 60 ? Math.round(watchMin/60) + 'س' : watchMin + 'د') + '</div><div style="font-size:11px;color:var(--text-muted);">وقت المشاهدة</div></div>' +
+      '<div><div style="font-size:24px;font-weight:800;">' + watchMin + ':' + String(watchSec).padStart(2, '0') + '</div><div style="font-size:11px;color:var(--text-muted);">وقت المشاهدة (د:ث)</div></div>' +
       '<div><div style="font-size:24px;font-weight:800;color:#7c3aed;">' + avgPct + '%</div><div style="font-size:11px;color:var(--text-muted);">متوسط الاختبارات</div></div>' +
       '<div><div style="font-size:24px;font-weight:800;color:#d97706;">' + actScore + '</div><div style="font-size:11px;color:var(--text-muted);">مستوى النشاط</div></div></div></div>';
 
