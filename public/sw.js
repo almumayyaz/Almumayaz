@@ -60,3 +60,18 @@ self.addEventListener('notificationclick', function(event) {
     })
   );
 });
+
+// Show a real OS notification while the page is open in the foreground
+self.addEventListener('message', function(event) {
+  var data = event.data || {};
+  if (data.type === 'SHOW_NOTIFICATION') {
+    self.registration.showNotification(data.title || 'المُميز', {
+      body: data.body || '',
+      icon: '/icon.png',
+      badge: '/icon.png',
+      data: { url: data.url || '/' },
+      tag: 'lughati-notif',
+      requireInteraction: false
+    });
+  }
+});

@@ -73,7 +73,14 @@
           messaging.onMessage(function(payload) {
             var title = payload.data?.title || payload.notification?.title || 'المُميز';
             var body = payload.data?.body || payload.notification?.body || '';
+            var url = payload.data?.url || '/';
             showToast('🔔 ' + title + (body ? ': ' + body : ''), '');
+            // Also show a real OS notification while the page is open (foreground)
+            if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+              navigator.serviceWorker.controller.postMessage({ type: 'SHOW_NOTIFICATION', title: title, body: body, url: url });
+            } else if ('Notification' in window && Notification.permission === 'granted') {
+              try { new Notification('🔔 ' + title, { body: body }); } catch (e) {}
+            }
           });
           // Use the already-registered /sw.js (the controlling SW) — do NOT register a second SW.
           navigator.serviceWorker.ready.then(function(reg) {
