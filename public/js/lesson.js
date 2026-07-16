@@ -18,6 +18,7 @@
   // ── State ──────────────────────────────────────────────────
   var completedSent = false;
   var lastSaveTime = 0;
+  var hbLastPos = -1;
 
   // ── Server: save current progress ──────────────────────────
   function savePosition(pct, completed, pos) {
@@ -27,6 +28,21 @@
       body: JSON.stringify({
         courseId: courseId, lessonId: lessonId,
         percentage: pct, completed: !!completed, position: pos || 0
+      })
+    });
+  }
+
+  // ── Server: send heartbeat with watched seconds since last heartbeat ──
+  function sendHeartbeat(p, dur, watched) {
+    if (isGuest || watched <= 0) return;
+    hbLastPos = Math.floor(p);
+    fetch('/api/analytics/video/heartbeat', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        courseId: courseId, lessonId: lessonId,
+        position: Math.floor(p), duration: Math.floor(dur || 1),
+        watchedSeconds: watched, forceComplete: false
       })
     });
   }
@@ -106,43 +122,13 @@
       : '<i class="fas fa-play-circle" style="color:var(--accent);font-size:12px;"></i> \u0642\u064A\u062F \u0627\u0644\u0645\u0634\u0627\u0647\u062F\u0629';
   }
 
-  // ── Heartbeat (teacher real-time) ──────────────────────────
-  var hbTimer = null;
-  var hbLastPos = 0;
-
-  function startHeartbeat(p) {
-    if (isGuest) return;
-    stopHeartbeat();
-    hbLastPos = Math.floor(p.currentTime || 0);
-    hbTimer = setInterval(function() {
-      var pos = Math.floor(p.currentTime || 0);
-      var watched = pos - hbLastPos;
-      if (watched > 0) {
-        hbLastPos = pos;
-        fetch('/api/analytics/video/heartbeat', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({
-            courseId: courseId, lessonId: lessonId,
-            position: pos, duration: Math.floor(p.duration || 1),
-            watchedSeconds: watched, forceComplete: false
-          })
-        });
-      }
-    }, 15000);
-  }
-
-  function stopHeartbeat() {
-    if (hbTimer) { clearInterval(hbTimer); hbTimer = null; }
-  }
-
   // ── beforeunload: last-chance save ─────────────────────────
   window.addEventListener('beforeunload', function() {
-    stopHeartbeat();
     players.forEach(function(p) {
       var ct = p.currentTime || 0;
       var pos = Math.floor(ct);
       if (pos < 1) return;
+      var watched = hbLastPos >= 0 ? pos - hbLastPos : 0;
       saveLocal({ position: pos });
       navigator.sendBeacon('/api/student/progress', JSON.stringify({
         courseId: courseId, lessonId: lessonId,
@@ -150,7 +136,7 @@
       }));
       navigator.sendBeacon('/api/analytics/video/heartbeat', JSON.stringify({
         courseId: courseId, lessonId: lessonId,
-        position: pos, duration: 0, watchedSeconds: 0, forceComplete: false
+        position: pos, duration: 0, watchedSeconds: Math.max(0, watched), forceComplete: false
       }));
     });
   });
@@ -192,6 +178,7 @@
       // ── Ready: load saved position ──
       player.on('ready', function() {
         updateUI(0, false);
+        hbLastPos = Math.floor(player.currentTime || 0);
         loadPosition();
       });
 
@@ -216,6 +203,14 @@
         var pos = Math.floor(ct);
         savePosition(pct, false, pos);
         saveLocal({ position: pos, percentage: pct });
+
+        // Send heartbeat with watched seconds since last heartbeat
+        var watched = hbLastPos >= 0 ? pos - hbLastPos : 0;
+        if (watched > 0) {
+          sendHeartbeat(ct, dur, watched);
+        } else if (hbLastPos < 0) {
+          hbLastPos = pos;
+        }
       });
 
       // ── Pause: save immediately ──
@@ -234,15 +229,15 @@
         var pos = Math.floor(ct);
         savePosition(pct, false, pos);
         saveLocal({ position: pos, percentage: pct });
+
+        // Heartbeat on pause
+        var watched = hbLastPos >= 0 ? pos - hbLastPos : 0;
+        if (watched > 0) { sendHeartbeat(ct, dur, watched); }
+        hbLastPos = pos;
       });
 
       // ── Ended: mark complete ──
       player.on('ended', function() { completeLesson(); });
-
-      // ── Heartbeat start/stop ──
-      player.on('play', function() { startHeartbeat(player); });
-      player.on('pause', stopHeartbeat);
-      player.on('ended', stopHeartbeat);
 
       // ── YouTube overlay ──
       (function setupOverlay(container, player) {

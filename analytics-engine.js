@@ -409,11 +409,7 @@ async function getStudentDashboardData(uid) {
   };
 }
 
-// Stage 12: the admin dashboard aggregates every student x every lesson, which is
-// expensive. Cache the computed result for 60s so repeated opens don't recompute it.
-// The data-layer caches for `users`/`courses` already absorb the underlying reads.
-let _adminAnalyticsCache = { value: null, expires: 0 };
-const ADMIN_ANALYTICS_TTL_MS = 60000;
+// Stage 12: the admin dashboard aggregates every student x every lesson.
 
 async function computeAdminAnalytics() {
   const users = await readData('users');
@@ -566,13 +562,7 @@ async function computeAdminAnalytics() {
 }
 
 async function getAdminAnalytics() {
-  const t = Date.now();
-  if (_adminAnalyticsCache.value && t < _adminAnalyticsCache.expires) {
-    return _adminAnalyticsCache.value;
-  }
-  const result = await computeAdminAnalytics();
-  _adminAnalyticsCache = { value: result, expires: t + ADMIN_ANALYTICS_TTL_MS };
-  return result;
+  return await computeAdminAnalytics();
 }
 
 async function getAdminStudentDetail(studentId) {
