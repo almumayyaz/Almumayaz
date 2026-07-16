@@ -983,7 +983,8 @@ app.get('/student/course/:id', requireStudentOrGuest, async (req, res) => {
   if (!isGuest && user.uid) {
     try {
       const a = await analytics.getAnalytics(user.uid);
-      const computed = analytics.computeLessonStatuses(user.uid, course, a.lessonProgress || {}, a.courseProgress || {});
+      const userCompleted = user.progress && user.progress[course.id] && user.progress[course.id].completedLessons;
+      const computed = analytics.computeLessonStatuses(user.uid, course, a.lessonProgress || {}, a.courseProgress || {}, userCompleted);
       lessonStatuses = computed.lessonStatuses;
     } catch(e) {}
   }
@@ -1017,7 +1018,8 @@ app.get('/student/lesson/:courseId/:lessonId', requireStudentOrGuest, async (req
   if (!isGuest && user.uid) {
     try {
       const a = await analytics.getAnalytics(user.uid);
-      const computed = analytics.computeLessonStatuses(user.uid, course, a.lessonProgress || {}, a.courseProgress || {});
+      const userCompleted = user.progress && user.progress[course.id] && user.progress[course.id].completedLessons;
+      const computed = analytics.computeLessonStatuses(user.uid, course, a.lessonProgress || {}, a.courseProgress || {}, userCompleted);
       lessonStatuses = computed.lessonStatuses;
       const thisLesson = lessonStatuses.find(s => s.lessonId === lesson.id);
       if (thisLesson && !thisLesson.isUnlocked && !isFree) {

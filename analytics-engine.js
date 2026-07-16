@@ -338,14 +338,16 @@ async function trackQuizSubmit(uid, cid, qid, quizTitle, score, total, correct, 
   return { attemptNumber: at.attemptNumber, percentage: pct };
 }
 
-function computeLessonStatuses(uid, course, lessonProgress, courseProgress) {
+function computeLessonStatuses(uid, course, lessonProgress, courseProgress, completedFromUser) {
+  const userCompleted = completedFromUser || [];
   const lessons = (course.lessons || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0));
   const statuses = [];
   lessons.forEach((l, i) => {
     const lk = course.id + '_' + l.id;
     const lp = (lessonProgress || {})[lk] || {};
-    const isCompleted = lp.status === 'completed';
-    const isWatching = lp.status === 'watching';
+    const inUser = userCompleted.indexOf(l.id) !== -1;
+    const isCompleted = lp.status === 'completed' || inUser;
+    const isWatching = !isCompleted && lp.status === 'watching';
     let isUnlocked;
     if (i === 0) {
       isUnlocked = true;
@@ -353,7 +355,8 @@ function computeLessonStatuses(uid, course, lessonProgress, courseProgress) {
       const prevLesson = lessons[i - 1];
       const prevLk = course.id + '_' + prevLesson.id;
       const prevLp = (lessonProgress || {})[prevLk] || {};
-      isUnlocked = prevLp.status === 'completed';
+      const prevInUser = userCompleted.indexOf(prevLesson.id) !== -1;
+      isUnlocked = prevLp.status === 'completed' || prevInUser;
     }
     statuses.push({
       lessonId: l.id, title: l.title, order: l.order || i,
