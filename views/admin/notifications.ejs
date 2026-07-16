@@ -1,0 +1,56 @@
+<%- include('../partials/header', { title: title, navPageTitle: 'مركز الإشعارات', bodyClass: 'admin-body' }) %>
+<%- include('../partials/admin-sidebar') %>
+<main class="main-content">
+  <div class="page-header">
+    <div>
+      <h1 style="font-size:20px;">مركز الإشعارات</h1>
+      <p>الرسائل والإشعارات الواردة</p>
+    </div>
+  </div>
+
+  <% if (!notifications || notifications.length === 0) { %>
+  <div style="background:var(--card);border-radius:var(--radius-lg);padding:40px 24px;box-shadow:var(--shadow);border:1px solid var(--border);text-align:center;">
+    <i class="fas fa-bell-slash" style="color:var(--text-muted);font-size:40px;"></i>
+    <div style="font-size:14px;color:var(--text-light);margin-top:12px;">لا توجد إشعارات حالياً</div>
+  </div>
+  <% } else { %>
+  <div style="display:flex;flex-direction:column;gap:12px;">
+    <% notifications.forEach(function(n) { %>
+    <div class="notif-card" data-id="<%= n.id %>" style="background:var(--card);border-radius:var(--radius-lg);padding:16px 18px;box-shadow:var(--shadow);border:1px solid var(--border);border-right:3px solid var(--accent);">
+      <div style="display:flex;align-items:flex-start;gap:8px;">
+        <i class="fas fa-envelope-open-text" style="color:var(--accent);font-size:16px;margin-top:2px;"></i>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:700;font-size:15px;color:var(--text);"><%= n.title %></div>
+          <% if (n.body) { %><div style="font-size:13px;color:var(--text-light);line-height:1.7;margin-top:4px;"><%= n.body %></div><% } %>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:8px;"><%= new Date(n.sentAt).toLocaleString('ar-EG') %></div>
+        </div>
+        <button onclick="dismissNotif('<%= n.id %>', this)" title="حذف الإشعار" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:15px;padding:4px 6px;border-radius:8px;"><i class="fas fa-trash-alt"></i></button>
+      </div>
+    </div>
+    <% }); %>
+  </div>
+  <% } %>
+
+  <a href="/admin" style="display:inline-flex;align-items:center;gap:8px;margin-top:20px;font-size:13px;font-weight:600;color:var(--accent);">
+    <i class="fas fa-arrow-right"></i> العودة للوحة التحكم
+  </a>
+</main>
+<script>
+function dismissNotif(id, btn){
+  if (!confirm('هل تريد حذف هذا الإشعار؟')) return;
+  fetch('/admin/notifications/dismiss', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: id })
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if (d.ok) {
+      var card = btn.closest('.notif-card');
+      if (card) card.remove();
+      if (document.querySelectorAll('.notif-card').length === 0) {
+        location.reload();
+      }
+    } else { alert('تعذّر حذف الإشعار'); }
+  }).catch(function(){ alert('تعذّر حذف الإشعار'); });
+}
+</script>
+<%- include('../partials/footer') %>

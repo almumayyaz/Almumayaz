@@ -1912,6 +1912,20 @@ app.get('/api/student/chat/messages', requireStudent, async (req, res) => {
   } catch (e) { res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' }); }
 });
 
+async function saveNotification(target, targetValue, title, body, url) {
+  try {
+    const notifications = await readData('notifications') || [];
+    notifications.push({
+      id: 'notif-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+      title, body, target, targetValue, url: url || '/',
+      sentAt: new Date().toISOString(),
+      recipientCount: 1,
+      source: 'chat'
+    });
+    await writeData('notifications', notifications);
+  } catch (e) { console.error('saveNotification error:', e.message); }
+}
+
 app.post('/api/student/chat/send', requireStudent, async (req, res) => {
   try {
     const cid = chatId(req);
@@ -1919,15 +1933,24 @@ app.post('/api/student/chat/send', requireStudent, async (req, res) => {
     if (!text && !image) return res.status(400).json({ error: 'لا يمكن إرسال رسالة فارغة' });
     const msg = { senderId: senderId(req), senderName: req.session.user.name || 'زائر', timestamp: Date.now(), read: false, text: text || '', image: image || '' };
     const key = await fbPush('chats/' + cid + '/messages', msg);
-    // Send push to admin
+    const studentId = req.session.user.id || (req.session.guestChatId || '');
+    const preview = text ? (text.length > 80 ? text.slice(0,80) + '...' : text) : '📷 صورة';
+    // Send push to admin + store notification in DB
     const users = await readData('users');
     const adminUser = users.find(u => u.role === 'admin' && u.fcmToken);
     if (adminUser) {
       try {
-        const m = { token: adminUser.fcmToken, data: { title: 'رسالة جديدة من ' + (req.session.user.name || 'طالب'), body: text ? (text.length > 80 ? text.slice(0,80) + '...' : text) : '📷 صورة', url: '/admin/chat/' + encodeURIComponent(req.session.user.id || (req.session.guestChatId || '')) } };
+        const m = { token: adminUser.fcmToken, data: { title: 'رسالة جديدة من ' + (req.session.user.name || 'طالب'), body: preview, url: '/admin/chat/' + encodeURIComponent(studentId) } };
         await admin.messaging().send(m);
-      } catch(e) { console.error('Chat push error:', e.code || e.message); }
+      } catch(e) {
+        console.error('Chat push error:', e.code || e.message);
+        if (e.code === 'messaging/invalid-registration-token' || e.code === 'messaging/registration-token-not-registered') {
+          const idx = users.findIndex(u => u.id === adminUser.id);
+          if (idx !== -1) { users[idx].fcmToken = ''; await writeData('users', users); }
+        }
+      }
     }
+    await saveNotification('admin', adminUser ? adminUser.id : 'admin-1', 'رسالة جديدة من ' + (req.session.user.name || 'طالب'), preview, '/admin/chat/' + encodeURIComponent(studentId));
     res.json({ success: true, key: key, message: msg });
   } catch (e) { res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' }); }
 });
@@ -1943,13 +1966,18 @@ app.get('/api/admin/chat/:studentId/messages', requireAdmin, async (req, res) =>
 
 app.post('/api/admin/chat/:studentId/send', requireAdmin, async (req, res) => {
   try {
-    const chatId = 'student-' + req.params.studentId;
+    const rawId = req.params.studentId;
+    const studentId = rawId.indexOf('student-') === 0 ? rawId : ('student-' + rawId);
+    const chatId = studentId;
     const { text, image } = req.body;
     if (!text && !image) return res.status(400).json({ error: 'لا يمكن إرسال رسالة فارغة' });
     const msg = { senderId: 'teacher', senderName: 'محمد عفيفي', timestamp: Date.now(), read: false, text: text || '', image: image || '' };
     const key = await fbPush('chats/' + chatId + '/messages', msg);
+    const preview = text ? (text.length > 80 ? text.slice(0,80) + '...' : text) : '📷 صورة';
     // Send push to student
-    sendFCM(req.params.studentId, 'رسالة جديدة من الأستاذ محمد عفيفي 📩', text ? (text.length > 80 ? text.slice(0,80) + '...' : text) : '📷 صورة', '/student/chat');
+    await sendFCM(studentId, 'رسالة جديدة من الأستاذ محمد عفيفي 📩', preview, '/student/chat');
+    // Store notification in DB so the student sees it in their notification center
+    await saveNotification('student', studentId, 'رسالة جديدة من الأستاذ محمد عفيفي 📩', preview, '/student/chat');
     res.json({ success: true, key: key, message: msg });
   } catch (e) { res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' }); }
 });
@@ -2775,6 +2803,34 @@ app.get('/admin/quotes', requireAdmin, async (req, res) => {
 
 app.get('/admin/send-notification', requireAdmin, (req, res) => {
   res.render('admin/send-notification', { title: 'إرسال إشعار - الإدارة' });
+});
+
+app.get('/admin/notifications', requireAdmin, async (req, res) => {
+  try {
+    const all = await readData('notifications') || [];
+    const u = req.session.user;
+    const dismissed = await readData('dismissed/' + u.id) || {};
+    const list = all.filter(function(n) {
+      if (n.target === 'admin') return true;
+      if (n.source === 'chat') return true;
+      return false;
+    }).filter(function(n) { return !dismissed[n.id]; }).sort(function(a, b) { return new Date(b.sentAt || 0) - new Date(a.sentAt || 0); });
+    res.render('admin/notifications', { notifications: list, title: 'مركز الإشعارات - الإدارة' });
+  } catch (e) {
+    res.render('admin/notifications', { notifications: [], title: 'مركز الإشعارات - الإدارة' });
+  }
+});
+
+app.post('/admin/notifications/dismiss', requireAdmin, async (req, res) => {
+  try {
+    const id = req.body && req.body.id;
+    if (!id) return res.status(400).json({ ok: false });
+    const u = req.session.user;
+    const dismissed = await readData('dismissed/' + u.id) || {};
+    dismissed[id] = true;
+    await writeData('dismissed/' + u.id, dismissed);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ ok: false }); }
 });
 
 app.get('/admin/live-sessions', requireAdmin, async (req, res) => {
