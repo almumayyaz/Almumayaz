@@ -2061,6 +2061,23 @@ app.post('/api/analytics/video/heartbeat', requireAuth, async (req, res) => {
     const { courseId, lessonId, position, duration, watchedSeconds, forceComplete } = req.body;
     const uid = req.session.user.uid;
     const result = await analytics.trackVideoHeartbeat(uid, courseId, lessonId, position || 0, duration || 1, watchedSeconds || 0, !!forceComplete);
+    // Keep student.progress in sync so the teacher view reflects real-time watch percentage
+    try {
+      const users = await readData('users');
+      const idx = users.findIndex(u => u.uid === uid || u.id === uid);
+      if (idx !== -1) {
+        const dur = Number(duration || 1) || 1;
+        const pct = Math.min(100, Math.round((Number(position || 0) / dur) * 100));
+        if (!users[idx].progress) users[idx].progress = {};
+        if (!users[idx].progress[courseId]) users[idx].progress[courseId] = { completedLessons: [], percentage: 0 };
+        users[idx].progress[courseId].percentage = pct;
+        if (forceComplete) {
+          const cl = users[idx].progress[courseId].completedLessons;
+          if (!cl.includes(lessonId)) cl.push(lessonId);
+        }
+        if (writeData) await writeData('users', users);
+      }
+    } catch (pe) { console.error('heartbeat progress sync error:', pe.message); }
     res.json({ success: true, ...result });
   } catch (e) {
     res.status(500).json({ error: e.message });

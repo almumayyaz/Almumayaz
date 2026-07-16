@@ -48,11 +48,12 @@ function searchStudent() {
 
 document.getElementById('searchInput').addEventListener('keydown', function(e) { if (e.key === 'Enter') searchStudent(); });
 
-function loadStudent(sid) {
+ function loadStudent(sid, silent) {
   currentStudentId = sid;
+  if (!silent) startProgressPolling();
   var container = document.getElementById('studentProgress');
   container.style.display = 'block';
-  container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">جاري التحميل...</div>';
+  if (!silent) container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">جاري التحميل...</div>';
 
   fetch('/api/admin/analytics/v2/student/' + sid).then(function(r) { return r.json(); }).then(function(d) {
     if (d.error || d.success === false) { container.innerHTML = '<div style="color:#dc2626;padding:20px;text-align:center;">' + (d.error || 'خطأ') + '</div>'; return; }
@@ -136,6 +137,18 @@ function loadStudent(sid) {
 
     container.innerHTML = html;
   }).catch(function(e) { container.innerHTML = '<div style="color:#dc2626;padding:20px;text-align:center;">خطأ في تحميل البيانات: ' + e.message + '</div>'; });
-}
+ }
+
+ var _progressPoll = null;
+ function startProgressPolling() {
+   if (_progressPoll) clearInterval(_progressPoll);
+   _progressPoll = setInterval(function() {
+     if (currentStudentId && document.getElementById('studentProgress') && document.getElementById('studentProgress').style.display !== 'none') {
+       loadStudent(currentStudentId, true);
+     }
+   }, 8000);
+ }
+ function stopProgressPolling() { if (_progressPoll) { clearInterval(_progressPoll); _progressPoll = null; } }
+
 </script>
 <%- include('../partials/footer') %>
