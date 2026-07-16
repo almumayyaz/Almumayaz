@@ -2036,13 +2036,13 @@ app.put('/api/admin/chat/:studentId/read', requireAdmin, async (req, res) => {
 
 app.post('/api/student/progress', requireAuth, async (req, res) => {
   try {
-    const { courseId, lessonId, completed, percentage } = req.body;
+    const { courseId, lessonId, completed, percentage, position } = req.body;
     const users = await readData('users');
     const idx = users.findIndex(u => u.id === req.session.user.id);
     if (idx === -1) return res.status(404).json({ error: 'المستخدم غير موجود' });
 
     if (!users[idx].progress) users[idx].progress = {};
-    if (!users[idx].progress[courseId]) users[idx].progress[courseId] = { completedLessons: [], percentage: 0 };
+    if (!users[idx].progress[courseId]) users[idx].progress[courseId] = { completedLessons: [], percentage: 0, position: 0 };
 
     if (completed) {
       if (!users[idx].progress[courseId].completedLessons.includes(lessonId)) {
@@ -2051,6 +2051,9 @@ app.post('/api/student/progress', requireAuth, async (req, res) => {
     }
     if (percentage !== undefined) {
       users[idx].progress[courseId].percentage = percentage;
+    }
+    if (position !== undefined && !completed) {
+      users[idx].progress[courseId].position = Math.max(0, Math.floor(Number(position) || 0));
     }
 
     await writeData('users', users);

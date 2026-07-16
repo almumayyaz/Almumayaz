@@ -1,6 +1,7 @@
 (function() {
   var players = [];
   var savedSecond = 0;
+  var lastServerPos = 0;
   var autoCompleteSent = false;
   var heartbeatInterval = null;
   var lastHeartbeatPosition = 0;
@@ -35,13 +36,13 @@
   }
 
   function loadServerProgress() {
-    fetch('/api/analytics/video/status?courseId=' + courseId + '&lessonId=' + lessonId)
+    fetch('/api/student/progress/' + encodeURIComponent(courseId))
       .then(function(r) { return r.json(); })
       .then(function(d) {
-        if (d.success) {
-          var pct = d.completionPercent || 0;
-          var completed = d.completed;
-          var resumePos = d.resumePosition || 0;
+        if (d.success && d.progress) {
+          var pct = d.progress.percentage || 0;
+          var completed = (d.progress.completedLessons || []).includes(lessonId);
+          var resumePos = d.progress.position || 0;
           updateUI(pct, completed);
           if (completed) {
             saveLocalProgress(undefined, pct, true);
@@ -67,11 +68,11 @@
       }).catch(function() { loadLocalProgress(); });
   }
 
-  function saveServerProgress(pct, completed) {
+  function saveServerProgress(pct, completed, pos) {
     fetch('/api/student/progress', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ courseId: courseId, lessonId: lessonId, completed: completed || false, percentage: pct })
+      body: JSON.stringify({ courseId: courseId, lessonId: lessonId, completed: completed || false, percentage: pct, position: (pos !== undefined ? pos : Math.floor(savedSecond || 0)) })
     }).then(function(r) { return r.json(); }).then(function(d) {
       if (d.success && completed) {
         updateUI(100, true);
@@ -166,7 +167,7 @@
         if (pct >= 95 && !autoCompleteSent) {
           autoCompleteSent = true;
           saveLocalProgress(0, 100, true);
-          saveServerProgress(100, true);
+          saveServerProgress(100, true, Math.floor(ct));
           updateUI(100, true);
           sendHeartbeat(ct, dur, true);
         }
@@ -174,6 +175,11 @@
           savedSecond = Math.floor(ct);
           saveLocalProgress(savedSecond, pct, false);
           updateUI(pct, false);
+        }
+        // Persist current position to server continuously (so resume works after refresh/close)
+        if (Math.floor(ct) !== Math.floor(lastServerPos)) {
+          lastServerPos = Math.floor(ct);
+          saveServerProgress(pct, false, Math.floor(ct));
         }
       });
 
@@ -185,12 +191,12 @@
         if (pct >= 95 && !autoCompleteSent) {
           autoCompleteSent = true;
           saveLocalProgress(0, 100, true);
-          saveServerProgress(100, true);
+          saveServerProgress(100, true, Math.floor(ct));
           updateUI(100, true);
           return;
         }
         saveLocalProgress(Math.floor(ct), pct, false);
-        saveServerProgress(pct, false);
+        saveServerProgress(pct, false, Math.floor(ct));
         if (Math.floor(ct) !== lastHeartbeatPosition) {
           sendHeartbeat(ct, dur, false);
           lastHeartbeatPosition = Math.floor(ct);
@@ -213,7 +219,7 @@
 
       player.on('ended', function () {
         saveLocalProgress(0, 100, true);
-        saveServerProgress(100, true);
+        saveServerProgress(100, true, Math.floor(player.currentTime || 0));
         updateUI(100, true);
       });
 
