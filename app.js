@@ -2049,6 +2049,8 @@ app.post('/api/student/progress', requireAuth, async (req, res) => {
 
     if (completed && !cp.completedLessons.includes(lessonId)) {
       cp.completedLessons.push(lessonId);
+      // Also update analytics so the next lesson unlocks
+      analytics.trackVideoHeartbeat(req.session.user.uid, courseId, lessonId, 9999, 10000, 0, true).catch(function(){});
     }
 
     if (percentage !== undefined) cp.percentage = percentage;
