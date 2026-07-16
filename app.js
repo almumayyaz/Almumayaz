@@ -358,6 +358,25 @@ app.use(async (req, res, next) => {
   res.locals.currentPath = req.path;
   res.locals.darkMode = req.session.darkMode || false;
   res.locals.isGuest = !!req.session.demoMode;
+  // Unread notification count for the badge (only for logged-in student/admin)
+  try {
+    const _u = req.session.user;
+    if (_u && (_u.role === 'student' || _u.role === 'admin')) {
+      const _all = await readData('notifications') || [];
+      const _dismissed = await readData('dismissed/' + _u.id) || {};
+      const _unread = _all.filter(function(n) {
+        if (n.target === 'all') return !_dismissed[n.id];
+        if (_u.role === 'admin') return (n.target === 'admin' || n.source === 'chat') && !_dismissed[n.id];
+        if (n.target === 'student' && n.targetValue === _u.id) return !_dismissed[n.id];
+        if (n.target === 'grade' && n.targetValue === _u.grade) return !_dismissed[n.id];
+        if (n.target === 'stage' && n.targetValue === _u.stage) return !_dismissed[n.id];
+        return false;
+      }).length;
+      res.locals.unreadCount = _unread;
+    } else {
+      res.locals.unreadCount = 0;
+    }
+  } catch (e) { res.locals.unreadCount = 0; }
   res.locals.firebaseConfig = {
     apiKey: stripBOM(process.env.FIREBASE_API_KEY || ''),
     authDomain: stripBOM(process.env.FIREBASE_AUTH_DOMAIN || ''),
@@ -1976,8 +1995,9 @@ app.post('/api/admin/chat/:studentId/send', requireAdmin, async (req, res) => {
     const preview = text ? (text.length > 80 ? text.slice(0,80) + '...' : text) : '📷 صورة';
     // Send push to student
     await sendFCM(studentId, 'رسالة جديدة من الأستاذ محمد عفيفي 📩', preview, '/student/chat');
-    // Store notification in DB so the student sees it in their notification center
-    await saveNotification('student', studentId, 'رسالة جديدة من الأستاذ محمد عفيفي 📩', preview, '/student/chat');
+    // Store notification in DB so the student sees it in their notification center.
+    // targetValue must match the student's session user.id (without the 'student-' prefix).
+    await saveNotification('student', req.params.studentId, 'رسالة جديدة من الأستاذ محمد عفيفي 📩', preview, '/student/chat');
     res.json({ success: true, key: key, message: msg });
   } catch (e) { res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' }); }
 });
