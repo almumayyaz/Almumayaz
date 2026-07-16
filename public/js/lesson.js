@@ -42,7 +42,8 @@
         if (d.success && d.progress) {
           var pct = d.progress.percentage || 0;
           var completed = (d.progress.completedLessons || []).includes(lessonId);
-          var resumePos = d.progress.position || 0;
+          // Prefer per-lesson position, fall back to course-level position
+          var resumePos = (d.progress.positions && d.progress.positions[lessonId]) || d.progress.position || 0;
           updateUI(pct, completed);
           if (completed) {
             saveLocalProgress(undefined, pct, true);

@@ -2053,6 +2053,9 @@ app.post('/api/student/progress', requireAuth, async (req, res) => {
       users[idx].progress[courseId].percentage = percentage;
     }
     if (position !== undefined && !completed) {
+      if (!users[idx].progress[courseId].positions) users[idx].progress[courseId].positions = {};
+      users[idx].progress[courseId].positions[lessonId] = Math.max(0, Math.floor(Number(position) || 0));
+      // Also keep course-level position for backward compatibility
       users[idx].progress[courseId].position = Math.max(0, Math.floor(Number(position) || 0));
     }
 
