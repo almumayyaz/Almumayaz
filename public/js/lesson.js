@@ -53,7 +53,27 @@
             savedSecond = resumePos;
             saveLocalProgress(resumePos, pct, false);
             players.forEach(function(p) {
-              try { p.currentTime = resumePos; } catch(e) {}
+              // Try to seek immediately; retry if video hasn't loaded enough data yet
+              var seekTo = function() {
+                try { p.currentTime = resumePos; } catch(e) {}
+                // Verify seek took effect; retry up to 10 times
+                var tries = 0;
+                var checkSeek = function() {
+                  tries++;
+                  try {
+                    if (Math.abs((p.currentTime || 0) - resumePos) > 1 && tries < 10) {
+                      p.currentTime = resumePos;
+                      setTimeout(checkSeek, 500);
+                    }
+                  } catch(e) {
+                    if (tries < 10) setTimeout(checkSeek, 500);
+                  }
+                };
+                setTimeout(checkSeek, 300);
+              };
+              var onCanPlay = function() { seekTo(); p.off ? p.off('canplay', onCanPlay) : null; };
+              if (p.on) p.on('canplay', onCanPlay);
+              seekTo();
               var notice = document.createElement('div');
               notice.style.cssText = 'position:absolute;top:18%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.7);color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;z-index:20;pointer-events:none;text-align:center;animation:fadeOut 3s ease forwards;';
               notice.textContent = 'استكمال من ' + Math.floor(resumePos / 60) + ':' + String(Math.floor(resumePos % 60)).padStart(2, '0');
