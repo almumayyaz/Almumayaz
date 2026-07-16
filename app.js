@@ -2041,27 +2041,25 @@ app.post('/api/student/progress', requireAuth, async (req, res) => {
     const idx = users.findIndex(u => u.id === req.session.user.id);
     if (idx === -1) return res.status(404).json({ error: 'المستخدم غير موجود' });
 
-    if (!users[idx].progress) users[idx].progress = {};
-    if (!users[idx].progress[courseId]) users[idx].progress[courseId] = { completedLessons: [], percentage: 0, position: 0 };
+    const p = users[idx];
+    if (!p.progress) p.progress = {};
+    if (!p.progress[courseId]) p.progress[courseId] = { completedLessons: [], percentage: 0, positions: {} };
 
-    if (completed) {
-      if (!users[idx].progress[courseId].completedLessons.includes(lessonId)) {
-        users[idx].progress[courseId].completedLessons.push(lessonId);
-      }
+    const cp = p.progress[courseId];
+
+    if (completed && !cp.completedLessons.includes(lessonId)) {
+      cp.completedLessons.push(lessonId);
     }
-    if (percentage !== undefined) {
-      users[idx].progress[courseId].percentage = percentage;
-    }
-    if (position !== undefined && !completed) {
-      if (!users[idx].progress[courseId].positions) users[idx].progress[courseId].positions = {};
-      users[idx].progress[courseId].positions[lessonId] = Math.max(0, Math.floor(Number(position) || 0));
-      // Also keep course-level position for backward compatibility
-      users[idx].progress[courseId].position = Math.max(0, Math.floor(Number(position) || 0));
+
+    if (percentage !== undefined) cp.percentage = percentage;
+
+    if (position !== undefined) {
+      cp.positions[lessonId] = Math.max(0, Math.floor(Number(position) || 0));
     }
 
     await writeData('users', users);
     req.session.user = sessionUser(users[idx]);
-    res.json({ success: true, progress: users[idx].progress[courseId] });
+    res.json({ success: true, progress: cp });
   } catch (e) {
     res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' });
   }

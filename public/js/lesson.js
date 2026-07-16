@@ -1,92 +1,95 @@
 (function() {
   var players = [];
-  var savedSecond = 0;
-  var lastServerPos = 0;
-  var autoCompleteSent = false;
-  var heartbeatInterval = null;
-  var lastHeartbeatPosition = 0;
+  var isGuest = self.isGuest;
+  var localKey = 'lughati-progress-' + courseId + '-' + lessonId;
 
-  function sendHeartbeat(pos, dur, forceComplete) {
-    if (isGuest) { return; }
-    var watchedSinceLast = Math.max(0, Math.floor(pos) - lastHeartbeatPosition);
-    if (watchedSinceLast < 1 && !forceComplete) { return; }
-    lastHeartbeatPosition = Math.floor(pos);
-    fetch('/api/analytics/video/heartbeat', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ courseId: courseId, lessonId: lessonId, position: Math.floor(pos || 0), duration: Math.floor(dur || 1), watchedSeconds: forceComplete ? 0 : watchedSinceLast, forceComplete: !!forceComplete })
-    }).then(function(r) { return r.json(); });
+  // ── Local Storage ──────────────────────────────────────────
+  function loadLocal() {
+    try { return JSON.parse(localStorage.getItem(localKey) || '{}'); } catch(e) { return {}; }
   }
-
-  var storageKey = 'lughati-progress-' + courseId + '-' + lessonId;
-  function loadLocalProgress() {
+  function saveLocal(data) {
     try {
-      var saved = JSON.parse(localStorage.getItem(storageKey) || '{}');
-      savedSecond = saved.lastSecond || 0;
-      return saved;
-    } catch(e) { return {}; }
-  }
-  function saveLocalProgress(lastSecond, pct, completed) {
-    try {
-      var data = JSON.parse(localStorage.getItem(storageKey) || '{}');
-      if (lastSecond !== undefined) data.lastSecond = lastSecond;
-      if (pct !== undefined) data.percentage = pct;
-      if (completed !== undefined) data.completed = completed;
-      localStorage.setItem(storageKey, JSON.stringify(data));
+      var cur = loadLocal();
+      Object.assign(cur, data);
+      localStorage.setItem(localKey, JSON.stringify(cur));
     } catch(e) {}
   }
 
-  function loadServerProgress() {
-    fetch('/api/student/progress/' + encodeURIComponent(courseId))
-      .then(function(r) { return r.json(); })
-      .then(function(d) {
-        if (d.success && d.progress) {
-          var pct = d.progress.percentage || 0;
-          var completed = (d.progress.completedLessons || []).includes(lessonId);
-          // Prefer per-lesson position, fall back to course-level position
-          var resumePos = (d.progress.positions && d.progress.positions[lessonId]) || d.progress.position || 0;
-          updateUI(pct, completed);
-          if (completed) {
-            saveLocalProgress(undefined, pct, true);
-            updateInfoBar(true);
-          }
-          if (resumePos > 1 && !completed) {
-            savedSecond = resumePos;
-            saveLocalProgress(resumePos, pct, false);
-            players.forEach(function(p) {
-              // Seek to resume position when the video can play (or immediately)
-              function doSeek() {
-                try { p.currentTime = resumePos; } catch(e) {
-                  // Retry once after a short delay
-                  setTimeout(function() { try { p.currentTime = resumePos; } catch(e2) {} }, 1000);
-                }
-              }
-              if (p.on) p.on('canplay', doSeek);
-              doSeek();
-              var notice = document.createElement('div');
-              notice.style.cssText = 'position:absolute;top:18%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.7);color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;z-index:20;pointer-events:none;text-align:center;animation:fadeOut 3s ease forwards;';
-              notice.textContent = 'استكمال من ' + Math.floor(resumePos / 60) + ':' + String(Math.floor(resumePos % 60)).padStart(2, '0');
-              var container = p.elements && p.elements.container;
-              if (container) { container.appendChild(notice); setTimeout(function () { notice.remove(); }, 3000); }
-            });
-          } else {
-            loadLocalProgress();
-          }
-        } else {
-          loadLocalProgress();
-        }
-      }).catch(function() { loadLocalProgress(); });
-  }
+  // ── State ──────────────────────────────────────────────────
+  var completedSent = false;
+  var lastSaveTime = 0;
 
-  function saveServerProgress(pct, completed, pos) {
+  // ── Server: save current progress ──────────────────────────
+  function savePosition(pct, completed, pos) {
     fetch('/api/student/progress', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ courseId: courseId, lessonId: lessonId, completed: completed || false, percentage: pct, position: (pos !== undefined ? pos : Math.floor(savedSecond || 0)) })
-    }).then(function(r) { return r.json(); }).then(function(d) {
-      if (d.success && completed) {
-        updateUI(100, true);
-      }
+      body: JSON.stringify({
+        courseId: courseId, lessonId: lessonId,
+        percentage: pct, completed: !!completed, position: pos || 0
+      })
     });
+  }
+
+  // ── Server: load saved position and resume ─────────────────
+  function loadPosition() {
+    fetch('/api/student/progress/' + encodeURIComponent(courseId))
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (!d.success || !d.progress) { tryLocal(); return; }
+        var pos = (d.progress.positions && d.progress.positions[lessonId]) || 0;
+        var isComplete = (d.progress.completedLessons || []).indexOf(lessonId) !== -1;
+        if (isComplete) { markComplete(); return; }
+        if (pos > 1) { resumeTo(pos); return; }
+        tryLocal();
+      })
+      .catch(function() { tryLocal(); });
+
+    function tryLocal() {
+      var data = loadLocal();
+      if (data && data.position > 1) resumeTo(data.position);
+    }
+  }
+
+  function resumeTo(pos) {
+    players.forEach(function(p) {
+      var done = false;
+      function seek() {
+        if (done) return; done = true;
+        try { p.currentTime = pos; } catch(e) {
+          setTimeout(function() { try { p.currentTime = pos; } catch(e2) {} }, 1000);
+        }
+      }
+      if (p.on) p.on('canplay', seek);
+      seek();
+      showResumeNotice(pos);
+    });
+  }
+
+  function showResumeNotice(pos) {
+    var m = Math.floor(pos / 60);
+    var s = Math.floor(pos % 60);
+    players.forEach(function(p) {
+      var el = document.createElement('div');
+      el.style.cssText = 'position:absolute;top:18%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.7);color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;z-index:20;pointer-events:none;text-align:center;animation:fadeOut 3s ease forwards;';
+      el.textContent = '\u0627\u0633\u062A\u0643\u0645\u0627\u0644 \u0645\u0646 ' + m + ':' + String(s).padStart(2, '0');
+      var c = p.elements && p.elements.container;
+      if (c) { c.appendChild(el); setTimeout(function() { el.remove(); }, 3000); }
+    });
+  }
+
+  function markComplete() {
+    completedSent = true;
+    saveLocal({ position: 0, percentage: 100, completed: true });
+    updateUI(100, true);
+  }
+
+  function completeLesson() {
+    if (completedSent) return;
+    completedSent = true;
+    saveLocal({ position: 0, percentage: 100, completed: true });
+    savePosition(100, true, 0);
+    updateUI(100, true);
   }
 
   function updateUI(pct, completed) {
@@ -94,23 +97,65 @@
     var label = document.getElementById('progressPct');
     if (bar) bar.style.width = pct + '%';
     if (label) label.textContent = pct + '%';
-    updateInfoBar(completed);
+    var ib = document.getElementById('lessonInfoBar');
+    if (ib) ib.style.display = 'flex';
+    var st = document.getElementById('watchStatus');
+    if (!st) return;
+    st.innerHTML = completed
+      ? '<i class="fas fa-check-circle" style="color:var(--success);font-size:12px;"></i> <span style="color:var(--success);">\u0645\u0643\u062A\u0645\u0644</span>'
+      : '<i class="fas fa-play-circle" style="color:var(--accent);font-size:12px;"></i> \u0642\u064A\u062F \u0627\u0644\u0645\u0634\u0627\u0647\u062F\u0629';
   }
 
-  function updateInfoBar(completed) {
-    var bar = document.getElementById('lessonInfoBar');
-    if (!bar) return;
-    bar.style.display = 'flex';
-    var status = document.getElementById('watchStatus');
-    if (!status) return;
-    if (completed) {
-      status.innerHTML = '<i class="fas fa-check-circle" style="color:var(--success);font-size:12px;"></i> <span style="color:var(--success);">مكتمل</span>';
-    } else {
-      status.innerHTML = '<i class="fas fa-play-circle" style="color:var(--accent);font-size:12px;"></i> قيد المشاهدة';
-    }
+  // ── Heartbeat (teacher real-time) ──────────────────────────
+  var hbTimer = null;
+  var hbLastPos = 0;
+
+  function startHeartbeat(p) {
+    if (isGuest) return;
+    stopHeartbeat();
+    hbLastPos = Math.floor(p.currentTime || 0);
+    hbTimer = setInterval(function() {
+      var pos = Math.floor(p.currentTime || 0);
+      if (pos !== hbLastPos) {
+        hbLastPos = pos;
+        fetch('/api/analytics/video/heartbeat', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            courseId: courseId, lessonId: lessonId,
+            position: pos, duration: Math.floor(p.duration || 1),
+            watchedSeconds: 0, forceComplete: false
+          })
+        });
+      }
+    }, 15000);
   }
 
-  document.addEventListener('keydown', function (e) {
+  function stopHeartbeat() {
+    if (hbTimer) { clearInterval(hbTimer); hbTimer = null; }
+  }
+
+  // ── beforeunload: last-chance save ─────────────────────────
+  window.addEventListener('beforeunload', function() {
+    stopHeartbeat();
+    players.forEach(function(p) {
+      var ct = p.currentTime || 0;
+      var pos = Math.floor(ct);
+      if (pos < 1) return;
+      saveLocal({ position: pos });
+      navigator.sendBeacon('/api/student/progress', JSON.stringify({
+        courseId: courseId, lessonId: lessonId,
+        completed: false, percentage: 0, position: pos
+      }));
+      navigator.sendBeacon('/api/analytics/video/heartbeat', JSON.stringify({
+        courseId: courseId, lessonId: lessonId,
+        position: pos, duration: 0, watchedSeconds: 0, forceComplete: false
+      }));
+    });
+  });
+
+  // ── Keyboard protection ────────────────────────────────────
+  document.addEventListener('keydown', function(e) {
     if (e.key === 'F12' || e.keyCode === 123) { e.preventDefault(); return; }
     if (e.ctrlKey || e.metaKey) {
       var k = (e.key || '').toLowerCase();
@@ -118,37 +163,17 @@
     }
   });
 
-  function embedFallback(container) {
-    var id = container.getAttribute('data-plyr-embed-id');
-    if (!id) return;
-    var src = 'https://www.youtube.com/embed/' + encodeURIComponent(id) + '?rel=0&modestbranding=1&iv_load_policy=3&controls=0';
-    container.innerHTML = '<iframe src="' + src + '" style="width:100%;aspect-ratio:16/9;border:0;border-radius:12px;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>';
-  }
-
-  function setupYoutubeOverlay(container, player) {
-    var wrapper = container.querySelector('.plyr__video-wrapper');
-    if (!wrapper) return;
-    wrapper.style.position = 'relative';
-    var topEl = document.createElement('div');
-    topEl.className = 'plyr-youtube-overlay plyr-youtube-overlay-top';
-    var botEl = document.createElement('div');
-    botEl.className = 'plyr-youtube-overlay plyr-youtube-overlay-bottom';
-    wrapper.appendChild(topEl);
-    wrapper.appendChild(botEl);
-    function show(){ topEl.classList.remove('plyr-youtube-overlay-hidden'); botEl.classList.remove('plyr-youtube-overlay-hidden'); }
-    function hide(){ topEl.classList.add('plyr-youtube-overlay-hidden'); botEl.classList.add('plyr-youtube-overlay-hidden'); }
-    player.on('ready', function(){ if (player.playing) hide(); else show(); });
-    player.on('playing', hide);
-    player.on('pause', show);
-    player.on('ended', show);
-  }
-
+  // ── Plyr init ──────────────────────────────────────────────
   if (typeof Plyr === 'undefined') {
-    document.querySelectorAll('.plyr-container[data-plyr-embed-id]').forEach(embedFallback);
+    document.querySelectorAll('.plyr-container[data-plyr-embed-id]').forEach(function(c) {
+      var id = c.getAttribute('data-plyr-embed-id');
+      if (!id) return;
+      c.innerHTML = '<iframe src="https://www.youtube.com/embed/' + encodeURIComponent(id) + '?rel=0&modestbranding=1&iv_load_policy=3&controls=0" style="width:100%;aspect-ratio:16/9;border:0;border-radius:12px;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>';
+    });
   } else {
-    document.querySelectorAll('.plyr-container[data-plyr-embed-id]').forEach(function (container) {
+    document.querySelectorAll('.plyr-container[data-plyr-embed-id]').forEach(function(container) {
       var videoId = container.getAttribute('data-plyr-embed-id');
-      if (!videoId) { return; }
+      if (!videoId) return;
 
       var player = new Plyr(container, {
         iconUrl: '/img/plyr.svg',
@@ -163,106 +188,75 @@
       });
       players.push(player);
 
-      player.on('ready', function () {
-        updateInfoBar(false);
+      // ── Ready: load saved position ──
+      player.on('ready', function() {
         updateUI(0, false);
-        loadServerProgress();
+        loadPosition();
       });
 
-      player.on('timeupdate', function () {
+      // ── Timeupdate: check completion + save every 5s ──
+      player.on('timeupdate', function() {
         var ct = player.currentTime || 0;
-        var dur = player.duration || 1;
-        // Guard: if duration is not yet known (NaN, 0, 1) skip auto-complete to prevent false completion
-        var validDur = dur > 1 && isFinite(dur);
-        var pct = validDur ? Math.min(Math.round((ct / dur) * 100), 100) : 0;
-        if (pct >= 95 && !autoCompleteSent) {
-          autoCompleteSent = true;
-          saveLocalProgress(0, 100, true);
-          saveServerProgress(100, true, Math.floor(ct));
-          updateUI(100, true);
-          sendHeartbeat(ct, dur, true);
-        }
-        if (Math.floor(ct) !== Math.floor(savedSecond)) {
-          savedSecond = Math.floor(ct);
-          saveLocalProgress(savedSecond, pct, false);
-          updateUI(pct, false);
-        }
-        // Persist current position to server continuously (so resume works after refresh/close)
-        if (Math.floor(ct) !== Math.floor(lastServerPos)) {
-          lastServerPos = Math.floor(ct);
-          saveServerProgress(pct, false, Math.floor(ct));
-        }
-      });
+        var dur = player.duration;
+        var valid = dur > 1 && isFinite(dur);
+        var pct = valid ? Math.min(Math.round((ct / dur) * 100), 100) : 0;
 
-      player.on('pause', function () {
-        var ct = player.currentTime || 0;
-        var dur = player.duration || 1;
-        var pct = Math.min(Math.round((ct / dur) * 100), 100);
-        if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
-        if (pct >= 95 && !autoCompleteSent) {
-          autoCompleteSent = true;
-          saveLocalProgress(0, 100, true);
-          saveServerProgress(100, true, Math.floor(ct));
-          updateUI(100, true);
+        if (pct >= 95 && !completedSent && valid) {
+          completeLesson();
           return;
         }
-        saveLocalProgress(Math.floor(ct), pct, false);
-        saveServerProgress(pct, false, Math.floor(ct));
-        if (Math.floor(ct) !== lastHeartbeatPosition) {
-          sendHeartbeat(ct, dur, false);
-          lastHeartbeatPosition = Math.floor(ct);
-        }
+
+        var now = Date.now();
+        if (now - lastSaveTime < 5000) return;
+        lastSaveTime = now;
+
+        var pos = Math.floor(ct);
+        savePosition(pct, false, pos);
+        saveLocal({ position: pos, percentage: pct });
       });
 
-      player.on('play', function () {
+      // ── Pause: save immediately ──
+      player.on('pause', function() {
         var ct = player.currentTime || 0;
-        updateInfoBar(false);
-        lastHeartbeatPosition = Math.floor(ct);
-        if (heartbeatInterval) { clearInterval(heartbeatInterval); }
-        heartbeatInterval = setInterval(function() {
-          var ct2 = player.currentTime || 0;
-          if (Math.floor(ct2) !== lastHeartbeatPosition) {
-            sendHeartbeat(ct2, player.duration || 1, false);
-            lastHeartbeatPosition = Math.floor(ct2);
-          }
-        }, 15000);
+        var dur = player.duration;
+        var valid = dur > 1 && isFinite(dur);
+        var pct = valid ? Math.min(Math.round((ct / dur) * 100), 100) : 0;
+
+        if (pct >= 95 && !completedSent && valid) {
+          completeLesson();
+          return;
+        }
+        var pos = Math.floor(ct);
+        savePosition(pct, false, pos);
+        saveLocal({ position: pos, percentage: pct });
       });
 
-      player.on('ended', function () {
-        saveLocalProgress(0, 100, true);
-        saveServerProgress(100, true, Math.floor(player.currentTime || 0));
-        updateUI(100, true);
-      });
+      // ── Ended: mark complete ──
+      player.on('ended', function() { completeLesson(); });
 
-      setupYoutubeOverlay(container, player);
+      // ── Heartbeat start/stop ──
+      player.on('play', function() { startHeartbeat(player); });
+      player.on('pause', stopHeartbeat);
+      player.on('ended', stopHeartbeat);
+
+      // ── YouTube overlay ──
+      (function setupOverlay(container, player) {
+        var wrapper = container.querySelector('.plyr__video-wrapper');
+        if (!wrapper) return;
+        wrapper.style.position = 'relative';
+        var topEl = document.createElement('div');
+        topEl.className = 'plyr-youtube-overlay plyr-youtube-overlay-top';
+        var botEl = document.createElement('div');
+        botEl.className = 'plyr-youtube-overlay plyr-youtube-overlay-bottom';
+        wrapper.appendChild(topEl);
+        wrapper.appendChild(botEl);
+        function show(){ topEl.classList.remove('plyr-youtube-overlay-hidden'); botEl.classList.remove('plyr-youtube-overlay-hidden'); }
+        function hide(){ topEl.classList.add('plyr-youtube-overlay-hidden'); botEl.classList.add('plyr-youtube-overlay-hidden'); }
+        player.on('ready', function(){ if (player.playing) hide(); else show(); });
+        player.on('playing', hide);
+        player.on('pause', show);
+        player.on('ended', show);
+      })(container, player);
     });
   }
-
-  setInterval(function() {
-    if (players.length > 0) {
-      players.forEach(function(p, i) {
-        try {
-          var ct = p.currentTime || 0;
-          var dur = p.duration || 0;
-        } catch(e) {}
-      });
-    }
-  }, 1000);
-
-  window.addEventListener('beforeunload', function() {
-    if (heartbeatInterval) clearInterval(heartbeatInterval);
-    players.forEach(function(p) {
-      var ct = p.currentTime || 0;
-      var dur = p.duration || 1;
-      var pct = Math.min(Math.round((ct / dur) * 100), 100);
-      saveLocalProgress(Math.floor(ct), pct, false);
-      if (!isGuest && ct > 0) {
-        navigator.sendBeacon('/api/analytics/video/heartbeat', JSON.stringify({ courseId: courseId, lessonId: lessonId, position: Math.floor(ct), duration: Math.floor(dur), watchedSeconds: 0, forceComplete: false }));
-        // Also save the watch position so resume works even if the tab was closed quickly
-        navigator.sendBeacon('/api/student/progress', JSON.stringify({ courseId: courseId, lessonId: lessonId, completed: false, percentage: pct, position: Math.floor(ct) }));
-      }
-    });
-  });
-
-  loadServerProgress();
 })();
