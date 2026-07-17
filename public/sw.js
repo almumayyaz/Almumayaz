@@ -10,18 +10,10 @@ firebase.initializeApp({
   appId: '1:67570982000:web:8436cf227de225076328b5'
 });
 
-// NOTE: This service worker does NOT intercept or cache any network requests.
-// The browser handles all asset loads normally (respecting the server's
-// no-cache headers), so resources are always fresh and are never blocked
-// by a stale service worker — including on mobile. Its only job is to
-// receive Firebase Cloud Messaging push notifications in the background.
 var CACHE = 'lughati-v7';
 
-// Note: skipWaiting intentionally omitted to prevent Chrome's
-// "This site has been updated in the background" notification.
-// SW will activate on next page load instead.
 self.addEventListener('install', function(e) {
-  // SW installed — will activate after all pages using old SW are closed
+  self.skipWaiting();
 });
 
 self.addEventListener('activate', function(e) {
@@ -32,7 +24,23 @@ self.addEventListener('activate', function(e) {
   );
 });
 
-// Raw push event listener — handles background push directly (more reliable than Firebase onBackgroundMessage)
+// Firebase onBackgroundMessage (official SDK — handles parsing + reliability)
+try {
+  var messaging = firebase.messaging();
+  messaging.onBackgroundMessage(function(payload) {
+    var data = (payload && payload.data) || {};
+    var title = data.title || data.notificationTitle || 'المُميز';
+    var body = data.body || data.notificationBody || '';
+    var url = data.url || '/';
+    self.registration.showNotification(title, {
+      body: body, icon: '/icon.png', badge: '/icon.png',
+      data: { url: url }, vibrate: [200, 100, 200],
+      requireInteraction: true, tag: 'lughati-notif'
+    });
+  });
+} catch (e) { console.error('onBackgroundMessage error:', e); }
+
+// Raw push fallback (in case onBackgroundMessage misses anything)
 self.addEventListener('push', function(event) {
   var title = 'المُميز', body = '', clickUrl = '/';
   try {
@@ -46,20 +54,16 @@ self.addEventListener('push', function(event) {
   } catch (e) {}
   event.waitUntil(
     self.registration.showNotification(title, {
-      body: body,
-      icon: '/icon.png',
-      badge: '/icon.png',
-      data: { url: clickUrl },
-      vibrate: [200, 100, 200],
-      requireInteraction: true,
-      tag: 'lughati-notif'
+      body: body, icon: '/icon.png', badge: '/icon.png',
+      data: { url: clickUrl }, vibrate: [200, 100, 200],
+      requireInteraction: true, tag: 'lughati-notif'
     })
   );
 });
 
 self.addEventListener('notificationclick', function(event) {
   event.notification.close();
-  var url = event.notification.data?.url || '/';
+  var url = event.notification.data ? event.notification.data.url : '/';
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
       for (var i = 0; i < clientList.length; i++) {
@@ -70,17 +74,12 @@ self.addEventListener('notificationclick', function(event) {
   );
 });
 
-// Show a real OS notification while the page is open in the foreground
 self.addEventListener('message', function(event) {
   var data = event.data || {};
   if (data.type === 'SHOW_NOTIFICATION') {
     self.registration.showNotification(data.title || 'المُميز', {
-      body: data.body || '',
-      icon: '/icon.png',
-      badge: '/icon.png',
-      data: { url: data.url || '/' },
-      tag: 'lughati-notif',
-      requireInteraction: false
+      body: data.body || '', icon: '/icon.png', badge: '/icon.png',
+      data: { url: data.url || '/' }, tag: 'lughati-notif', requireInteraction: false
     });
   }
 });
