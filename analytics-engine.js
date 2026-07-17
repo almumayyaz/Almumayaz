@@ -427,9 +427,10 @@ async function computeAdminAnalytics() {
     if (!u) return;
     const sm = a.summary || {};
     const ap = a.profile || {};
-    studentRows.push({ uid, name: (u || {}).name || ap.name || '', email: (u || {}).email || ap.email || '', summary: sm, profile: ap });
+    const whTotal = (a.watchHistory && a.watchHistory.totalSeconds) || 0;
+    studentRows.push({ uid, name: (u || {}).name || ap.name || '', email: (u || {}).email || ap.email || '', summary: sm, profile: ap, whTotal });
   });
-  const totalWatchTime = studentRows.reduce((s, r) => s + (r.summary.totalWatchTime || 0), 0);
+  const totalWatchTime = studentRows.reduce((s, r) => s + (r.whTotal || r.summary.totalWatchTime || 0), 0);
   const avgWatchTime = studentRows.length ? Math.round(totalWatchTime / studentRows.length) : 0;
   const completedCount = studentRows.filter(r => (r.summary.completedLessons || 0) > 0).length;
   const avgQuizAll = [];
