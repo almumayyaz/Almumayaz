@@ -22,14 +22,15 @@
 
   // ── Server: save current progress ──────────────────────────
   function savePosition(pct, completed, pos) {
-    fetch('/api/student/progress', {
+    return fetch('/api/student/progress', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
+      keepalive: true,
       body: JSON.stringify({
         courseId: courseId, lessonId: lessonId,
         percentage: pct, completed: !!completed, position: pos || 0
       })
-    });
+    }).catch(function(){});
   }
 
   // ── Server: send heartbeat with watched seconds since last heartbeat ──
@@ -101,13 +102,12 @@
     updateUI(100, true);
   }
 
-  function completeLesson() {
+  async function completeLesson() {
     if (completedSent) return;
     completedSent = true;
     saveLocal({ position: 0, percentage: 100, completed: true });
-    savePosition(100, true, 0);
+    await savePosition(100, true, 0);
     updateUI(100, true);
-    // Backup: send heartbeat with forceComplete
     fetch('/api/analytics/video/heartbeat', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
@@ -142,14 +142,14 @@
       if (pos < 1) return;
       var watched = hbLastPos >= 0 ? pos - hbLastPos : 0;
       saveLocal({ position: pos });
-      navigator.sendBeacon('/api/student/progress', JSON.stringify({
-        courseId: courseId, lessonId: lessonId,
-        completed: false, percentage: 0, position: pos
-      }));
-      navigator.sendBeacon('/api/analytics/video/heartbeat', JSON.stringify({
-        courseId: courseId, lessonId: lessonId,
-        position: pos, duration: 0, watchedSeconds: Math.max(0, watched), forceComplete: false
-      }));
+        navigator.sendBeacon('/api/student/progress', JSON.stringify({
+            courseId: courseId, lessonId: lessonId,
+            completed: completedSent, percentage: completedSent ? 100 : 0, position: completedSent ? 0 : pos
+        }));
+        navigator.sendBeacon('/api/analytics/video/heartbeat', JSON.stringify({
+            courseId: courseId, lessonId: lessonId,
+            position: pos, duration: 0, watchedSeconds: Math.max(0, watched), forceComplete: completedSent
+        }));
     });
   });
 
