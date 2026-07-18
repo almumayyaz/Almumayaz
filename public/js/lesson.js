@@ -68,6 +68,7 @@
   }
 
   function resumeTo(pos) {
+    hbLastPos = Math.floor(pos);
     players.forEach(function(p) {
       var done = false;
       function seek() {

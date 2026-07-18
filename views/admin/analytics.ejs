@@ -14,17 +14,6 @@
 
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
     <div style="background:var(--card);border-radius:var(--radius-lg);padding:16px;border:1px solid var(--border);">
-      <h3 style="font-size:14px;margin-bottom:12px;"><i class="fas fa-trophy" style="color:var(--accent);"></i> الأكثر نشاطاً</h3>
-      <div id="mostActiveTable"><div style="text-align:center;padding:20px;color:var(--text-muted);">جاري التحميل...</div></div>
-    </div>
-    <div style="background:var(--card);border-radius:var(--radius-lg);padding:16px;border:1px solid var(--border);">
-      <h3 style="font-size:14px;margin-bottom:12px;"><i class="fas fa-exclamation-triangle" style="color:#dc2626;"></i> الأقل نشاطاً</h3>
-      <div id="leastActiveTable"><div style="text-align:center;padding:20px;color:var(--text-muted);">جاري التحميل...</div></div>
-    </div>
-  </div>
-
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
-    <div style="background:var(--card);border-radius:var(--radius-lg);padding:16px;border:1px solid var(--border);">
       <h3 style="font-size:14px;margin-bottom:12px;"><i class="fas fa-book" style="color:var(--accent);"></i> تحليل المحاضرات</h3>
       <div id="lessonsTable"><div style="text-align:center;padding:20px;color:var(--text-muted);">جاري التحميل...</div></div>
     </div>
@@ -62,9 +51,6 @@
   var cards = [
     { label: 'إجمالي الطلاب', value: ov.totalStudents, icon: 'fa-users', color: '#3b82f6' },
     { label: 'نشط اليوم', value: ov.activeToday, icon: 'fa-clock', color: '#059669' },
-    { label: 'نشط هذا الأسبوع', value: ov.activeThisWeek, icon: 'fa-calendar-week', color: '#7c3aed' },
-    { label: 'نشط هذا الشهر', value: ov.activeThisMonth, icon: 'fa-calendar', color: '#d97706' },
-    { label: 'بدون نشاط', value: ov.noActivity, icon: 'fa-user-slash', color: '#dc2626' },
     { label: 'متوسط المشاهدة', value: Math.floor(ov.avgWatchTime / 60) + ':' + String(ov.avgWatchTime % 60).padStart(2,'0'), icon: 'fa-clock', color: '#2563eb' },
     { label: 'نسبة إكمال الدروس', value: ov.completionPercentage + '%', icon: 'fa-percent', color: '#059669' },
     { label: 'متوسط الاختبارات', value: ov.avgQuizScore + '%', icon: 'fa-chart-line', color: '#7c3aed' }
@@ -75,18 +61,6 @@
       '<div style="font-size:22px;font-weight:800;line-height:1.2;">' + c.value + '</div>' +
       '<div style="font-size:11px;color:var(--text-muted);">' + c.label + '</div></div>';
   }).join('');
-
-  // Load most active from v2
-  var most = (ov.topActive || []).map(function(s) {
-    return { id: s.uid, name: s.name, activityScore: s.summary.activityScore, completedLessons: s.summary.completedLessons, totalLessons: 0, totalWatchMinutes: Math.floor((s.summary.totalWatchTime || 0) / 60), avgQuizScore: s.summary.averageQuizScore };
-  });
-  document.getElementById('mostActiveTable').innerHTML = most.length ? renderStudentTable(most) : '<div style="text-align:center;padding:20px;color:var(--text-muted);">لا توجد بيانات</div>';
-
-  // Load least active from v2
-  var least = (ov.leastActive || []).map(function(s) {
-    return { id: s.uid, name: s.name, activityScore: s.summary.activityScore, completedLessons: s.summary.completedLessons, totalLessons: 0, totalWatchMinutes: Math.floor((s.summary.totalWatchTime || 0) / 60), avgQuizScore: s.summary.averageQuizScore };
-  });
-  document.getElementById('leastActiveTable').innerHTML = least.length ? renderStudentTable(least) : '<div style="text-align:center;padding:20px;color:var(--text-muted);">لا توجد بيانات</div>';
 
   // Load lessons from v2
   var analytics = (ov.lessonAnalytics || []);
@@ -131,13 +105,13 @@
     this.disabled = false;
   });
   document.getElementById('btnDeleteAnalytics').addEventListener('click', async function() {
-    if (!confirm('هل أنت متأكد؟ سيتم حذف جميع بيانات التحليلات نهائياً من قاعدة البيانات ولا يمكن استرجاعها (إلا من نسخة محفوظة).')) return;
-    if (!confirm('تأكيد نهائي: حذف كل بيانات التحليلات؟')) return;
+    if (!confirm('هل أنت متأكد؟ سيتم حذف جميع التحليلات وتقدم الطلاب (progress, examResults) بالكامل ولا يمكن استرجاعها.')) return;
+    if (!confirm('تأكيد نهائي: حذف كل التحليلات وتقدم الطلاب؟')) return;
     this.disabled = true; actionMsg.textContent = 'جاري الحذف...';
     try {
-      var r = await fetch('/api/admin/analytics/v2/delete-all', { method: 'POST' });
+      var r = await fetch('/api/admin/analytics/reset-all', { method: 'POST' });
       var d = await r.json();
-      actionMsg.textContent = d.success ? ('تم حذف ' + (d.deleted || 0) + ' سجل ✓') : ('فشل: ' + (d.error || ''));
+      actionMsg.textContent = d.success ? 'تم حذف جميع التحليلات ✓' : ('فشل: ' + (d.error || ''));
       if (d.success) setTimeout(function(){ location.reload(); }, 800);
     } catch (e) { actionMsg.textContent = 'فشل الحذف'; }
     this.disabled = false;

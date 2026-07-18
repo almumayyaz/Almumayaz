@@ -2099,8 +2099,16 @@ app.post('/api/analytics/video/heartbeat', requireAuth, async (req, res) => {
         if (!users[idx].progress) users[idx].progress = {};
         if (!users[idx].progress[courseId]) users[idx].progress[courseId] = { completedLessons: [], percentage: 0, watchTime: 0 };
         users[idx].progress[courseId].percentage = pct;
+        if (!users[idx].progress[courseId].positions) users[idx].progress[courseId].positions = {};
+        users[idx].progress[courseId].positions[lessonId] = Math.max(0, Math.floor(Number(position) || 0));
         // Sync total watch seconds so the teacher sees actual watch minutes
         users[idx].progress[courseId].watchTime = (users[idx].progress[courseId].watchTime || 0) + (Number(watchedSeconds || 0));
+        // Also track per-lesson watch time in user.progress (more reliable than analytics)
+        if (!users[idx].progress[courseId].lessons) users[idx].progress[courseId].lessons = {};
+        if (!users[idx].progress[courseId].lessons[lessonId]) users[idx].progress[courseId].lessons[lessonId] = { watchTime: 0 };
+        if (watchedSeconds > 0) {
+          users[idx].progress[courseId].lessons[lessonId].watchTime += Number(watchedSeconds);
+        }
         if (forceComplete) {
           const cl = users[idx].progress[courseId].completedLessons;
           if (!cl.includes(lessonId)) cl.push(lessonId);
@@ -2153,6 +2161,21 @@ app.post('/api/analytics/quiz/submit', requireAuth, async (req, res) => {
   try {
     const { courseId, quizId, quizTitle, score, total, correct, wrong, timeTaken } = req.body;
     const result = await analytics.trackQuizSubmit(req.session.user.uid, courseId, quizId, quizTitle, score, total, correct, wrong, timeTaken);
+    // Save exam result directly in user's examResults array
+    try {
+      const users = await readData('users');
+      const idx = users.findIndex(u => u.uid === req.session.user.uid || u.id === req.session.user.uid);
+      if (idx !== -1) {
+        if (!users[idx].examResults) users[idx].examResults = [];
+        users[idx].examResults.push({
+          examId: quizId, courseId, examName: quizTitle, score: Number(score) || 0,
+          total: Number(total) || 0, correct: Number(correct) || 0, wrong: Number(wrong) || 0,
+          timeTaken: Number(timeTaken) || 0, percentage: result.percentage,
+          date: new Date().toISOString(), completedAt: new Date().toISOString()
+        });
+        await writeData('users', users);
+      }
+    } catch (pe) { console.error('quiz submit save error:', pe.message); }
     res.json({ success: true, ...result });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -2224,6 +2247,28 @@ app.get('/api/admin/analytics/v2/student/:studentId', requireAdmin, async (req, 
   try {
     const data = await analytics.getAdminStudentDetail(req.params.studentId);
     res.json({ success: true, ...data });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Admin: reset all analytics (delete studentAnalytics RTDB path + clear users progress/examResults)
+app.post('/api/admin/analytics/reset-all', requireAdmin, async (req, res) => {
+  try {
+    const { fbRemove } = require('./firebase-admin');
+    // 1. Delete old studentAnalytics store in RTDB
+    try { await fbRemove('studentAnalytics'); } catch (e) {}
+    // 2. Clear progress and examResults for all students
+    const users = await readData('users');
+    (users || []).forEach(u => {
+      if (u.role === 'student' || u.progress) {
+        u.progress = {};
+        u.examResults = [];
+        u.positions = {};
+      }
+    });
+    await writeData('users', users);
+    res.json({ success: true, message: 'تم حذف جميع التحليلات بنجاح' });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -2318,15 +2363,17 @@ app.get('/api/admin/analytics/students', requireAdmin, async (req, res) => {
       var totalWatchMinutes = 0;
       if (s.progress) {
         Object.keys(s.progress).forEach(function(cid) {
-          if (s.progress[cid].completedLessons) {
-            completedCount += s.progress[cid].completedLessons.length;
+          var p = s.progress[cid];
+          if (!p) return;
+          if (p.completedLessons) {
+            completedCount += p.completedLessons.length;
           }
           if (lessonCountMap[cid]) totalLessons += lessonCountMap[cid];
           // Estimate watch time from completed lessons' durations
-          if (s.progress[cid].completedLessons && courses) {
+          if (p.completedLessons && courses) {
             var course = courses.find(function(c) { return c.id === cid; });
             if (course && course.lessons) {
-              s.progress[cid].completedLessons.forEach(function(lid) {
+              p.completedLessons.forEach(function(lid) {
                 var lesson = course.lessons.find(function(l) { return l.id === lid; });
                 if (lesson) totalWatchMinutes += parseDuration(lesson.duration);
               });
@@ -2676,9 +2723,11 @@ app.get('/api/student/my-progress', requireAuth, async (req, res) => {
     var recentActivity = [];
     if (student.progress) {
       Object.keys(student.progress).forEach(function(cid) {
+        var p = student.progress[cid];
+        if (!p) return;
         var course = courses.find(function(c) { return c.id === cid; });
-        if (student.progress[cid].completedLessons) {
-          student.progress[cid].completedLessons.forEach(function(lid) {
+        if (p.completedLessons) {
+          p.completedLessons.forEach(function(lid) {
             recentActivity.push({
               type: 'completed_lesson',
               courseTitle: course ? course.title : '',
