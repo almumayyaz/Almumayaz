@@ -12,6 +12,11 @@
 
   <div id="overviewCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px;"></div>
 
+  <div style="background:var(--card);border-radius:var(--radius-lg);padding:16px;border:1px solid var(--border);margin-bottom:20px;">
+    <h3 style="font-size:14px;margin-bottom:12px;"><i class="fas fa-trophy" style="color:#f59e0b;"></i> أكثر الطلاب نشاطاً</h3>
+    <div id="mostActiveStudents"><div style="text-align:center;padding:20px;color:var(--text-muted);">جاري التحميل...</div></div>
+  </div>
+
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
     <div style="background:var(--card);border-radius:var(--radius-lg);padding:16px;border:1px solid var(--border);">
       <h3 style="font-size:14px;margin-bottom:12px;"><i class="fas fa-book" style="color:var(--accent);"></i> تحليل المحاضرات</h3>
@@ -61,6 +66,28 @@
       '<div style="font-size:22px;font-weight:800;line-height:1.2;">' + c.value + '</div>' +
       '<div style="font-size:11px;color:var(--text-muted);">' + c.label + '</div></div>';
   }).join('');
+
+  // Most active students
+  var students = (ov.allStudentsSummary || []).slice().sort(function(a, b) { return b.summary.activityScore - a.summary.activityScore; }).slice(0, 10);
+  var studentsHtml = '<table style="width:100%;font-size:12px;border-collapse:collapse;"><thead><tr style="background:var(--bg);">' +
+    '<th style="padding:6px 4px;text-align:right;">#</th><th style="padding:6px 4px;text-align:right;">الاسم</th>' +
+    '<th style="padding:6px 4px;text-align:center;">النشاط</th><th style="padding:6px 4px;text-align:center;">المشاهدة</th>' +
+    '<th style="padding:6px 4px;text-align:center;">الدروس</th><th style="padding:6px 4px;text-align:center;">الاختبارات</th></tr></thead><tbody>';
+  students.forEach(function(s, i) {
+    var score = s.summary.activityScore || 0;
+    var scoreColor = score >= 70 ? '#059669' : score >= 40 ? '#d97706' : '#dc2626';
+    var watchMin = Math.round((s.summary.totalWatchTime || 0) / 60);
+    var watchDisplay = watchMin >= 60 ? Math.round(watchMin/60) + 'س' : watchMin + 'د';
+    studentsHtml += '<tr style="border-bottom:1px solid var(--border);">' +
+      '<td style="padding:6px 4px;color:var(--text-muted);text-align:center;">' + (i+1) + '</td>' +
+      '<td style="padding:6px 4px;"><a href="/admin/student-progress?sid=' + (s.uid || '') + '" style="color:var(--accent);text-decoration:none;font-weight:600;">' + (s.name || '—') + '</a></td>' +
+      '<td style="padding:6px 4px;text-align:center;"><span style="background:' + scoreColor + ';color:#fff;padding:2px 8px;border-radius:10px;font-weight:700;font-size:11px;">' + score + '</span></td>' +
+      '<td style="padding:6px 4px;text-align:center;font-size:11px;">' + watchDisplay + '</td>' +
+      '<td style="padding:6px 4px;text-align:center;">' + s.summary.completedLessons + '</td>' +
+      '<td style="padding:6px 4px;text-align:center;">' + s.summary.averageQuizScore + '%</td></tr>';
+  });
+  studentsHtml += '</tbody></table>';
+  document.getElementById('mostActiveStudents').innerHTML = students.length ? studentsHtml : '<div style="text-align:center;padding:20px;color:var(--text-muted);">لا توجد بيانات بعد</div>';
 
   // Load lessons from v2
   var analytics = (ov.lessonAnalytics || []);
