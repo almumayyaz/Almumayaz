@@ -58,11 +58,13 @@ function buildCourseProgress(u, courses) {
   (courses || []).forEach(c => {
     const pc = p[c.id];
     if (!pc || !c.lessons) return;
+    const completed = (pc.completedLessons || []).length;
+    const total = c.lessons.length;
     cp[c.id] = {
-      completedLessons: (pc.completedLessons || []).length,
-      totalLessons: c.lessons.length,
-      completionPercent: pc.percentage || 0,
-      averageWatchPercent: pc.percentage || 0
+      completedLessons: completed,
+      totalLessons: total,
+      completionPercent: total > 0 ? Math.round((completed / total) * 100) : 0,
+      averageWatchPercent: total > 0 ? Math.round((completed / total) * 100) : 0
     };
   });
   return cp;
