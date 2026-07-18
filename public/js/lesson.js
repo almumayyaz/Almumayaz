@@ -107,6 +107,16 @@
     saveLocal({ position: 0, percentage: 100, completed: true });
     savePosition(100, true, 0);
     updateUI(100, true);
+    // Backup: send heartbeat with forceComplete
+    fetch('/api/analytics/video/heartbeat', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        courseId: courseId, lessonId: lessonId,
+        position: 9999, duration: 10000,
+        watchedSeconds: 0, forceComplete: true
+      })
+    });
   }
 
   function updateUI(pct, completed) {
@@ -118,7 +128,8 @@
     if (ib) ib.style.display = 'flex';
     var st = document.getElementById('watchStatus');
     if (!st) return;
-    st.innerHTML = completed
+    var done = completed || completedSent;
+    st.innerHTML = done
       ? '<i class="fas fa-check-circle" style="color:var(--success);font-size:12px;"></i> <span style="color:var(--success);">\u0645\u0643\u062A\u0645\u0644</span>'
       : '<i class="fas fa-play-circle" style="color:var(--accent);font-size:12px;"></i> \u0642\u064A\u062F \u0627\u0644\u0645\u0634\u0627\u0647\u062F\u0629';
   }
