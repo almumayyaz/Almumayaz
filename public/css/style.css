@@ -2430,7 +2430,9 @@ h3 { font-size: 18px; font-weight: 900; }
   border: 1px solid var(--border);
   margin: 24px;
 }
-@media (min-width: 769px) { .admin-body .sidebar:not(.collapsed) ~ .admin-content { margin-right: calc(24px + 260px); } }
+@media (min-width: 769px) { .admin-body .sidebar:not(.collapsed) ~ .admin-content, .admin-body .sidebar:not(.collapsed) ~ .main-content { margin-right: calc(24px + 260px); } }
+.admin-content, .main-content { transition: margin-right 0.35s cubic-bezier(0.4,0,0.2,1); }
+.admin-body .sidebar { transition: width 0.35s cubic-bezier(0.4,0,0.2,1); }
 @media (max-width: 768px) { .admin-content { margin: 0; border-radius: 0; border: none; box-shadow: none; } }
 
 .admin-stats {
