@@ -1,4 +1,3 @@
-  <button class="sidebar-floating-toggle" id="sidebarFloatingToggle"><i class="fas fa-bars"></i></button>
   <aside class="sidebar collapsed" id="sidebar">
     <div class="sidebar-header">
       <a href="/admin" class="sidebar-logo">المُميز</a>
@@ -77,19 +76,6 @@
   </aside>
   <div class="sidebar-overlay" id="sidebarOverlay"></div>
   <style>
-    .sidebar-floating-toggle {
-      position: fixed; top: 80px; right: 0; z-index: 999;
-      background: #F59E0B; color: #fff;
-      border: 2px solid #fff; width: 40px; height: 40px;
-      border-radius: 12px 0 0 12px; font-size: 18px;
-      cursor: pointer; display: flex; align-items: center; justify-content: center;
-      box-shadow: 3px 3px 12px rgba(0,0,0,0.3); transition: 0.3s;
-    }
-
-    @media (max-width: 768px) { .sidebar-floating-toggle { z-index: 1002; } }
-    [data-theme="dark"] .sidebar-floating-toggle { background: #D97706; border-color: rgba(255,255,255,0.2); }
-    .sidebar-floating-toggle:hover { transform: scale(1.05); box-shadow: 4px 4px 16px rgba(0,0,0,0.4); }
-
     .sidebar-nav {
       display: flex; flex-direction: column; gap: 2px;
       padding: 8px 12px; flex: 1; overflow-y: auto;
@@ -116,7 +102,6 @@
     (function() {
       var sidebar = document.getElementById('sidebar');
       var overlay = document.getElementById('sidebarOverlay');
-      var toggle = document.getElementById('sidebarFloatingToggle');
 
       var isMobile = function() { return window.innerWidth <= 768; };
 
@@ -135,7 +120,6 @@
         if (isMobile()) { openSidebar(); }
         else {
           sidebar.classList.toggle('collapsed');
-          toggle.style.display = sidebar.classList.contains('collapsed') ? 'flex' : 'none';
           localStorage.setItem('admin-sidebar-toggle', sidebar.classList.contains('collapsed') ? 'collapsed' : '');
         }
       }
@@ -145,13 +129,7 @@
         if (toggleState === '') { sidebar.classList.remove('collapsed'); }
         else if (toggleState === 'collapsed') { sidebar.classList.add('collapsed'); }
       }
-      toggle.style.display = isMobile() ? 'flex' : (sidebar.classList.contains('collapsed') ? 'flex' : 'none');
 
-      if (toggle) toggle.addEventListener('click', function(e) { toggleSidebar(); e.stopPropagation(); });
       if (overlay) overlay.addEventListener('click', closeSidebar);
-      window.addEventListener('resize', function() {
-        if (!isMobile()) closeSidebar();
-        toggle.style.display = isMobile() ? 'flex' : (sidebar.classList.contains('collapsed') ? 'flex' : 'none');
-      });
     })();
   </script>
