@@ -2039,8 +2039,9 @@ app.put('/api/admin/chat/:studentId/read', requireAdmin, async (req, res) => {
 app.post('/api/student/progress', requireAuth, async (req, res) => {
   try {
     const { courseId, lessonId, completed, percentage, position } = req.body;
+    const uid = req.session.user.uid || req.session.user.id;
     const users = await readData('users');
-    const idx = users.findIndex(u => u.id === req.session.user.id);
+    const idx = users.findIndex(u => u.uid === uid || u.id === uid);
     if (idx === -1) return res.status(404).json({ error: 'المستخدم غير موجود' });
 
     const p = users[idx];
