@@ -1485,7 +1485,7 @@ h3 { font-size: 18px; font-weight: 900; }
 
 /* ===== STUDENT LAYOUT ===== */
 .student-body { display:flex; flex-direction:row; flex-wrap:wrap; min-height:100vh; padding-top:72px; }
-.student-body > .footer { flex: 0 0 100%; }
+.student-body > .footer { display: none; }
 
 .sidebar {
   position: sticky;

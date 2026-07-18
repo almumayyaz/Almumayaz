@@ -36,6 +36,7 @@
   </a>
 </main>
 <script>
+(function(){var a=document.querySelector('a[href="/student/notifications"]');if(a){var b=a.querySelector('span');if(b)b.remove()}})();
 function dismissNotif(id, btn){
   if (!confirm('هل تريد حذف هذا الإشعار؟')) return;
   fetch('/student/notifications/dismiss', {

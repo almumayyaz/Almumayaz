@@ -11,6 +11,20 @@
   <div style="max-width:600px;">
     <div class="form-card">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+        <i class="fas fa-bullhorn" style="color:var(--accent);font-size:20px;"></i>
+        <h3 style="font-size:16px;font-weight:700;margin:0;">الإعلانات</h3>
+      </div>
+      <p style="font-size:13px;color:var(--text-light);margin-bottom:16px;">التحكم في ظهور شريط الإعلانات في لوحة الطالب.</p>
+      <label style="display:flex;align-items:center;gap:12px;cursor:pointer;font-size:14px;font-weight:600;">
+        <input type="checkbox" id="announcementsEnabled" <%= announcementsEnabled ? 'checked' : '' %> style="width:18px;height:18px;accent-color:var(--accent);">
+        تفعيل الإعلانات
+      </label>
+      <button class="btn btn-primary" onclick="saveAnnouncementsToggle()" style="margin-top:16px;" id="annSaveBtn"><i class="fas fa-save"></i> حفظ</button>
+      <div id="annSaveMsg" style="display:none;margin-top:12px;padding:12px;border-radius:8px;text-align:center;font-size:13px;font-weight:600;"></div>
+    </div>
+
+    <div class="form-card" style="margin-top:20px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
         <i class="fas fa-calendar-alt" style="color:var(--accent);font-size:20px;"></i>
         <h3 style="font-size:16px;font-weight:700;margin:0;">الترم الدراسي الظاهر للطلاب</h3>
       </div>
@@ -84,6 +98,28 @@
 </main>
 
 <script>
+function saveAnnouncementsToggle() {
+  var btn = document.getElementById('annSaveBtn');
+  var msg = document.getElementById('annSaveMsg');
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحفظ...';
+  msg.style.display = 'none';
+  fetch('/api/admin/settings', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ announcementsEnabled: document.getElementById('announcementsEnabled').checked })
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.success) {
+      msg.style.display = 'block'; msg.style.background = 'rgba(22,163,74,0.1)'; msg.style.color = 'var(--success)'; msg.innerHTML = '<i class="fas fa-check-circle"></i> تم الحفظ';
+    } else {
+      msg.style.display = 'block'; msg.style.background = 'rgba(220,38,38,0.1)'; msg.style.color = 'var(--danger)'; msg.textContent = d.error || 'حدث خطأ';
+    }
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> حفظ';
+  }).catch(function() {
+    msg.style.display = 'block'; msg.style.background = 'rgba(220,38,38,0.1)'; msg.style.color = 'var(--danger)'; msg.textContent = 'حدث خطأ في الاتصال';
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> حفظ';
+  });
+}
+
 function saveSettings() {
   var btn = document.getElementById('saveBtn');
   var msg = document.getElementById('saveMsg');

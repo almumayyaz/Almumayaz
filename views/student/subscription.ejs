@@ -166,19 +166,30 @@
         <label>كود العملية (رقم المعاملة)</label>
         <input type="text" id="subTransactionId" class="form-input" placeholder="أدخل كود العملية من المحفظة" style="direction:rtl;">
       </div>
-      <div class="form-group">
-        <label>المرحلة الدراسية</label>
-        <select id="subStage" class="form-input">
-          <option value="إعدادية" <%= (user.stage === 'إعدادية') ? 'selected' : '' %>>إعدادية</option>
-          <option value="ثانوية" <%= (user.stage === 'ثانوية') ? 'selected' : '' %>>ثانوية</option>
-        </select>
-      </div>
+      <input type="hidden" id="subStage" value="<%= user.stage || '' %>">
       <div class="form-group">
         <label>طريقة التحويل</label>
         <select id="subPaymentMethod" class="form-input">
           <option value="vodafone-cash">فودافون كاش</option>
           <option value="instapay">إنستا باي</option>
         </select>
+      </div>
+      <div class="form-group">
+        <label>صورة الإيصال</label>
+        <div style="position:relative;">
+          <input type="file" id="subReceiptImage" accept="image/*" style="display:none;" onchange="handleSubReceiptUpload(event)">
+          <div id="subReceiptUploadArea" style="border:2px dashed var(--border);border-radius:var(--radius);padding:20px;text-align:center;cursor:pointer;transition:var(--transition);" onclick="document.getElementById('subReceiptImage').click()">
+            <i class="fas fa-cloud-upload-alt" style="font-size:30px;color:var(--accent);margin-bottom:6px;display:block;"></i>
+            <span style="font-size:13px;font-weight:600;color:var(--text);">اضغط لرفع صورة الإيصال</span>
+            <span style="display:block;font-size:11px;color:var(--text-muted);margin-top:2px;">PNG, JPG - الحد الأقصى 5 ميجابايت</span>
+          </div>
+        </div>
+        <div id="subReceiptPreview" style="display:none;margin-top:10px;position:relative;border-radius:var(--radius-sm);overflow:hidden;border:1px solid var(--border);">
+          <img id="subReceiptPreviewImg" style="width:100%;max-height:140px;object-fit:contain;background:var(--bg);">
+          <button type="button" onclick="removeSubReceipt()" style="position:absolute;top:6px;left:6px;background:rgba(220,38,38,0.9);color:#fff;border:none;border-radius:50%;width:28px;height:28px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
       </div>
       <button class="btn btn-primary btn-lg" onclick="submitSubscription()" id="subSubmitBtn" style="width:100%;">
         <i class="fas fa-check"></i> تأكيد الاشتراك
@@ -210,6 +221,27 @@ function toggleFeatures(idx) {
   expand.classList.toggle('open', parent.classList.contains('open'));
 }
 
+var subReceiptBase64 = null;
+function handleSubReceiptUpload(e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) { alert('حجم الصورة يجب أن يكون أقل من 5 ميجابايت'); return; }
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    subReceiptBase64 = ev.target.result;
+    document.getElementById('subReceiptPreviewImg').src = subReceiptBase64;
+    document.getElementById('subReceiptPreview').style.display = 'block';
+    document.getElementById('subReceiptUploadArea').style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+}
+function removeSubReceipt() {
+  subReceiptBase64 = null;
+  document.getElementById('subReceiptPreview').style.display = 'none';
+  document.getElementById('subReceiptUploadArea').style.display = 'block';
+  document.getElementById('subReceiptImage').value = '';
+}
+
 function openSubPopup(idx, name, price) {
   var discount = <%= user.referralDiscount || 0 %>;
   var priceNum = parseInt(price) || 0;
@@ -226,6 +258,7 @@ function openSubPopup(idx, name, price) {
   document.getElementById('subPlanPrice').value = finalPrice;
   document.getElementById('subFormError').style.display = 'none';
   document.getElementById('subTransactionId').value = '';
+  removeSubReceipt();
   document.getElementById('subPopup').classList.add('show');
 }
 function closeSubPopup() { document.getElementById('subPopup').classList.remove('show'); }
@@ -262,11 +295,12 @@ function submitSubscription() {
   var errText = document.getElementById('subFormErrorText');
   errDiv.style.display = 'none';
   if (!transactionId) { errDiv.style.display = 'block'; errText.textContent = 'يرجى إدخال كود العملية'; return; }
+  if (!subReceiptBase64) { errDiv.style.display = 'block'; errText.textContent = 'يرجى رفع صورة الإيصال'; return; }
   var btn = document.getElementById('subSubmitBtn');
   btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الإرسال...';
   fetch('/api/student/subscribe', {
     method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ planName: planName, price: Number(price), transactionId: transactionId, paymentMethod: paymentMethod, stage: document.getElementById('subStage').value })
+    body: JSON.stringify({ planName: planName, price: Number(price), transactionId: transactionId, paymentMethod: paymentMethod, receiptImage: subReceiptBase64 })
   }).then(function(r) { return r.json(); }).then(function(d) {
     if (d.success) {
       document.getElementById('subPopup').innerHTML = '<div style="padding:60px 24px;text-align:center;"><i class="fas fa-check-circle" style="font-size:56px;color:var(--success);display:block;margin-bottom:16px;"></i><h2 style="font-family:\'Aref Ruqaa\',serif;font-size:22px;font-weight:700;margin-bottom:8px;">✅ تم إرسال طلب الاشتراك</h2><p style="font-size:14px;color:var(--text-light);margin-bottom:20px;">في انتظار موافقة الأستاذ محمد عفيفي. سيتم تفعيل اشتراكك فور الموافقة.</p><button class="btn btn-primary" onclick="location.reload()"><i class="fas fa-home"></i> العودة</button></div>';

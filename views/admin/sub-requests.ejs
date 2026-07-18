@@ -30,7 +30,7 @@
           container.innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--text-muted);"><i class="fas fa-inbox" style="font-size:40px;display:block;margin-bottom:12px;opacity:0.4;"></i>لا توجد طلبات اشتراك</div>';
           return;
         }
-        var html = '<table><thead><tr><th>#</th><th>الطالب</th><th>الهاتف</th><th>الخطة</th><th>المرحلة</th><th>المبلغ</th><th>الخصم</th><th>كود العملية</th><th>طريقة الدفع</th><th>التاريخ</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody>';
+        var html = '<table><thead><tr><th>#</th><th>الطالب</th><th>الهاتف</th><th>الخطة</th><th>المرحلة</th><th>المبلغ</th><th>الخصم</th><th>المُحيل</th><th>كود العملية</th><th>طريقة الدفع</th><th>الإيصال</th><th>التاريخ</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody>';
         requests.forEach(function(r, i) {
           var statusHtml = '';
           if (r.status === 'pending') statusHtml = '<span class="status-badge pending">قيد المراجعة</span>';
@@ -45,8 +45,10 @@
             '<td>' + (r.planStage || '---') + '</td>' +
             '<td><strong>' + (r.price || '---') + ' جنيه</strong></td>' +
             '<td>' + (r.discount ? '<span style="color:var(--success);font-weight:600;">' + r.discount + '%</span>' : '---') + '</td>' +
+            '<td>' + (r.referredByName || '—') + '</td>' +
             '<td dir="ltr" style="font-size:12px;">' + (r.transactionId || '---') + '</td>' +
             '<td>' + (r.paymentMethod === 'instapay' ? 'إنستا باي' : 'فودافون كاش') + '</td>' +
+            '<td>' + (r.receiptImage ? '<a href="' + r.receiptImage + '" target="_blank" style="color:var(--accent);"><i class="fas fa-image"></i> عرض</a>' : '---') + '</td>' +
             '<td style="font-size:11px;">' + (r.date ? new Date(r.date).toLocaleDateString('ar-EG') : '---') + '</td>' +
             '<td>' + statusHtml + '</td>' +
             '<td>' +

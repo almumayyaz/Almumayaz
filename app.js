@@ -239,32 +239,56 @@ function sessionUser(u) {
   return c;
 }
 
-// ===== Email (Gmail SMTP via app password) =====
-// Env vars: SMTP_USER, SMTP_PASS, SMTP_FROM
-let _mailer = null;
-function getMailer() {
-  if (_mailer) return _mailer;
-  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) return null;
-  _mailer = nodemailer.createTransport({ service: 'gmail', auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } });
-  return _mailer;
-}
+// ===== Email (SendGrid preferred, fallback Gmail SMTP) =====
+// Env vars for SendGrid: SENDGRID_API_KEY
+// Env vars for Gmail fallback: SMTP_USER, SMTP_PASS, SMTP_FROM
 async function sendMail(to, subject, html) {
-  const t = getMailer();
-  if (!t) { console.error('[mail] SMTP not configured (set SMTP_USER/SMTP_PASS)'); return false; }
+  var _from = process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@almumayaz.com';
+  // Prefer SendGrid
+  if (process.env.SENDGRID_API_KEY) {
+    try {
+      var sg = require('@sendgrid/mail');
+      sg.setApiKey(process.env.SENDGRID_API_KEY);
+      await sg.send({
+        to: to,
+        from: { email: _from, name: 'المُميز' },
+        subject: subject,
+        html: html,
+        trackingSettings: { clickTracking: { enable: false }, openTracking: { enable: false } },
+        mailSettings: { sandboxMode: { enable: false } }
+      });
+      return true;
+    } catch (e) { console.error('[mail] SendGrid error:', e && e.message); }
+  }
+  // Fallback: Gmail SMTP
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) return false;
   try {
-    await t.sendMail({ from: process.env.SMTP_FROM || process.env.SMTP_USER, to, subject, html });
+    var mailer = nodemailer.createTransport({ service: 'gmail', auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } });
+    var text = html.replace(/<br\s*\/?>/gi, '\n').replace(/<\/?[^>]+(>|$)/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#039;/g, "'").replace(/\n{3,}/g, '\n\n').trim();
+    await mailer.sendMail({
+      from: '"المُميز" <' + _from + '>', to: to, subject: subject, text: text, html: html,
+      replyTo: _from,
+      headers: { 'X-Mailer': 'Almumayaz' }
+    });
     return true;
-  } catch (e) { console.error('[mail] send error:', e && e.message); return false; }
+  } catch (e) { console.error('[mail] SMTP error:', e && e.message); return false; }
 }
 function genEmailCode() { return String(crypto.randomInt(100000, 1000000)); }
 const EMAIL_CODE_TTL = 30 * 60 * 1000;
 function emailShell(title, bodyHtml) {
-  return `<div dir="rtl" style="font-family:'Cairo',Tahoma,Arial,sans-serif;max-width:480px;margin:24px auto;background:#0f1b34;color:#f5e6c8;padding:28px;border-radius:16px;border:1px solid #2a3a5c;">
-    <h2 style="color:#f3c969;text-align:center;margin:0 0 16px;font-family:'Aref Ruqaa',serif;font-size:26px;">${title}</h2>
-    <div style="font-size:15px;line-height:1.9;">${bodyHtml}</div>
-    <hr style="border:none;border-top:1px solid #2a3a5c;margin:20px 0;">
-    <p style="font-size:12px;color:#9fb0c9;text-align:center;margin:0;">منصة المُميز — اللغة العربية</p>
-  </div>`;
+  return `<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head><body style="margin:0;padding:0;background:#f4f4f4;font-family:Tahoma,Arial,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:24px 0;"><tr><td align="center">
+<table role="presentation" width="100%" style="max-width:480px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.06);">
+<tr><td style="padding:32px 28px 12px;text-align:center;background:#0f1b34;">
+<h1 style="color:#f3c969;margin:0;font-size:22px;">${title}</h1>
+</td></tr>
+<tr><td style="padding:24px 28px;font-size:15px;line-height:1.9;color:#333333;text-align:right;">
+${bodyHtml}
+</td></tr>
+<tr><td style="padding:12px 28px 24px;text-align:center;border-top:1px solid #e0e0e0;">
+<p style="font-size:12px;color:#888888;margin:0;">منصة المُميز — اللغة العربية</p>
+</td></tr>
+</table></td></tr></table></body></html>`;
 }
 function verifyEmailHtml(name, code) {
   return emailShell('تأكيد البريد الإلكتروني',
@@ -377,7 +401,29 @@ app.use(async (req, res, next) => {
       res.locals.unreadCount = 0;
     }
   } catch (e) { res.locals.unreadCount = 0; }
-  res.locals.firebaseConfig = {
+  next();
+});
+// API endpoint for live unread count (polled by the bell icon)
+app.get('/api/unread-count', async (req, res) => {
+  try {
+    const u = req.session.user;
+    if (!u || (u.role !== 'student' && u.role !== 'admin')) return res.json({ count: 0 });
+    const all = await readData('notifications') || [];
+    const dismissed = await readData('dismissed/' + u.id) || {};
+    const count = all.filter(function(n) {
+      if (n.target === 'all') return !dismissed[n.id];
+      if (u.role === 'admin') return (n.target === 'admin' || n.source === 'chat') && !dismissed[n.id];
+      if (n.target === 'student' && n.targetValue === u.id) return !dismissed[n.id];
+      if (n.target === 'grade' && n.targetValue === u.grade) return !dismissed[n.id];
+      if (n.target === 'stage' && n.targetValue === u.stage) return !dismissed[n.id];
+      return false;
+    }).length;
+    res.json({ count: count });
+  } catch (e) { res.json({ count: 0 }); }
+});
+// End API unread-count
+app.use(async (req, res, next) => {
+res.locals.firebaseConfig = {
     apiKey: stripBOM(process.env.FIREBASE_API_KEY || ''),
     authDomain: stripBOM(process.env.FIREBASE_AUTH_DOMAIN || ''),
     projectId: stripBOM(process.env.FIREBASE_PROJECT_ID || ''),
@@ -404,21 +450,6 @@ app.use(async (req, res, next) => {
     res.locals.instaPay = stripBOM(process.env.INSTAPAY || 'example@instapay.com');
     res.locals.currentSemester = 'all';
     res.locals.siteSettings = {};
-  }
-  try {
-    res.locals.unreadCount = 0;
-    const _u = res.locals.user;
-    if (_u && _u.role === 'student' && _u.id) {
-      const _msgs = await readData('chats/student-' + _u.id + '/messages') || {};
-      let _n = 0;
-      Object.keys(_msgs).forEach(function(k) {
-        const m = _msgs[k];
-        if (m && m.senderId === 'teacher' && !m.read) _n++;
-      });
-      res.locals.unreadCount = _n;
-    }
-  } catch (e) {
-    res.locals.unreadCount = 0;
   }
   next();
 });
@@ -923,6 +954,9 @@ app.get('/student/notifications', requireStudent, async (req, res) => {
       if (n.target === 'stage' && n.targetValue === u.stage) return true;
       return false;
     }).filter(function(n) { return !dismissed[n.id]; }).sort(function(a, b) { return new Date(b.sentAt) - new Date(a.sentAt); });
+    // Auto-dismiss all shown notifications so the badge clears
+    list.forEach(function(n) { dismissed[n.id] = true; });
+    await writeData('dismissed/' + u.id, dismissed);
     res.render('student/notifications', { notifications: list, title: 'مركز الإشعارات - المُميز' });
   } catch (e) {
     res.render('student/notifications', { notifications: [], title: 'مركز الإشعارات - المُميز' });
@@ -1524,7 +1558,7 @@ app.post('/api/student/apply-referral', requireAuth, async (req, res) => {
 
     // Apply 25% discount
     users[uidx].referralDiscount = 25;
-    users[uidx].referredBy = referrer.id;
+    users[uidx].referredBy = referrer.referralCode;
 
     // Track on referrer
     if (!referrer.referrals) referrer.referrals = [];
@@ -1812,7 +1846,7 @@ app.get('/api/parent/child-progress/:childId', requireParent, async (req, res) =
 
 app.post('/api/student/subscribe', requireAuth, async (req, res) => {
   try {
-    const { planName, price, transactionId, paymentMethod, stage } = req.body;
+    const { planName, price, transactionId, paymentMethod, receiptImage } = req.body;
     if (!transactionId) return res.status(400).json({ error: 'يرجى إدخال كود العملية' });
     const subs = await readData('subscriptions') || [];
     const sub = subs.find(s => s.name === planName);
@@ -1823,8 +1857,9 @@ app.post('/api/student/subscribe', requireAuth, async (req, res) => {
       userName: req.session.user.name,
       userPhone: req.session.user.phone || '',
       planName, price, transactionId, paymentMethod: paymentMethod || 'vodafone-cash',
+      receiptImage: receiptImage || '',
       planId: sub ? sub.id : '',
-      planStage: stage || (sub ? (sub.stage || '') : ''),
+      planStage: req.session.user.stage || (sub ? (sub.stage || '') : ''),
       period: sub ? (sub.period || '') : '',
       durationDays: sub ? (sub.durationDays || 30) : 30,
       status: 'pending',
@@ -1842,7 +1877,20 @@ app.post('/api/student/subscribe', requireAuth, async (req, res) => {
 app.get('/api/admin/sub-requests', requireAdmin, async (req, res) => {
   try {
     const subRequests = await readData('subRequests') || [];
-    res.json({ success: true, requests: subRequests.reverse() });
+    const users = await readData('users') || [];
+    const userList = Array.isArray(users) ? users : Object.values(users);
+    const enriched = subRequests.reverse().map(function(sr) {
+      const u = userList.find(function(x) { return x.id === sr.userId || x.uid === sr.userId; });
+      if (u && u.referredBy) {
+        var ref = userList.find(function(x) { return x.referralCode === u.referredBy; });
+        if (!ref) ref = userList.find(function(x) { return x.id === u.referredBy || x.uid === u.referredBy; });
+        sr.referredByName = ref ? (ref.name || '') : '';
+      } else {
+        sr.referredByName = '';
+      }
+      return sr;
+    });
+    res.json({ success: true, requests: enriched });
   } catch (e) {
     res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' });
   }
@@ -1990,16 +2038,17 @@ app.post('/api/admin/chat/:studentId/send', requireAdmin, async (req, res) => {
     const rawId = req.params.studentId;
     const studentId = rawId.indexOf('student-') === 0 ? rawId : ('student-' + rawId);
     const chatId = studentId;
+    const actualUserId = rawId.indexOf('student-') === 0 ? rawId.slice(8) : rawId;
     const { text, image } = req.body;
     if (!text && !image) return res.status(400).json({ error: 'لا يمكن إرسال رسالة فارغة' });
     const msg = { senderId: 'teacher', senderName: 'محمد عفيفي', timestamp: Date.now(), read: false, text: text || '', image: image || '' };
     const key = await fbPush('chats/' + chatId + '/messages', msg);
     const preview = text ? (text.length > 80 ? text.slice(0,80) + '...' : text) : '📷 صورة';
     // Send push to student
-    await sendFCM(studentId, 'رسالة جديدة من الأستاذ محمد عفيفي 📩', preview, '/student/chat');
+    await sendFCM(actualUserId, 'رسالة جديدة من الأستاذ محمد عفيفي 📩', preview, '/student/chat');
     // Store notification in DB so the student sees it in their notification center.
     // targetValue must match the student's session user.id (without the 'student-' prefix).
-    await saveNotification('student', req.params.studentId, 'رسالة جديدة من الأستاذ محمد عفيفي 📩', preview, '/student/chat');
+    await saveNotification('student', actualUserId, 'رسالة جديدة من الأستاذ محمد عفيفي 📩', preview, '/student/chat');
     res.json({ success: true, key: key, message: msg });
   } catch (e) { res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' }); }
 });
@@ -2871,6 +2920,7 @@ app.get('/admin/settings', requireAdmin, async (req, res) => {
     contactEmail: settings.contactEmail || 'info@lughati.com',
     contactAddress: settings.contactAddress || 'القاهرة، مصر',
     contactWhatsapp: settings.contactWhatsapp || '0100 000 0000',
+    announcementsEnabled: settings.announcementsEnabled !== false,
     title: 'الإعدادات - الإدارة'
   });
 });
@@ -2912,6 +2962,8 @@ app.get('/admin/notifications', requireAdmin, async (req, res) => {
       if (n.source === 'chat') return true;
       return false;
     }).filter(function(n) { return !dismissed[n.id]; }).sort(function(a, b) { return new Date(b.sentAt || 0) - new Date(a.sentAt || 0); });
+    list.forEach(function(n) { dismissed[n.id] = true; });
+    await writeData('dismissed/' + u.id, dismissed);
     res.render('admin/notifications', { notifications: list, title: 'مركز الإشعارات - الإدارة' });
   } catch (e) {
     res.render('admin/notifications', { notifications: [], title: 'مركز الإشعارات - الإدارة' });

@@ -9,6 +9,7 @@
     "seed": "node scripts/seed-firebase.js"
   },
   "dependencies": {
+    "@sendgrid/mail": "^8.1.6",
     "@supabase/supabase-js": "^2.45.0",
     "body-parser": "^1.20.2",
     "cookie-session": "^2.1.1",

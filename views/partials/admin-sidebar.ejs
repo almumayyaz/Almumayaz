@@ -131,5 +131,15 @@
       }
 
       if (overlay) overlay.addEventListener('click', closeSidebar);
+
+      sidebar.querySelectorAll('.sidebar-nav a').forEach(function(link) {
+        link.addEventListener('click', function() {
+          if (isMobile()) closeSidebar();
+          else {
+            sidebar.classList.add('collapsed');
+            localStorage.setItem('admin-sidebar-toggle', 'collapsed');
+          }
+        });
+      });
     })();
   </script>

@@ -1,142 +1,219 @@
 <%- include('../partials/header', { title: title, navPageTitle: 'المُميز', bodyClass: 'student-body' }) %>
 <%- include('../partials/student-sidebar') %>
 <main class="main-content">
-  <!-- الإعلانات المتحركة -->
-  <% var annItems = (announcements && announcements.length > 0) ? announcements : [
-    { title: 'مرحباً بك في منصة المُميز', content: 'نتمنى لك عاماً دراسياً مليئاً بالنجاح والتفوق', important: false },
-    { title: 'عرض الحجز المبكر', content: 'احجز الآن واستفد من خصومات الحجز المبكر للعام الدراسي', important: true },
-    { title: 'متابعة المحاضرات', content: 'تأكد من متابعة أحدث المحاضرات أولاً بأول', important: false }
-  ]; %>
-  <% if (annItems.length > 0) { %>
-  <div style="background:linear-gradient(135deg, rgba(251,191,36,0.12) 0%, rgba(251,191,36,0.06) 100%);border:1px solid rgba(251,191,36,0.3);border-radius:var(--radius-lg);padding:10px 16px;margin-bottom:16px;overflow:hidden;">
-    <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
-      <i class="fas fa-bullhorn" style="color:var(--accent);font-size:13px;"></i>
-      <span style="font-weight:700;font-size:12px;color:var(--accent);">الإعلانات</span>
-    </div>
-    <div style="overflow:hidden;position:relative;mask-image:linear-gradient(to left,transparent 0,#000 20px,#000 calc(100% - 20px),transparent 100%);-webkit-mask-image:linear-gradient(to left,transparent 0,#000 20px,#000 calc(100% - 20px),transparent 100%);">
-      <div id="annTrack" style="display:flex;width:max-content;flex-wrap:nowrap;align-items:center;gap:12px;white-space:nowrap;will-change:transform;">
-        <% annItems.forEach(function(a) { %>
-        <div style="display:inline-flex;align-items:center;gap:6px;padding:4px 14px;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.2);border-radius:20px;font-size:12px;flex:0 0 auto;width:auto;">
-          <span style="font-weight:600;color:var(--accent);"><%= a.title %></span>
-          <% if (a.important) { %><span style="background:var(--danger);color:#fff;font-size:8px;padding:1px 5px;border-radius:3px;font-weight:700;">مهم</span><% } %>
-          <span style="color:var(--text-muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;"><%= a.content %></span>
-        </div>
-        <% }); %>
-      </div>
+  <!-- Vertical Announcement Slider -->
+  <% if (siteSettings && siteSettings.announcementsEnabled !== false) {
+    var sliderItems = (announcements && announcements.length > 0) ? announcements.filter(function(a) { return a.active !== false; }).sort(function(a,b) { return (Number(b.id)||0) - (Number(a.id)||0); }) : [];
+    if (sliderItems.length > 0) {
+  %>
+  <div id="annSlider" style="width:100%;height:44px;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,0.04);margin:0 0 4px;overflow:hidden;display:flex;align-items:center;padding:0 16px;box-sizing:border-box;">
+    <span style="flex-shrink:0;margin-left:10px;font-size:15px;line-height:1;">📢</span>
+    <div style="flex:1;overflow:hidden;height:44px;position:relative;">
+      <div id="annSliderTrack" style="position:absolute;left:0;right:0;top:0;will-change:transform;"></div>
     </div>
   </div>
-  <script id="annData" type="application/json"><%- JSON.stringify(annItems).replace(/<\//g, '<\\/') %></script>
+  <script id="annSliderData" type="application/json"><%- JSON.stringify(sliderItems).replace(/<\//g, '<\\/') %></script>
   <script>
   (function(){
-    var track = document.getElementById('annTrack');
-    if (!track || !track.children.length) return;
-    var mask = track.parentElement;
-    if (!mask) return;
-    var outer = mask.parentElement;
-    if (!outer) return;
+    var slider = document.getElementById('annSlider');
+    var track = document.getElementById('annSliderTrack');
+    if (!slider || !track) return;
 
-    var annData = [];
-    try { annData = JSON.parse(document.getElementById('annData').textContent); } catch(e) {}
-    var speed = 33;
-    var paused = false, pendingRebuild = false, kfId = 'annKF';
+    var data = [];
+    try { data = JSON.parse(document.getElementById('annSliderData').textContent); } catch(e) {}
+    if (!data.length) { slider.style.display = 'none'; return; }
 
-    function createItem(a) {
-      if (!a || typeof a !== 'object') return null;
-      var d = document.createElement('div');
-      d.style.cssText = 'display:inline-flex;align-items:center;gap:6px;padding:4px 14px;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.2);border-radius:20px;font-size:12px;flex:0 0 auto;width:auto;';
-      var ts = document.createElement('span');
-      ts.style.cssText = 'font-weight:600;color:var(--accent);';
-      ts.textContent = a.title;
-      d.appendChild(ts);
-      if (a.important) {
-        var b = document.createElement('span');
-        b.style.cssText = 'background:var(--danger);color:#fff;font-size:8px;padding:1px 5px;border-radius:3px;font-weight:700;';
-        b.textContent = 'مهم';
-        d.appendChild(b);
-      }
-      var cs = document.createElement('span');
-      cs.style.cssText = 'color:var(--text-muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;';
-      cs.textContent = a.content;
-      d.appendChild(cs);
-      return d;
+    var itemH = 44;
+    var current = 0;
+    var timer = null;
+    var timerStart = 0;
+    var timerDelay = 0;
+    var paused = false;
+    var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var hscrollKFId = 'hscrollKF';
+
+    function esc(str) {
+      if (typeof str !== 'string') return '';
+      return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
     }
 
-    function buildTrack(data) {
-      var t = document.getElementById('annTrack');
-      if (!t || !data || !data.length) return;
-      track = t;
-      t.innerHTML = '';
-      for (var i = 0; i < data.length; i++) {
-        var item = createItem(data[i]);
-        if (item) t.appendChild(item);
+    function build() {
+      var html = '';
+      data.forEach(function(a) {
+        var text = esc(a.title || '');
+        if (a.content) text += ' — ' + esc(a.content);
+        html += '<div style="height:' + itemH + 'px;display:flex;align-items:center;overflow:hidden;box-sizing:border-box;">';
+        html += '<span class="annText" style="display:inline-block;white-space:nowrap;font-size:13px;font-weight:500;color:var(--text);line-height:1.4;will-change:transform;">' + text + '</span>';
+        html += '</div>';
+      });
+      if (data.length > 1) {
+        var first = esc(data[0].title || '');
+        if (data[0].content) first += ' — ' + esc(data[0].content);
+        html += '<div style="height:' + itemH + 'px;display:flex;align-items:center;overflow:hidden;box-sizing:border-box;">';
+        html += '<span class="annText" style="display:inline-block;white-space:nowrap;font-size:13px;font-weight:500;color:var(--text);line-height:1.4;will-change:transform;">' + first + '</span>';
+        html += '</div>';
       }
-      if (!t.children.length) return;
-      var ch = t.children, n = ch.length, setW = 0;
-      for (var i = 0; i < n; i++) setW += ch[i].offsetWidth;
-      setW += (n - 1) * 12;
-      var cw = mask.offsetWidth;
-      if (setW <= 0 || cw <= 0) return;
-      var copies = Math.max(Math.ceil(cw * 3 / setW), 2);
-      for (var c = 1; c < copies; c++) for (var j = 0; j < n; j++) t.appendChild(ch[j].cloneNode(true));
-      var dist = -setW, dur = setW / speed;
-      var old = document.getElementById(kfId);
+      track.innerHTML = html;
+    }
+
+    function getTextEl(idx) {
+      var item = track.children[idx];
+      return item ? item.querySelector('.annText') : null;
+    }
+
+    function goTo(idx, animated) {
+      var prevText = getTextEl(current);
+      if (prevText) prevText.style.animation = 'none';
+      if (reduced) track.style.transition = 'none';
+      else track.style.transition = animated ? 'transform 0.4s ease-in-out' : 'none';
+      track.style.transform = 'translateY(-' + (idx * itemH) + 'px)';
+      current = idx;
+    }
+
+    function startHscroll(el, excess) {
+      var dur = Math.max(excess / 40, 2);
+      var nm = 'hs' + Date.now();
+      el.style.animation = 'none';
+      el.style.transform = 'translateX(0)';
+      void el.offsetWidth;
+      var old = document.getElementById(hscrollKFId);
       if (old) old.remove();
-      var nm = 'ann' + Date.now();
       var st = document.createElement('style');
-      st.id = kfId;
-      st.textContent = '@keyframes ' + nm + '{from{transform:translateX(0px)}to{transform:translateX(' + dist + 'px)}}';
+      st.id = hscrollKFId;
+      st.textContent = '@keyframes ' + nm + '{from{transform:translateX(0px)}to{transform:translateX(' + excess + 'px)}}';
       document.head.appendChild(st);
-      t.style.animation = nm + ' ' + dur + 's linear infinite';
-      if (paused) t.style.animationPlayState = 'paused';
+      el.style.animation = nm + ' ' + dur + 's linear forwards';
+      return dur;
     }
 
-    buildTrack(annData.length ? annData : Array.from(track.children).map(function(el){
-      var sp = el.querySelectorAll('span');
-      return { title: sp[0]?sp[0].textContent:'', content: sp[sp.length-1]?sp[sp.length-1].textContent:'', important: sp.length>2 };
-    }));
+    function pauseHscroll() {
+      var el = getTextEl(current);
+      if (el && el.style.animation && el.style.animation !== 'none' && el.style.animationPlayState !== 'paused') {
+        el.style.animationPlayState = 'paused';
+      }
+    }
 
-    outer.addEventListener('mouseenter', function(){ paused = true; pendingRebuild = false; track.style.animationPlayState = 'paused'; });
-    outer.addEventListener('mouseleave', function(){ paused = false; track.style.animationPlayState = 'running'; if (pendingRebuild && annData.length) { pendingRebuild = false; buildTrack(annData); } });
+    function resumeHscroll() {
+      var el = getTextEl(current);
+      if (el && el.style.animationPlayState === 'paused') {
+        el.style.animationPlayState = 'running';
+      }
+    }
 
-    var rt;
-    window.addEventListener('resize', function(){ clearTimeout(rt); rt = setTimeout(function(){ if (annData.length) buildTrack(annData); }, 300); });
+    function handleCurrent() {
+      if (paused || reduced || data.length <= 1) return;
+      requestAnimationFrame(function(){
+        var el = getTextEl(current);
+        if (!el) { scheduleNext(5000); return; }
+        el.style.animation = 'none';
+        var cont = track.children[current];
+        var excess = el.scrollWidth - cont.offsetWidth;
+        if (excess <= 0) {
+          scheduleNext(5000);
+        } else {
+          var dur = startHscroll(el, excess);
+          scheduleNext((dur + 1) * 1000);
+        }
+      });
+    }
+
+    function scheduleNext(delay) {
+      if (timer) clearTimeout(timer);
+      timer = null;
+      timerDelay = delay;
+      if (paused || reduced || data.length <= 1) return;
+      timerStart = Date.now();
+      timer = setTimeout(function(){ next(); }, delay);
+    }
+
+    function next() {
+      if (data.length <= 1) return;
+      var nextIdx = current + 1;
+      if (nextIdx >= track.children.length) {
+        goTo(0, false);
+        handleCurrent();
+        return;
+      }
+      goTo(nextIdx, true);
+      setTimeout(function(){ handleCurrent(); }, 420);
+    }
+
+    function start() {
+      if (timer) clearTimeout(timer);
+      timer = null;
+      if (data.length <= 1) return;
+      handleCurrent();
+    }
+
+    function stop() {
+      if (timer) { clearTimeout(timer); timer = null; }
+      pauseHscroll();
+    }
+
+    build();
+    if (data.length === 1) {
+      goTo(0, false);
+    } else {
+      goTo(0, false);
+      if (!reduced) start();
+    }
+
+    var rmq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    rmq.addEventListener('change', function(e) {
+      reduced = e.matches;
+      if (reduced) { stop(); goTo(0, false); }
+      else { goTo(0, false); start(); }
+    });
+
+    slider.addEventListener('mouseenter', function() {
+      if (reduced || data.length <= 1) return;
+      paused = true;
+      stop();
+    });
+    slider.addEventListener('mouseleave', function() {
+      if (reduced || data.length <= 1) return;
+      paused = false;
+      resumeHscroll();
+      var remaining = Math.max(500, timerDelay - (Date.now() - timerStart));
+      scheduleNext(remaining);
+    });
 
     (function initFB(){
       if (typeof firebase === 'undefined') return;
+      function listen(ref) {
+        ref.on('value', function(snap){
+          var v = snap.val();
+          if (!v) { slider.style.display = 'none'; return; }
+          var list = Object.keys(v).map(function(k){ return v[k]; });
+          list = list.filter(function(a){ return a.active !== false; });
+          list.sort(function(a,b){ return (Number(b.id)||0) - (Number(a.id)||0); });
+          if (!list.length) { slider.style.display = 'none'; return; }
+          slider.style.display = '';
+          stop();
+          data = list;
+          build();
+          goTo(0, false);
+          if (data.length > 1 && !reduced) start();
+        });
+      }
       if (typeof firebase.database === 'undefined') {
         var s = document.createElement('script');
         s.src = 'https://www.gstatic.com/firebasejs/11.0.1/firebase-database-compat.js';
         s.async = true;
-        s.onload = function(){
-          firebase.database().ref('announcements').on('value', function(snap){
-            var v = snap.val(); if (!v) return;
-            var list = Object.keys(v).map(function(k){ return v[k]; });
-            list.sort(function(a,b){ return (a.createdAt||0)-(b.createdAt||0); });
-            annData = list;
-            if (paused) { pendingRebuild = true; return; }
-            buildTrack(annData);
-          });
-        };
+        s.onload = function(){ listen(firebase.database().ref('announcements')); };
         document.head.appendChild(s);
       } else {
-        firebase.database().ref('announcements').on('value', function(snap){
-          var v = snap.val(); if (!v) return;
-          var list = Object.keys(v).map(function(k){ return v[k]; });
-          list.sort(function(a,b){ return (a.createdAt||0)-(b.createdAt||0); });
-          annData = list;
-          if (paused) { pendingRebuild = true; return; }
-          buildTrack(annData);
-        });
+        listen(firebase.database().ref('announcements'));
       }
     })();
   })();
   </script>
-  <% } %>
+  <% } } %>
 
   <div class="page-header">
     <div>
       <h1 style="font-size:20px;">مرحباً، <%= user.name %></h1>
-      <p>منصة المُميز التعليمية</p>
+
     </div>
   </div>
 
@@ -153,6 +230,17 @@
     document.getElementById('quoteAuthor').textContent = '— ' + q.author;
   }).catch(function(){document.getElementById('quoteBanner').style.display='none'});
   </script>
+
+  <% if (!isGuest) { %>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+    <a href="/student/live-sessions" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;border-radius:var(--radius-lg);padding:16px;font-size:13px;font-weight:700;text-decoration:none;">
+      <i class="fas fa-video" style="font-size:22px;"></i> الحصص المباشرة
+    </a>
+    <a href="/student/chat" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg,#1a73e8,#0d47a1);color:#fff;border-radius:var(--radius-lg);padding:16px;font-size:13px;font-weight:700;text-decoration:none;">
+      <i class="fas fa-comment-dots" style="font-size:22px;"></i> اسأل عفيفي
+    </a>
+  </div>
+  <% } %>
 
   <!-- الحصص المباشرة - بطاقة ديناميكية (API polling لتفادي Firebase security rules) -->
   <script>
@@ -256,18 +344,6 @@
 
     <!-- الحصص المباشرة - تظهر تلقائياً عند وجود حصة -->
     <div id="liveSessionCard" style="display:none;margin-bottom:16px;"></div>
-
-    <!-- الحصص المباشرة -->
-    <a href="/student/live-sessions" style="display:block;text-align:center;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;border-radius:var(--radius-lg);padding:16px;margin-bottom:8px;">
-      <i class="fas fa-video" style="font-size:24px;"></i>
-      <div style="font-size:13px;font-weight:700;margin-top:4px;">الحصص المباشرة</div>
-    </a>
-
-    <!-- اسأل عفيفي -->
-    <a href="/student/chat" style="display:block;text-align:center;background:linear-gradient(135deg,#1a73e8,#0d47a1);color:#fff;border-radius:var(--radius-lg);padding:16px;margin-bottom:16px;">
-      <i class="fas fa-comment-dots" style="font-size:24px;"></i>
-      <div style="font-size:13px;font-weight:700;margin-top:4px;">اسأل عفيفي</div>
-    </a>
   <% } else { %>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
       <a href="/register" style="background:linear-gradient(135deg,var(--accent),#4338ca);color:#fff;border-radius:var(--radius-lg);padding:16px;text-align:center;">

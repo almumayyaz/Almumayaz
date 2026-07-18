@@ -4,9 +4,6 @@
   <div class="page-header"><h1><i class="fas fa-chart-bar"></i> تحليلات المنصة</h1></div>
 
   <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
-    <button id="btnBackupAnalytics" class="btn btn-sm" style="background:var(--accent-glow);color:var(--accent);border:1px solid var(--accent);"><i class="fas fa-save"></i> حفظ نسخة من التحليلات الحالية</button>
-    <button id="btnDeleteAnalytics" class="btn btn-sm" style="background:rgba(220,38,38,0.12);color:#dc2626;border:1px solid #dc2626;"><i class="fas fa-trash-alt"></i> حذف جميع بيانات التحليلات</button>
-    <button id="btnCleanupAnalytics" class="btn btn-sm" style="background:rgba(245,158,11,0.12);color:#d97706;border:1px solid #d97706;"><i class="fas fa-broom"></i> تنظيف السجلات الوهمية</button>
     <span id="analyticsActionMsg" style="font-size:12px;color:var(--text-muted);align-self:center;"></span>
   </div>
 
@@ -43,6 +40,11 @@
       <h3 style="font-size:14px;margin-bottom:12px;"><i class="fas fa-chart-line" style="color:#7c3aed;"></i> أقل المحاضرات نشاطاً</h3>
       <div id="leastActiveLesson"><div style="text-align:center;padding:20px;color:var(--text-muted);">جاري التحميل...</div></div>
     </div>
+  </div>
+
+  <div style="border-top:1px solid var(--border);padding-top:24px;margin-top:24px;text-align:center;">
+    <button id="btnDeleteAnalytics" class="btn" style="background:rgba(220,38,38,0.12);color:#dc2626;border:2px solid #dc2626;padding:12px 28px;font-size:15px;font-weight:700;"><i class="fas fa-trash-alt"></i> حذف جميع بيانات التحليلات</button>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:8px;">سيتم حذف جميع التحليلات وتقدم الطلاب بالكامل ولا يمكن استرجاعها</div>
   </div>
 </main>
 
@@ -120,17 +122,8 @@
   document.getElementById('mostSolvedExam').innerHTML = mostSolved ? renderExamCard(mostSolved, '📈') : '<div style="text-align:center;padding:20px;color:var(--text-muted);">لا توجد بيانات حتى الآن</div>';
   document.getElementById('leastSolvedExam').innerHTML = leastSolved ? renderExamCard(leastSolved, '📉') : '<div style="text-align:center;padding:20px;color:var(--text-muted);">لا توجد بيانات حتى الآن</div>';
 
-  // Backup / delete actions
+  // Delete action at bottom
   var actionMsg = document.getElementById('analyticsActionMsg');
-  document.getElementById('btnBackupAnalytics').addEventListener('click', async function() {
-    this.disabled = true; actionMsg.textContent = 'جاري الحفظ...';
-    try {
-      var r = await fetch('/api/admin/analytics/v2/backup', { method: 'POST' });
-      var d = await r.json();
-      actionMsg.textContent = d.success ? 'تم حفظ النسخة بنجاح ✓' : ('فشل: ' + (d.error || ''));
-    } catch (e) { actionMsg.textContent = 'فشل الحفظ'; }
-    this.disabled = false;
-  });
   document.getElementById('btnDeleteAnalytics').addEventListener('click', async function() {
     if (!confirm('هل أنت متأكد؟ سيتم حذف جميع التحليلات وتقدم الطلاب (progress, examResults) بالكامل ولا يمكن استرجاعها.')) return;
     if (!confirm('تأكيد نهائي: حذف كل التحليلات وتقدم الطلاب؟')) return;
@@ -141,17 +134,6 @@
       actionMsg.textContent = d.success ? 'تم حذف جميع التحليلات ✓' : ('فشل: ' + (d.error || ''));
       if (d.success) setTimeout(function(){ location.reload(); }, 800);
     } catch (e) { actionMsg.textContent = 'فشل الحذف'; }
-    this.disabled = false;
-  });
-  document.getElementById('btnCleanupAnalytics').addEventListener('click', async function() {
-    if (!confirm('حذف سجلات التحليلات غير المرتبطة بطلاب حقيقيين (مثل uid 0)؟')) return;
-    this.disabled = true; actionMsg.textContent = 'جاري التنظيف...';
-    try {
-      var r = await fetch('/api/admin/analytics/v2/cleanup-orphans', { method: 'POST' });
-      var d = await r.json();
-      actionMsg.textContent = d.success ? ('تم حذف ' + (d.removed || 0) + ' سجل وهمي ✓') : ('فشل: ' + (d.error || ''));
-      if (d.success) setTimeout(function(){ location.reload(); }, 800);
-    } catch (e) { actionMsg.textContent = 'فشل التنظيف'; }
     this.disabled = false;
   });
 })();
