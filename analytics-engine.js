@@ -294,8 +294,9 @@ async function computeAdminAnalytics() {
       const p = u.progress && u.progress[c.id];
       if (!p) return;
       const watchTime = p.lessons && p.lessons[l.id] && p.lessons[l.id].watchTime;
+      const hasPos = p.positions && p.positions[l.id] != null;
       const comp = p.completedLessons && p.completedLessons.includes(l.id);
-      if (!watchTime && !comp) return;
+      if (!watchTime && !hasPos && !comp) return;
       opens++;
       if (comp) completed++;
       const secs = watchTime || 0;
