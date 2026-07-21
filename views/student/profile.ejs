@@ -440,15 +440,15 @@ function saveProfile() {
     })
   }).then(function(r) { return r.json(); }).then(function(d) {
     if (d.success) {
-      document.getElementById('viewName').textContent = d.user.name;
-      document.getElementById('viewPhone').textContent = d.user.phone || '---';
-      document.getElementById('viewParentPhone').textContent = d.user.parentPhone || '---';
-      document.getElementById('viewParentName').textContent = d.user.parentName || '---';
-      document.getElementById('viewParentEmail').textContent = d.user.parentEmail || '---';
-      document.getElementById('viewStage').textContent = d.user.stage || '---';
-      document.getElementById('viewGrade').textContent = d.user.grade || '---';
-      document.getElementById('viewGovernorate').textContent = d.user.governorate || '---';
-      document.getElementById('profileNameDisplay').textContent = d.user.name;
+      var el;
+      if (el = document.getElementById('viewPhone')) el.textContent = d.user.phone || '---';
+      if (el = document.getElementById('viewParentPhone')) el.textContent = d.user.parentPhone || '---';
+      if (el = document.getElementById('viewParentName')) el.textContent = d.user.parentName || '---';
+      if (el = document.getElementById('viewParentEmail')) el.textContent = d.user.parentEmail || '---';
+      if (el = document.getElementById('viewStage')) el.textContent = d.user.stage || '---';
+      if (el = document.getElementById('viewGrade')) el.textContent = d.user.grade || '---';
+      if (el = document.getElementById('viewGovernorate')) el.textContent = d.user.governorate || '---';
+      if (el = document.getElementById('profileNameDisplay')) el.textContent = d.user.name;
       setAvatar(document.getElementById('profileAvatarWrap'), avatarBase64, d.user.name);
       setAvatar(document.getElementById('sidebarAvatarWrap'), avatarBase64, d.user.name);
       toggleEdit();
