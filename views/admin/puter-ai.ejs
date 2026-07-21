@@ -178,6 +178,15 @@
     </div>
 
     <div class="ai-input-bar">
+      <label style="cursor:pointer;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;display:flex;align-items:center;gap:6px;font-size:14px;color:var(--text-light);transition:all .2s;" title="إرفاق صورة">
+        <i class="fas fa-image"></i>
+        <input type="file" id="aiFileInput" accept="image/*" style="display:none;" onchange="onFilePicked(event)">
+      </label>
+      <div id="aiImagePreview" style="display:none;align-items:center;gap:8px;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:10px;">
+        <img id="aiPreviewImg" style="width:40px;height:40px;object-fit:cover;border-radius:6px;">
+        <span id="aiFileName" style="font-size:12px;color:var(--text-light);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+        <button onclick="clearFile()" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px;padding:0 4px;">&times;</button>
+      </div>
       <input type="text" id="aiInput" placeholder="اكتب رسالتك هنا..." onkeypress="if(event.key==='Enter')sendAI()" autocomplete="off">
       <button id="aiSendBtn" onclick="sendAI()"><i class="fas fa-paper-plane"></i> إرسال</button>
     </div>
@@ -188,11 +197,38 @@
 <script>
   var currentModel = 'deepseek/deepseek-v4-pro';
   var isSending = false;
+  var attachedImageData = null;
 
   function selectModel(btn) {
     document.querySelectorAll('.ai-model-btn').forEach(function(b) { b.classList.remove('active'); });
     btn.classList.add('active');
     currentModel = btn.getAttribute('data-model');
+  }
+
+  function onFilePicked(e) {
+    var file = e.target.files && e.target.files[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { alert('الرجاء اختيار صورة فقط'); return; }
+    if (file.size > 10 * 1024 * 1024) { alert('حجم الصورة كبير جداً (الحد 10MB)'); return; }
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      attachedImageData = ev.target.result;
+      var preview = document.getElementById('aiImagePreview');
+      var img = document.getElementById('aiPreviewImg');
+      var name = document.getElementById('aiFileName');
+      img.src = attachedImageData;
+      name.textContent = file.name;
+      preview.style.display = 'flex';
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function clearFile() {
+    attachedImageData = null;
+    var preview = document.getElementById('aiImagePreview');
+    preview.style.display = 'none';
+    var input = document.getElementById('aiFileInput');
+    if (input) input.value = '';
   }
 
   function formatResponse(text) {
@@ -214,7 +250,7 @@
     if (empty) empty.style.display = 'none';
     
     var msg = input.value.trim();
-    if (!msg || isSending) return;
+    if ((!msg && !attachedImageData) || isSending) return;
     if (typeof puter === 'undefined' || !puter.ai || !puter.ai.chat) {
       chat.innerHTML += '<div class="ai-msg ai-msg-bot" style="color:var(--danger);">مكتبة Puter غير محملة. تأكد من اتصال الإنترنت.</div>';
       chat.scrollTop = chat.scrollHeight;
@@ -225,12 +261,24 @@
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
 
-    chat.innerHTML += '<div class="ai-msg ai-msg-user">' + String(msg).replace(/&/g,'&').replace(/</g,'<').replace(/>/g,'>') + '</div>';
+    var displayMsg = msg || '(صورة)';
+    var msgHtml = String(displayMsg).replace(/&/g,'&').replace(/</g,'<').replace(/>/g,'>');
+    if (attachedImageData) {
+      msgHtml = '<img src="' + attachedImageData + '" style="max-width:200px;max-height:150px;border-radius:8px;display:block;margin-bottom:6px;">' + msgHtml;
+    }
+    chat.innerHTML += '<div class="ai-msg ai-msg-user">' + msgHtml + '</div>';
     input.value = '';
     chat.innerHTML += '<div class="ai-typing" id="aiTyping"><span></span><span></span><span></span></div>';
     chat.scrollTop = chat.scrollHeight;
 
-    puter.ai.chat(msg, { model: currentModel })
+    var chatInput = msg || 'صف هذه الصورة بالتفصيل';
+    var chatPromise;
+    if (attachedImageData) {
+      chatPromise = puter.ai.chat(chatInput, { model: currentModel, image: attachedImageData });
+    } else {
+      chatPromise = puter.ai.chat(chatInput, { model: currentModel });
+    }
+    chatPromise
       .then(function(response) {
         var typing = document.getElementById('aiTyping');
         if (typing) typing.remove();
@@ -252,6 +300,7 @@
         }
         chat.innerHTML += '<div class="ai-msg ai-msg-bot">' + formatResponse(text) + '</div>';
         chat.scrollTop = chat.scrollHeight;
+        clearFile();
       })
       .catch(function(err) {
         var typing = document.getElementById('aiTyping');
