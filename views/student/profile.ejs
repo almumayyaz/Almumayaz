@@ -455,8 +455,9 @@ function saveProfile() {
       alert('تم حفظ التغييرات بنجاح');
     } else alert(d.error || 'فشل الحفظ');
     btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> حفظ التغييرات';
-  }).catch(function() {
-    alert('فشل الاتصال بالخادم');
+  }).catch(function(e) {
+    alert('فشل الاتصال بالخادم: ' + (e.message || e));
+    console.error('saveProfile error:', e);
     btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> حفظ التغييرات';
   });
 }

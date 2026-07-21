@@ -1760,34 +1760,41 @@ app.get('/student/profile', requireStudent, async (req, res) => {
   res.render('student/profile', { title: 'حسابي - المُميز', isSubscribed: !!isSubscribed, parentInvitePending: !!pendingInvite, parentInviteLink: pendingInvite ? ('https://almumayaz.online/parent/invite/' + pendingInvite.token) : '', parentInviteEmail: pendingInvite ? (pendingInvite.parentEmail || '') : '' });
 });
 
-app.put('/api/student/profile', requireAuth, async (req, res) => {
-  try {
-    const users = await readData('users');
-    const idx = users.findIndex(u => u.id === req.session.user.id);
-    if (idx === -1) return res.status(404).json({ error: 'المستخدم غير موجود' });
-    const u = users[idx];
-    const isSubscribed = u.subscriptionStatus === 'active' && (!u.subscriptionEnd || new Date(u.subscriptionEnd) > new Date());
-    const ALLOWED = ['name', 'phone', 'parentPhone', 'parentName', 'parentEmail', 'avatar', 'governorate'];
-    const allowed = {};
-    ALLOWED.forEach(function (k) { if (req.body[k] !== undefined) allowed[k] = req.body[k]; });
-    if (!isSubscribed) {
-      if (req.body.stage !== undefined) allowed.stage = req.body.stage;
-      if (req.body.grade !== undefined) allowed.grade = req.body.grade;
+app.put('/api/student/profile', requireAuth, function(req, res) {
+  var done = false;
+  function respond(err, data) {
+    if (done) return;
+    done = true;
+    if (err) {
+      try { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' })); } catch(e2) {}
+      return;
     }
-    allowed.lastLogin = new Date().toISOString();
-    Object.assign(u, allowed);
-    users[idx] = u;
-    // Respond immediately, then persist to Firebase
-    req.session.user = sessionUser(users[idx]);
-    var safeUser = {};
-    var safeFields = ['id','name','email','phone','role','stage','grade','governorate','subscriptionStatus','subscriptionEnd','referralCode','parentName','parentPhone','parentEmail','fcmEnabled','phoneVerified'];
-    safeFields.forEach(function(k) { if (users[idx][k] !== undefined) safeUser[k] = users[idx][k]; });
-    res.json({ success: true, user: safeUser });
-    // Persist to Firebase asynchronously (Vercel grace period allows pending promises)
-    updateData('users/' + idx, allowed).catch(function(e) { console.error('async profile persist error:', e.message); });
-  } catch (e) {
-    res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' });
+    try { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(data)); } catch(e2) {}
   }
+  readData('users').then(function(users) {
+    try {
+      var idx = users.findIndex(u => u.id === req.session.user.id);
+      if (idx === -1) return respond(null, { error: 'المستخدم غير موجود' });
+      var u = users[idx];
+      var isSubscribed = u.subscriptionStatus === 'active' && (!u.subscriptionEnd || new Date(u.subscriptionEnd) > new Date());
+      var ALLOWED = ['name', 'phone', 'parentPhone', 'parentName', 'parentEmail', 'avatar', 'governorate'];
+      var allowed = {};
+      ALLOWED.forEach(function (k) { if (req.body[k] !== undefined) allowed[k] = req.body[k]; });
+      if (!isSubscribed) {
+        if (req.body.stage !== undefined) allowed.stage = req.body.stage;
+        if (req.body.grade !== undefined) allowed.grade = req.body.grade;
+      }
+      allowed.lastLogin = new Date().toISOString();
+      Object.assign(u, allowed);
+      users[idx] = u;
+      req.session.user = sessionUser(users[idx]);
+      var safeUser = {};
+      var safeFields = ['id','name','email','phone','role','stage','grade','governorate','subscriptionStatus','subscriptionEnd','referralCode','parentName','parentPhone','parentEmail','fcmEnabled','phoneVerified'];
+      safeFields.forEach(function(k) { if (users[idx][k] !== undefined) safeUser[k] = users[idx][k]; });
+      respond(null, { success: true, user: safeUser });
+      updateData('users/' + idx, allowed).catch(function(e) { console.error('async profile persist error:', e.message); });
+    } catch(e) { respond(e); }
+  }).catch(function(e) { respond(e); });
 });
 
 /* ===================== STUDENT REFERRAL DISCOUNT ===================== */
