@@ -1767,7 +1767,6 @@ app.put('/api/student/profile', requireAuth, async (req, res) => {
     if (idx === -1) return res.status(404).json({ error: 'المستخدم غير موجود' });
     const u = users[idx];
     const isSubscribed = u.subscriptionStatus === 'active' && (!u.subscriptionEnd || new Date(u.subscriptionEnd) > new Date());
-    // Whitelist-only: never trust client for role/subscription/ownership fields.
     const ALLOWED = ['name', 'phone', 'parentPhone', 'parentName', 'parentEmail', 'avatar', 'governorate'];
     const allowed = {};
     ALLOWED.forEach(function (k) { if (req.body[k] !== undefined) allowed[k] = req.body[k]; });
@@ -1775,22 +1774,10 @@ app.put('/api/student/profile', requireAuth, async (req, res) => {
       if (req.body.stage !== undefined) allowed.stage = req.body.stage;
       if (req.body.grade !== undefined) allowed.grade = req.body.grade;
     }
+    allowed.lastLogin = new Date().toISOString();
     Object.assign(u, allowed);
-    u.lastLogin = new Date().toISOString();
     users[idx] = u;
-    // Write full array to local store (fallback) + targeted Firebase update
-    await localStore.writeData('users', users);
-    cacheInvalidate('users');
-    if (fbDb) {
-      try {
-        perf.trackWrite();
-        await fbDb.ref('users/' + idx).set(u);
-      } catch (e) {
-        console.error('Firebase profile update error:', e.message);
-        // Fallback: write full array
-        await fbDb.ref('users').set(users);
-      }
-    }
+    await updateData('users/' + idx, allowed);
     req.session.user = sessionUser(users[idx]);
     var safeUser = {};
     var safeFields = ['id','name','email','phone','role','stage','grade','governorate','subscriptionStatus','subscriptionEnd','stage','referralCode','avatar','parentName','parentPhone','parentEmail','fcmEnabled','phoneVerified'];
