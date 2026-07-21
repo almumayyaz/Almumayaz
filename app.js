@@ -286,7 +286,7 @@ function stripBOM(s) {
 function sessionUser(u) {
   if (!u || typeof u !== 'object') return u;
   const c = {};
-  ['id','uid','name','email','role','stage','grade','governorate','phone','parentPhone','parentId','parentName','parentEmail','subscribedStage','planName','planPeriod','subscriptionStatus','subscriptionStart','subscriptionEnd','referralCode','referralDiscount','referralUsedAt','emailVerified','fcmToken','isStudent','progress'].forEach(function(k){
+  ['id','uid','name','email','role','stage','grade','governorate','phone','parentPhone','parentId','parentName','parentEmail','subscribedStage','planName','planPeriod','subscriptionStatus','subscriptionStart','subscriptionEnd','referralCode','referralDiscount','referralUsedAt','emailVerified','fcmToken','isStudent'].forEach(function(k){
     if (k in u) c[k] = u[k];
   });
   return c;
