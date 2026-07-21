@@ -1777,12 +1777,14 @@ app.put('/api/student/profile', requireAuth, async (req, res) => {
     allowed.lastLogin = new Date().toISOString();
     Object.assign(u, allowed);
     users[idx] = u;
-    await updateData('users/' + idx, allowed);
+    // Respond immediately, then persist to Firebase
     req.session.user = sessionUser(users[idx]);
     var safeUser = {};
     var safeFields = ['id','name','email','phone','role','stage','grade','governorate','subscriptionStatus','subscriptionEnd','stage','referralCode','avatar','parentName','parentPhone','parentEmail','fcmEnabled','phoneVerified'];
     safeFields.forEach(function(k) { if (users[idx][k] !== undefined) safeUser[k] = users[idx][k]; });
     res.json({ success: true, user: safeUser });
+    // Persist to Firebase asynchronously (Vercel grace period allows pending promises)
+    updateData('users/' + idx, allowed).catch(function(e) { console.error('async profile persist error:', e.message); });
   } catch (e) {
     res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' });
   }
