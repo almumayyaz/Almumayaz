@@ -117,7 +117,7 @@ app.use((req, res, next) => {
     "img-src 'self' data: https: blob:; " +
     "font-src 'self' data: https://cdnjs.cloudflare.com https://fonts.gstatic.com https://source.zoom.us; " +
     "media-src 'self' https: blob:; " +
-    "connect-src 'self' https://www.gstatic.com https://*.supabase.co https://*.firebaseio.com https://*.googleapis.com https://*.google.com https://firebasestorage.googleapis.com https://*.firebase.com wss://*.firebaseio.com https://source.zoom.us https://*.zoom.us https://zoom.us wss://*.zoom.us https://*.cloudfront.net; " +
+    "connect-src 'self' https://www.gstatic.com https://*.supabase.co https://*.firebaseio.com https://*.googleapis.com https://*.google.com https://firebasestorage.googleapis.com https://*.firebase.com wss://*.firebaseio.com https://source.zoom.us https://*.zoom.us https://zoom.us wss://*.zoom.us https://*.cloudfront.net https://js.puter.com https://api.puter.com; " +
     "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://source.zoom.us https://*.zoom.us https://zoom.us; " +
     "worker-src 'self' blob:; child-src 'self' blob:; object-src 'none'; frame-ancestors 'none'; base-uri 'self'");
   next();
