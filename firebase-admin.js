@@ -174,7 +174,10 @@ async function readData(key, noCache) {
     try {
       perf.trackRead();
       readFromFirebase = true;
-      const snap = await fbDb.ref(key).once('value');
+      var snap = await Promise.race([
+        fbDb.ref(key).once('value'),
+        new Promise(function(_, reject) { setTimeout(function() { reject(new Error('timeout')); }, 8000); })
+      ]);
       val = normalizeSnapshot(snap.val());
     } catch (e) {
       console.error('Firebase read error, using local store:', e.message);
