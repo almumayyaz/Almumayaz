@@ -43,14 +43,14 @@
         var text = esc(a.title || '');
         if (a.content) text += ' — ' + esc(a.content);
         html += '<div style="height:' + itemH + 'px;display:flex;align-items:center;overflow:hidden;box-sizing:border-box;width:100%;">';
-        html += '<span class="annText" style="display:inline-block;white-space:nowrap;font-size:13px;font-weight:500;color:var(--text);line-height:1.4;will-change:transform;max-width:100%;overflow:hidden;text-overflow:ellipsis;">' + text + '</span>';
+        html += '<span class="annText" style="display:inline-block;white-space:nowrap;font-size:13px;font-weight:500;color:var(--text);line-height:1.4;will-change:transform;padding-right:10px;">' + text + '</span>';
         html += '</div>';
       });
       if (data.length > 1) {
         var first = esc(data[0].title || '');
         if (data[0].content) first += ' — ' + esc(data[0].content);
         html += '<div style="height:' + itemH + 'px;display:flex;align-items:center;overflow:hidden;box-sizing:border-box;width:100%;">';
-        html += '<span class="annText" style="display:inline-block;white-space:nowrap;font-size:13px;font-weight:500;color:var(--text);line-height:1.4;will-change:transform;max-width:100%;overflow:hidden;text-overflow:ellipsis;">' + first + '</span>';
+        html += '<span class="annText" style="display:inline-block;white-space:nowrap;font-size:13px;font-weight:500;color:var(--text);line-height:1.4;will-change:transform;padding-right:10px;">' + first + '</span>';
         html += '</div>';
       }
       track.innerHTML = html;
