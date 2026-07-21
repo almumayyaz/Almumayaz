@@ -6,10 +6,10 @@
     var sliderItems = (announcements && announcements.length > 0) ? announcements.filter(function(a) { return a.active !== false; }).sort(function(a,b) { return (Number(b.id)||0) - (Number(a.id)||0); }) : [];
     if (sliderItems.length > 0) {
   %>
-  <div id="annSlider" style="width:100%;height:44px;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,0.04);margin:0 0 4px;overflow:hidden;display:flex;align-items:center;padding:0 16px;box-sizing:border-box;">
+<div id="annSlider" style="width:100%;height:44px;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,0.04);margin:0 0 4px;overflow:hidden;display:flex;align-items:center;padding:0 16px;box-sizing:border-box;">
     <span style="flex-shrink:0;margin-left:10px;font-size:15px;line-height:1;">📢</span>
     <div style="flex:1;overflow:hidden;height:44px;position:relative;">
-      <div id="annSliderTrack" style="position:absolute;left:0;right:0;top:0;will-change:transform;"></div>
+      <div id="annSliderTrack" style="position:absolute;left:0;top:0;height:100%;display:flex;will-change:transform;"></div>
     </div>
   </div>
   <script id="annSliderData" type="application/json"><%- JSON.stringify(sliderItems).replace(/<\//g, '<\\/') %></script>
@@ -23,18 +23,16 @@
     try { data = JSON.parse(document.getElementById('annSliderData').textContent); } catch(e) {}
     if (!data.length) { slider.style.display = 'none'; return; }
 
-    var itemH = 44;
+    var itemW = 0;
     var current = 0;
     var timer = null;
-    var timerStart = 0;
-    var timerDelay = 0;
     var paused = false;
     var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     var hscrollKFId = 'hscrollKF';
 
     function esc(str) {
       if (typeof str !== 'string') return '';
-      return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+      return str.replace(/&/g,'&').replace(/</g,'<').replace(/>/g,'>').replace(/"/g,'"').replace(/'/g,'&#039;');
     }
 
     function build() {
@@ -42,119 +40,59 @@
       data.forEach(function(a) {
         var text = esc(a.title || '');
         if (a.content) text += ' — ' + esc(a.content);
-        html += '<div style="height:' + itemH + 'px;display:flex;align-items:center;overflow:hidden;box-sizing:border-box;width:100%;">';
-        html += '<span class="annText" style="display:inline-block;white-space:nowrap;font-size:13px;font-weight:500;color:var(--text);line-height:1.4;will-change:transform;padding-right:10px;">' + text + '</span>';
+        html += '<div class="annItem" style="flex:0 0 auto;display:flex;align-items:center;white-space:nowrap;padding:0 24px;height:100%;box-sizing:border-box;">';
+        html += '<span class="annText" style="display:inline-block;font-size:13px;font-weight:500;color:var(--text);line-height:1.4;will-change:transform;">' + text + '</span>';
         html += '</div>';
       });
+      // تكرار العناصر الأولى للـ seamless loop
       if (data.length > 1) {
-        var first = esc(data[0].title || '');
-        if (data[0].content) first += ' — ' + esc(data[0].content);
-        html += '<div style="height:' + itemH + 'px;display:flex;align-items:center;overflow:hidden;box-sizing:border-box;width:100%;">';
-        html += '<span class="annText" style="display:inline-block;white-space:nowrap;font-size:13px;font-weight:500;color:var(--text);line-height:1.4;will-change:transform;padding-right:10px;">' + first + '</span>';
-        html += '</div>';
+        data.forEach(function(a) {
+          var text = esc(a.title || '');
+          if (a.content) text += ' — ' + esc(a.content);
+          html += '<div class="annItem" style="flex:0 0 auto;display:flex;align-items:center;white-space:nowrap;padding:0 24px;height:100%;box-sizing:border-box;">';
+          html += '<span class="annText" style="display:inline-block;font-size:13px;font-weight:500;color:var(--text);line-height:1.4;will-change:transform;">' + text + '</span>';
+          html += '</div>';
+        });
       }
       track.innerHTML = html;
-    }
-
-    function getTextEl(idx) {
-      var item = track.children[idx];
-      return item ? item.querySelector('.annText') : null;
+      // حساب عرض العنصر الأول بعد البناء
+      var firstItem = track.querySelector('.annItem');
+      if (firstItem) itemW = firstItem.offsetWidth;
     }
 
     function goTo(idx, animated) {
-      var prevText = getTextEl(current);
-      if (prevText) prevText.style.animation = 'none';
       if (reduced) track.style.transition = 'none';
-      else track.style.transition = animated ? 'transform 0.4s ease-in-out' : 'none';
-      track.style.transform = 'translateY(-' + (idx * itemH) + 'px)';
+      else track.style.transition = animated ? 'transform 0.5s ease-in-out' : 'none';
+      track.style.transform = 'translateX(-' + (idx * itemW) + 'px)';
       current = idx;
-    }
-
-    function startHscroll(el, excess) {
-      var dur = Math.max(excess / 40, 2);
-      var nm = 'hs' + Date.now();
-      el.style.animation = 'none';
-      el.style.transform = 'translateX(0)';
-      void el.offsetWidth;
-      var old = document.getElementById(hscrollKFId);
-      if (old) old.remove();
-      var st = document.createElement('style');
-      st.id = hscrollKFId;
-      st.textContent = '@keyframes ' + nm + '{from{transform:translateX(0px)}to{transform:translateX(' + excess + 'px)}}';
-      document.head.appendChild(st);
-      el.style.animation = nm + ' ' + dur + 's linear forwards';
-      return dur;
-    }
-
-    function pauseHscroll() {
-      var el = getTextEl(current);
-      if (el && el.style.animation && el.style.animation !== 'none' && el.style.animationPlayState !== 'paused') {
-        el.style.animationPlayState = 'paused';
-      }
-    }
-
-    function resumeHscroll() {
-      var el = getTextEl(current);
-      if (el && el.style.animationPlayState === 'paused') {
-        el.style.animationPlayState = 'running';
-      }
-    }
-
-    function handleCurrent() {
-      if (paused || reduced || data.length <= 1) return;
-      requestAnimationFrame(function(){
-        var el = getTextEl(current);
-        if (!el) { scheduleNext(5000); return; }
-        el.style.animation = 'none';
-        var cont = track.children[current];
-        var excess = el.scrollWidth - cont.offsetWidth;
-        if (excess <= 0) {
-          scheduleNext(5000);
-        } else {
-          var dur = startHscroll(el, excess);
-          scheduleNext((dur + 1) * 1000);
-        }
-      });
-    }
-
-    function scheduleNext(delay) {
-      if (timer) clearTimeout(timer);
-      timer = null;
-      timerDelay = delay;
-      if (paused || reduced || data.length <= 1) return;
-      timerStart = Date.now();
-      timer = setTimeout(function(){ next(); }, delay);
-    }
-
-    function next() {
-      if (data.length <= 1) return;
-      var nextIdx = current + 1;
-      if (nextIdx >= track.children.length) {
-        goTo(0, false);
-        handleCurrent();
-        return;
-      }
-      goTo(nextIdx, true);
-      setTimeout(function(){ handleCurrent(); }, 420);
     }
 
     function start() {
       if (timer) clearTimeout(timer);
-      timer = null;
-      if (data.length <= 1) return;
-      handleCurrent();
+      if (paused || reduced || data.length <= 1 || itemW === 0) return;
+      timer = setTimeout(function(){
+        var nextIdx = current + 1;
+        // إذا وصلنا لبداية التكرار، قفز للمؤشر 0 بدون انتقال
+        if (nextIdx >= data.length) {
+          track.style.transition = 'none';
+          track.style.transform = 'translateX(0)';
+          current = 0;
+          // أجبر إعادة الرسم
+          void track.offsetWidth;
+        }
+        goTo(nextIdx, true);
+        start();
+      }, 3000);
     }
 
     function stop() {
       if (timer) { clearTimeout(timer); timer = null; }
-      pauseHscroll();
     }
 
     build();
-    if (data.length === 1) {
-      goTo(0, false);
+    if (data.length <= 1) {
+      track.style.transform = 'translateX(0)';
     } else {
-      goTo(0, false);
       if (!reduced) start();
     }
 
@@ -173,11 +111,21 @@
     slider.addEventListener('mouseleave', function() {
       if (reduced || data.length <= 1) return;
       paused = false;
-      resumeHscroll();
-      var remaining = Math.max(500, timerDelay - (Date.now() - timerStart));
-      scheduleNext(remaining);
+      start();
     });
 
+    // تحديث عرض العنصر عند تغيير حجم النافذة
+    window.addEventListener('resize', function() {
+      if (itemW === 0) return;
+      var firstItem = track.querySelector('.annItem');
+      if (firstItem) {
+        itemW = firstItem.offsetWidth;
+        track.style.transition = 'none';
+        track.style.transform = 'translateX(-' + (current * itemW) + 'px)';
+      }
+    });
+
+    // Firebase realtime updates
     (function initFB(){
       if (typeof firebase === 'undefined') return;
       function listen(ref) {
@@ -192,7 +140,7 @@
           stop();
           data = list;
           build();
-          goTo(0, false);
+          current = 0;
           if (data.length > 1 && !reduced) start();
         });
       }
