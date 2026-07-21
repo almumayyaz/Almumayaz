@@ -1,0 +1,31 @@
+<%- include('../partials/header', { title: 'مساعد الذكاء الاصطناعي', navPageTitle: 'AI Assistant', bodyClass: 'admin-body' }) %>
+<%- include('../partials/admin-sidebar') %>
+<main class="main-content">
+  <div class="admin-card">
+    <h2>مساعد الذكاء الاصطناعي (Puter)</h2>
+    <div id="chat-container" style="height: 400px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin-bottom: 10px;"></div>
+    <input type="text" id="chat-input" style="width: 80%; padding: 10px;" placeholder="اكتب سؤالك هنا...">
+    <button onclick="sendMessage()" style="padding: 10px;">إرسال</button>
+  </div>
+</main>
+<script type="module">
+  import { puter } from '/node_modules/@heyputer/puter/dist/puter.es.js'; // تأكد من مسار المكتبة
+  
+  window.sendMessage = async function() {
+    const input = document.getElementById('chat-input');
+    const container = document.getElementById('chat-container');
+    const msg = input.value;
+    if(!msg) return;
+    
+    container.innerHTML += '<p><strong>أنت:</strong> ' + msg + '</p>';
+    input.value = '';
+    
+    try {
+      const response = await puter.ai.chat(msg, { model: "deepseek/deepseek-v4-pro" });
+      container.innerHTML += '<p><strong>AI:</strong> ' + response + '</p>';
+    } catch(e) {
+      container.innerHTML += '<p style="color:red;">خطأ: ' + e.message + '</p>';
+    }
+  }
+</script>
+<%- include('../partials/footer') %>

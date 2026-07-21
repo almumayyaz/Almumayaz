@@ -6316,4 +6316,8 @@ app.use(function(err, req, res, next) {
   res.status(500).send('خطأ في الخادم: ' + (err.message || ''));
 });
 
+app.get('/admin/puter-ai', requireAdmin, async (req, res) => {
+  res.render('admin/puter-ai', { title: 'مساعد الذكاء الاصطناعي', currentPath: req.path });
+});
+
 module.exports = app;
