@@ -9,6 +9,7 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const nodemailer = require('nodemailer');
 const { readData, writeData, readUserById, fbAuth, sendFCM, sendFCMToRole, admin, fbDb, updateData, cacheInvalidate } = require('./firebase-admin');
+const localStore = require('./data-store');
 const fcmLog = require('./fcm-log');
 const supabaseStorage = require('./supabase-storage');
 const crypto = require('crypto');
@@ -1771,14 +1772,25 @@ app.put('/api/student/profile', requireAuth, async (req, res) => {
     const allowed = {};
     ALLOWED.forEach(function (k) { if (req.body[k] !== undefined) allowed[k] = req.body[k]; });
     if (!isSubscribed) {
-      // المرحلة والصف يُتحكمان بخطة الاشتراك ولا يُسمح بتعديلهما أثناء الاشتراك.
       if (req.body.stage !== undefined) allowed.stage = req.body.stage;
       if (req.body.grade !== undefined) allowed.grade = req.body.grade;
     }
     Object.assign(u, allowed);
     u.lastLogin = new Date().toISOString();
     users[idx] = u;
-    await writeData('users', users);
+    // Write full array to local store (fallback) + targeted Firebase update
+    await localStore.writeData('users', users);
+    cacheInvalidate('users');
+    if (fbDb) {
+      try {
+        perf.trackWrite();
+        await fbDb.ref('users/' + idx).set(u);
+      } catch (e) {
+        console.error('Firebase profile update error:', e.message);
+        // Fallback: write full array
+        await fbDb.ref('users').set(users);
+      }
+    }
     req.session.user = sessionUser(users[idx]);
     var safeUser = {};
     var safeFields = ['id','name','email','phone','role','stage','grade','governorate','subscriptionStatus','subscriptionEnd','stage','referralCode','avatar','parentName','parentPhone','parentEmail','fcmEnabled','phoneVerified'];
