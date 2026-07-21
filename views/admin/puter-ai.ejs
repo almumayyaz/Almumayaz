@@ -234,7 +234,22 @@
       .then(function(response) {
         var typing = document.getElementById('aiTyping');
         if (typing) typing.remove();
-        var text = (typeof response === 'string') ? response : (response.message || response.text || JSON.stringify(response));
+        var text = '';
+        if (typeof response === 'string') {
+          text = response;
+        } else if (response.text) {
+          text = response.text;
+        } else if (response.message && typeof response.message === 'string') {
+          text = response.message;
+        } else if (response.message && response.message.content) {
+          text = response.message.content;
+        } else if (response.response) {
+          text = response.response;
+        } else if (response.choices && response.choices[0]) {
+          text = response.choices[0].text || response.choices[0].message.content || '';
+        } else {
+          try { text = JSON.stringify(response); } catch(e) { text = String(response); }
+        }
         chat.innerHTML += '<div class="ai-msg ai-msg-bot">' + formatResponse(text) + '</div>';
         chat.scrollTop = chat.scrollHeight;
       })
