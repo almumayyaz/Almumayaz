@@ -38,7 +38,7 @@
   var searchIdx = -1;
 
   var BUFFER = 2;                // pages to render before/after visible
-  var MAX_DPR = 2;
+  var MAX_DPR = 3;
   var stateKey = 'pdf_state_' + btoa(cfg.tokenUrl).slice(0, 32);
 
   // ---- persistence ----
@@ -227,19 +227,22 @@
     viewport.scrollTo({ top: el.offsetTop - 4, behavior: smooth ? 'smooth' : 'auto' });
   }
 
-  // ---- zoom (keeps reading position) ----
+  // ---- zoom (keeps reading position, debounced re-render) ----
+  var zoomTimer = null;
   function zoom(newScale) {
-    newScale = Math.min(4, Math.max(0.3, newScale));
+    newScale = Math.min(8, Math.max(0.25, newScale));
     if (Math.abs(newScale - scale) < 0.001) return;
+    clearTimeout(zoomTimer);
     var anchor = getAnchor();
     scale = newScale;
     applyWidth();
-    // release everything (canvases now wrong resolution) then re-render around anchor
-    Object.keys(rendered).forEach(function (k) { releasePage(+k); });
-    setAnchor(anchor);        // forces reflow, restores position
-    sync();
     updateUI();
     debouncedSave();
+    zoomTimer = setTimeout(function () {
+      Object.keys(rendered).forEach(function (k) { releasePage(+k); });
+      setAnchor(anchor);
+      sync();
+    }, 100);
   }
 
   // ---- search ----
@@ -427,6 +430,53 @@
       var f = dist / pinchDist;
       if (f > 1.03 || f < 0.97) { zoom(scale * f); pinchDist = dist; }
     }
+  }, { passive: false });
+
+  // ---- reset zoom ----
+  document.getElementById('pdf-zoom-reset').onclick = function () { zoom(1); };
+
+  // ---- double-click to zoom ----
+  viewport.addEventListener('dblclick', function (e) {
+    if (!pdfDoc) return;
+    if (scale > 1.3) { zoom(1); return; }
+    zoom(2.5);
+  });
+
+  // ---- drag to pan when zoomed in ----
+  var panning = false, panStartX, panStartY, panScrollTop, panScrollLeft;
+  viewport.addEventListener('mousedown', function (e) {
+    if (e.button !== 0 || scale <= 1) return;
+    panning = true;
+    viewport.style.cursor = 'grabbing';
+    panStartX = e.clientX;
+    panStartY = e.clientY;
+    panScrollTop = viewport.scrollTop;
+    panScrollLeft = viewport.scrollLeft;
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', function (e) {
+    if (!panning) return;
+    viewport.scrollTop = panScrollTop + (panStartY - e.clientY);
+    viewport.scrollLeft = panScrollLeft + (panStartX - e.clientX);
+  });
+  document.addEventListener('mouseup', function () {
+    if (!panning) return;
+    panning = false;
+    viewport.style.cursor = scale > 1 ? 'grab' : '';
+  });
+  // update cursor when zoom changes
+  var origUpdateUI = updateUI;
+  updateUI = function () {
+    origUpdateUI();
+    if (!panning) viewport.style.cursor = scale > 1 ? 'grab' : '';
+  };
+
+  // wheel zoom without Ctrl when zoomed in (one-finger scroll = zoom)
+  viewport.addEventListener('wheel', function (e) {
+    if (e.ctrlKey) return; // handled above
+    if (scale <= 1) return;
+    e.preventDefault();
+    zoom(e.deltaY > 0 ? scale / 1.08 : scale * 1.08);
   }, { passive: false });
 
   // ---- search UI ----

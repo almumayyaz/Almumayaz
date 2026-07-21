@@ -154,6 +154,11 @@ function firebaseLogin() {
     .then(function(res) { return res.json(); })
     .then(function(data) {
       if (data.success) { window.location.href = data.redirect; }
+      else if (data.error === 'email_not_verified') {
+        btn.disabled = false; btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> تسجيل الدخول';
+        errorDiv.style.display = 'none';
+        showLoginVerify(data.email);
+      }
       else { errorDiv.style.display = 'block'; errorDiv.textContent = (data && data.error) || 'فشل تسجيل الدخول'; btn.disabled = false; btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> تسجيل الدخول'; }
     })
     .catch(function(error) {
@@ -170,10 +175,28 @@ function firebaseLogin() {
     });
 }
 
-function showLoginVerify() {
+function showLoginVerify(email) {
   var errorDiv = document.getElementById('firebaseLoginError');
   errorDiv.style.display = 'none';
   document.getElementById('loginVerifyBox').style.display = 'block';
+  document.getElementById('loginVerifyBtn').disabled = true;
+  document.getElementById('loginVerifyBtn').innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري إرسال الكود...';
+  fetch('/api/auth/send-verify-code', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: email })
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    document.getElementById('loginVerifyBtn').disabled = false;
+    document.getElementById('loginVerifyBtn').innerHTML = '<i class="fas fa-check"></i> تأكيد البريد';
+    if (!d.success) {
+      document.getElementById('loginVerifyError').style.display = 'block';
+      document.getElementById('loginVerifyError').textContent = d.error || 'فشل إرسال الكود';
+    }
+  }).catch(function() {
+    document.getElementById('loginVerifyBtn').disabled = false;
+    document.getElementById('loginVerifyBtn').innerHTML = '<i class="fas fa-check"></i> تأكيد البريد';
+    document.getElementById('loginVerifyError').style.display = 'block';
+    document.getElementById('loginVerifyError').textContent = 'فشل الاتصال بالخادم';
+  });
   setTimeout(function(){ document.getElementById('loginVerifyCode').focus(); }, 200);
 }
 

@@ -8,15 +8,20 @@ const bodyParser = require('body-parser');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const nodemailer = require('nodemailer');
-const { readData, writeData, fbAuth, sendFCM, sendFCMToRole, admin } = require('./firebase-admin');
+const { readData, writeData, readUserById, fbAuth, sendFCM, sendFCMToRole, admin, fbDb, updateData, cacheInvalidate } = require('./firebase-admin');
+const fcmLog = require('./fcm-log');
 const supabaseStorage = require('./supabase-storage');
 const crypto = require('crypto');
 const zlib = require('zlib');
+const https = require('https');
 const zoom = require('./zoom-oauth');
 const analytics = require('./analytics-engine');
 const perf = require('./perf');
 
 const app = express();
+
+// Load Zoom app credentials from Firebase (overrides env vars at startup)
+(async function initZoomCreds() { try { await zoom.loadCredentialsIntoEnv(); } catch(e) { console.error('initZoomCreds:', e.message); } })();
 
 // ===== Extract YouTube video ID from ANY common format =====
 // Handles: watch?v=, youtu.be/, /embed/, /shorts/, youtube-nocookie,
@@ -40,11 +45,11 @@ function extractYouTubeId(input) {
 app.locals.ytId = extractYouTubeId;
 
 // ===== Password hashing (native scrypt, no external deps) =====
-const SCRYPT_N = 16384, SCRYPT_r = 8, SCRYPT_p = 1, SCRYPT_KEYLEN = 64, SCRYPT_SALTLEN = 16;
+const SCRYPT_N = 65536, SCRYPT_r = 8, SCRYPT_p = 1, SCRYPT_KEYLEN = 64, SCRYPT_SALTLEN = 16, SCRYPT_MAXMEM = 1024 * 1024 * 128;
 function scryptHash(plain) {
   return new Promise((resolve, reject) => {
     const salt = crypto.randomBytes(SCRYPT_SALTLEN);
-    crypto.scrypt(String(plain), salt, SCRYPT_KEYLEN, { N: SCRYPT_N, r: SCRYPT_r, p: SCRYPT_p }, (err, derived) => {
+    crypto.scrypt(String(plain), salt, SCRYPT_KEYLEN, { N: SCRYPT_N, r: SCRYPT_r, p: SCRYPT_p, maxmem: SCRYPT_MAXMEM }, (err, derived) => {
       if (err) return reject(err);
       resolve('scrypt$' + salt.toString('hex') + '$' + derived.toString('hex'));
     });
@@ -59,18 +64,40 @@ async function verifyPassword(stored, plain) {
     const expected = Buffer.from(parts[2], 'hex');
     // Stage 7: async scrypt (no longer blocks the Node event loop on every login).
     const derived = await new Promise((resolve, reject) => {
-      crypto.scrypt(String(plain), salt, SCRYPT_KEYLEN, { N: SCRYPT_N, r: SCRYPT_r, p: SCRYPT_p }, (err, d) => err ? reject(err) : resolve(d));
+      crypto.scrypt(String(plain), salt, SCRYPT_KEYLEN, { N: SCRYPT_N, r: SCRYPT_r, p: SCRYPT_p, maxmem: SCRYPT_MAXMEM }, (err, d) => err ? reject(err) : resolve(d));
     });
     return crypto.timingSafeEqual(derived, expected);
   }
-  // Legacy plaintext fallback (transitional; rehashed on successful login)
-  return stored === String(plain);
+  return false;
 }
 
 // ===== Client IP (works behind Vercel proxy) =====
 function getClientIp(req) {
   return (req.headers && (req.headers['x-forwarded-for'] || '').split(',')[0].trim()) ||
          req.ip || (req.connection && req.connection.remoteAddress) || 'unknown';
+}
+
+// ===== Receipt image validation =====
+function validateReceiptImage(base64) {
+  if (!base64 || typeof base64 !== 'string') return 'صورة الإيصال مطلوبة';
+  var maxSize = 3 * 1024 * 1024; // 3MB
+  var raw, rawLen;
+  try {
+    rawLen = base64.length * 3 / 4;
+    if (rawLen > maxSize) return 'حجم الصورة يجب أن يكون أقل من 3 ميجابايت';
+    raw = Buffer.from(base64.split(',')[1] || base64, 'base64');
+  } catch(e) { return 'صورة غير صالحة'; }
+  var mime = base64.split(';')[0].split(':')[1];
+  if (mime && !['image/jpeg', 'image/png', 'image/webp'].includes(mime)) return 'صيغة الصورة غير مدعومة (JPG, PNG, WebP فقط)';
+  // Verify image magic bytes
+  if (raw && raw.length > 4) {
+    var header = raw.toString('hex', 0, 4);
+    var isJpeg = header.indexOf('ffd8') === 0;
+    var isPng = header.indexOf('89504e47') === 0;
+    var isWebp = raw.length > 12 && raw.toString('ascii', 0, 4) === 'RIFF' && raw.toString('ascii', 8, 12) === 'WEBP';
+    if (!isJpeg && !isPng && !isWebp) return 'صيغة الصورة غير مدعومة (JPG, PNG, WebP فقط)';
+  }
+  return null; // valid
 }
 
 // ===== Security headers =====
@@ -84,7 +111,7 @@ app.use((req, res, next) => {
   }
   res.setHeader('Content-Security-Policy',
     "default-src 'self'; " +
-    "script-src 'self' 'unsafe-inline' https://www.gstatic.com https://cdnjs.cloudflare.com https://www.youtube.com https://www.youtube-nocookie.com https://source.zoom.us https://*.zoom.us https://zoom.us; " +
+    "script-src 'self' 'unsafe-inline' https://www.gstatic.com https://cdnjs.cloudflare.com https://www.youtube.com https://www.youtube-nocookie.com https://source.zoom.us https://*.zoom.us https://zoom.us https://*.firebaseio.com; " +
     "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.plyr.io https://fonts.googleapis.com https://source.zoom.us https://*.zoom.us https://zoom.us; " +
     "img-src 'self' data: https: blob:; " +
     "font-src 'self' data: https://cdnjs.cloudflare.com https://fonts.gstatic.com https://source.zoom.us; " +
@@ -154,34 +181,45 @@ app.use((req, res, next) => {
   const host = req.get('host');
   const origin = req.get('origin');
   const referer = req.get('referer');
-  let ok = false;
-  try { if (origin && new URL(origin).host === host) ok = true; } catch (e) {}
-  try { if (!ok && referer && new URL(referer).host === host) ok = true; } catch (e) {}
+  var appUrl = process.env.APP_URL || '';
+  var allowedHosts = [host, 'almumayaz.vercel.app', 'www.almumayaz.online', 'almumayaz.online'];
+  // Also parse APP_URL for additional hosts
+  try { if (appUrl) allowedHosts.push(new URL(appUrl).host); } catch(e) {}
+  var ok = false;
+  try { if (origin && allowedHosts.indexOf(new URL(origin).host) !== -1) ok = true; } catch (e) {}
+  try { if (!ok && referer && allowedHosts.indexOf(new URL(referer).host) !== -1) ok = true; } catch (e) {}
   if (!ok) return res.status(403).json({ error: 'طلب غير مسموح' });
   next();
 });
 
-// ===== Inline IP rate limiter (no deps) =====
 const _rateBuckets = {};
-function rateLimit({ windowMs = 15 * 60 * 1000, max = 30, keyFn } = {}) {
-  return (req, res, next) => {
-    const key = keyFn ? keyFn(req) : getClientIp(req);
-    const now = Date.now();
-    const b = _rateBuckets[key] || (_rateBuckets[key] = { count: 0, resetAt: now + windowMs });
-    if (now > b.resetAt) { b.count = 0; b.resetAt = now + windowMs; }
-    b.count++;
-    if (b.count > max) return res.status(429).json({ error: 'محاولات كثيرة، حاول لاحقاً' });
-    next();
-  };
+// Rate limiter (best-effort on Vercel serverless — each invocation has fresh state)
+const RATE_LIMITS = {
+  'AUTH_LIMIT': { window: 15 * 60 * 1000, max: 30 },
+  'ANALYTICS_LIMIT': { window: 15 * 60 * 1000, max: 400 },
+  'CONTACT_LIMIT': { window: 60 * 60 * 1000, max: 5 }
+};
+function getRateLimitKey(limitName, suffix) {
+  return limitName + ':' + suffix;
 }
-const AUTH_LIMIT = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, keyFn: (req) => getClientIp(req) + ':' + (req.path || '') });
-// Stage 9: analytics endpoints can be polled by the dashboard, so allow a higher
-// ceiling than the strict auth limiter while still protecting against abuse.
-const ANALYTICS_LIMIT = rateLimit({ windowMs: 15 * 60 * 1000, max: 400, keyFn: (req) => getClientIp(req) + ':' + (req.path || '') });
-app.use((req, res, next) => {
-  const p = req.path || '';
-  if (p.startsWith('/api/auth') || p === '/login' || p === '/register' || p === '/forgot-password' || p.startsWith('/api/parent')) return AUTH_LIMIT(req, res, next);
-  if (p.startsWith('/api/analytics')) return ANALYTICS_LIMIT(req, res, next);
+app.use(function(req, res, next) {
+  var path = req.path;
+  var limitName = null;
+  if (path.indexOf('/api/auth/') === 0 || path === '/login' || path === '/register' || path === '/forgot-password' || path === '/demo' || path.indexOf('/api/parent/') === 0 || path.indexOf('/api/student/redeem-code') === 0 || path.indexOf('/api/student/apply-referral') === 0) limitName = 'AUTH_LIMIT';
+  else if (path.indexOf('/api/analytics/') === 0) limitName = 'ANALYTICS_LIMIT';
+  else if (path === '/api/contact') limitName = 'CONTACT_LIMIT';
+  if (!limitName) return next();
+  var cfg = RATE_LIMITS[limitName];
+  var ip = (req.headers['x-forwarded-for'] || '').split(',')[0] || req.ip || 'unknown';
+  var key = getRateLimitKey(limitName, ip + ':' + path);
+  var bucket = _rateBuckets[key];
+  var now = Date.now();
+  if (!bucket || now - bucket.start > cfg.window) {
+    _rateBuckets[key] = { start: now, count: 1 };
+    return next();
+  }
+  bucket.count++;
+  if (bucket.count > cfg.max) return res.status(429).json({ error: 'طلبات كثيرة جداً، يرجى الانتظار' });
   next();
 });
 
@@ -196,13 +234,19 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
 app.use(bodyParser.json({ limit: '50mb' }));
+// In production the session cookie must be sameSite:'none' + secure so the browser
+// sends it on the cross-site top-level redirect from zoom.us back to /auth/zoom/callback
+// (otherwise the Zoom OAuth state/CSRF check fails with "طلب غير مصرح به").
+// In local dev (http) we keep sameSite:'lax' so the cookie is usable on localhost.
+var isProd = process.env.NODE_ENV === 'production';
+
 app.use(session({
   name: 'lughati_session',
   secret: process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex'),
   maxAge: 30 * 24 * 60 * 60 * 1000,
-  sameSite: 'lax',
+  sameSite: isProd ? 'none' : 'lax',
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production'
+  secure: isProd
 }));
 
 app.set('view engine', 'ejs');
@@ -220,7 +264,15 @@ ejs.renderFile = function(filePath, options, cb) {
 
 const multer = require('multer');
 const mammoth = require('mammoth');
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+var upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 },
+  fileFilter: function(req, file, cb) {
+    var allowedMimes = ['image/jpeg','image/png','image/webp','image/gif','application/pdf','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/vnd.ms-powerpoint','application/vnd.openxmlformats-officedocument.presentationml.presentation','text/plain','application/zip'];
+    if (allowedMimes.indexOf(file.mimetype) !== -1 || file.mimetype.indexOf('image/') === 0) return cb(null, true);
+    cb(null, false);
+  }
+});
 
 function stripBOM(s) {
   if (!s || typeof s !== 'string') return s;
@@ -233,75 +285,98 @@ function stripBOM(s) {
 function sessionUser(u) {
   if (!u || typeof u !== 'object') return u;
   const c = {};
-  ['id','uid','name','email','role','stage','grade','governorate','phone','parentPhone','subscribedStage','planName','planPeriod','subscriptionStatus','subscriptionStart','subscriptionEnd','referralCode','referralDiscount','emailVerified','fcmToken','isStudent','progress'].forEach(function(k){
+  ['id','uid','name','email','role','stage','grade','governorate','phone','parentPhone','parentId','parentName','parentEmail','subscribedStage','planName','planPeriod','subscriptionStatus','subscriptionStart','subscriptionEnd','referralCode','referralDiscount','referralUsedAt','emailVerified','fcmToken','isStudent','progress'].forEach(function(k){
     if (k in u) c[k] = u[k];
   });
   return c;
 }
 
-// ===== Email (SendGrid preferred, fallback Gmail SMTP) =====
-// Env vars for SendGrid: SENDGRID_API_KEY
-// Env vars for Gmail fallback: SMTP_USER, SMTP_PASS, SMTP_FROM
-async function sendMail(to, subject, html) {
-  var _from = process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@almumayaz.com';
-  // Prefer SendGrid
-  if (process.env.SENDGRID_API_KEY) {
-    try {
-      var sg = require('@sendgrid/mail');
-      sg.setApiKey(process.env.SENDGRID_API_KEY);
-      await sg.send({
-        to: to,
-        from: { email: _from, name: 'المُميز' },
-        subject: subject,
-        html: html,
-        trackingSettings: { clickTracking: { enable: false }, openTracking: { enable: false } },
-        mailSettings: { sandboxMode: { enable: false } }
-      });
-      return true;
-    } catch (e) { console.error('[mail] SendGrid error:', e && e.message); }
+// ===== Email (Gmail SMTP preferred — best deliverability) =====
+// Env vars: GMAIL_USER, GMAIL_PASS (App Password), SMTP_FROM, SMTP_HOST etc for fallback
+async function sendMail(to, subject, html, text) {
+  if (!text) text = html.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/\n+/g, '\n').trim();
+  // Only Gmail SMTP (reliable, SPF/DKIM pass for @gmail.com)
+  if (!process.env.GMAIL_USER || !process.env.GMAIL_PASS) {
+    console.error('[mail] GMAIL_USER or GMAIL_PASS not configured');
+    return false;
   }
-  // Fallback: Gmail SMTP
-  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) return false;
   try {
-    var mailer = nodemailer.createTransport({ service: 'gmail', auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } });
-    var text = html.replace(/<br\s*\/?>/gi, '\n').replace(/<\/?[^>]+(>|$)/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#039;/g, "'").replace(/\n{3,}/g, '\n\n').trim();
+    var gmailUser = process.env.GMAIL_USER;
+    var dkimKey = process.env.DKIM_PRIVATE_KEY;
+    var transportOpts = { service: 'gmail', auth: { user: gmailUser, pass: process.env.GMAIL_PASS } };
+    if (dkimKey) {
+      transportOpts.dkim = { domainName: 'almumayaz.online', keySelector: 'mail', privateKey: dkimKey };
+    }
+    var mailer = nodemailer.createTransport(transportOpts);
     await mailer.sendMail({
-      from: '"المُميز" <' + _from + '>', to: to, subject: subject, text: text, html: html,
-      replyTo: _from,
-      headers: { 'X-Mailer': 'Almumayaz' }
+      from: '"المُميز" <' + gmailUser + '>', to: to, subject: subject, text: text, html: html
     });
+    console.log('[mail] Sent via Gmail OK to ' + to);
     return true;
-  } catch (e) { console.error('[mail] SMTP error:', e && e.message); return false; }
+  } catch (e) {
+    console.error('[mail] Gmail FAILED:', e && e.message);
+    return false;
+  }
 }
 function genEmailCode() { return String(crypto.randomInt(100000, 1000000)); }
 const EMAIL_CODE_TTL = 30 * 60 * 1000;
+function inviteEmailHtml(parentName, studentName, inviteLink) {
+  return '<p style="margin:0 0 20px;font-size:17px;">مرحباً <strong>' + parentName + '</strong>،</p><p style="margin:0 0 6px;color:#666;">الطالب <strong>' + studentName + '</strong> يدعوك لمتابعة مسيرته التعليمية على منصة المُميز.</p><p style="margin:0 0 24px;color:#666;">اضغط على الرابط أدناه لإنشاء حساب ولي الأمر:</p><div style="text-align:center;margin:0 0 24px;"><a href="' + inviteLink + '" style="display:inline-block;padding:14px 36px;background:linear-gradient(135deg,#0f1b34,#1a2d50);color:#fbbf24;text-decoration:none;border-radius:8px;font-size:16px;font-weight:bold;">إنشاء حساب ولي الأمر</a></div><p style="text-align:center;font-size:11px;color:#999;">أو انسخ الرابط: ' + inviteLink + '</p>';
+}
 function emailShell(title, bodyHtml) {
-  return `<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head><body style="margin:0;padding:0;background:#f4f4f4;font-family:Tahoma,Arial,sans-serif;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:24px 0;"><tr><td align="center">
-<table role="presentation" width="100%" style="max-width:480px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.06);">
-<tr><td style="padding:32px 28px 12px;text-align:center;background:#0f1b34;">
-<h1 style="color:#f3c969;margin:0;font-size:22px;">${title}</h1>
+  return `<!DOCTYPE html>
+<html dir="rtl">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f4f4f6;font-family:Tahoma,'Segoe UI',Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f6;padding:32px 12px;">
+<tr><td align="center">
+<table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+<tr><td style="padding:32px 24px 24px;text-align:center;background:linear-gradient(135deg,#0f1b34 0%,#1a2d50 100%);">
+<div style="font-size:32px;line-height:1;">&#127942;</div>
+<div style="color:#F59E0B;font-size:28px;font-weight:bold;margin-top:10px;letter-spacing:2px;">منصة المُميز</div>
+<div style="color:#FBBF24;font-size:12px;margin-top:4px;">Almumayaz Educational Platform</div>
+<div style="width:50px;height:3px;background:linear-gradient(90deg,#F59E0B,#FBBF24);border-radius:2px;margin:16px auto 0;"></div>
+<div style="color:#fde68a;font-size:15px;margin-top:16px;font-weight:600;">${title}</div>
 </td></tr>
-<tr><td style="padding:24px 28px;font-size:15px;line-height:1.9;color:#333333;text-align:right;">
+<tr><td style="padding:36px 28px 28px;font-size:15px;line-height:1.9;color:#374151;">
 ${bodyHtml}
 </td></tr>
-<tr><td style="padding:12px 28px 24px;text-align:center;border-top:1px solid #e0e0e0;">
-<p style="font-size:12px;color:#888888;margin:0;">منصة المُميز — اللغة العربية</p>
+<tr><td style="padding:20px 28px;text-align:center;background:#fafafa;border-top:1px solid #eee;">
+<p style="font-size:11px;color:#aaa;margin:0 0 4px;">منصة المُميز للتعليم &mdash; Almumayaz</p>
+<p style="font-size:10px;color:#ccc;margin:0;">هذه الرسالة مرسلة بشكل آلي، يرجى عدم الرد.</p>
 </td></tr>
-</table></td></tr></table></body></html>`;
+</table>
+<p style="font-size:11px;color:#ccc;text-align:center;margin:12px 0 0;">&copy; ${new Date().getFullYear()} Almumayaz. جميع الحقوق محفوظة.</p>
+</td></tr></table></body></html>`;
 }
 function verifyEmailHtml(name, code) {
   return emailShell('تأكيد البريد الإلكتروني',
-    `مرحباً ${name || 'طالب المنصة'}،<br>كود تأكيد بريدك الإلكتروني هو:<br>
-     <div style="font-size:30px;font-weight:bold;color:#f3c969;text-align:center;margin:14px 0;letter-spacing:6px;">${code}</div>
-     <p style="text-align:center;color:#9fb0c9;font-size:13px;">هذا الكود صالح لمدة 30 دقيقة.</p>`);
+    `<p style="margin:0 0 20px;font-size:17px;">مرحباً <strong>${name || 'طالب'}،</strong></p>
+<p style="margin:0 0 6px;color:#666;">نشكرك على انضمامك إلى منصة المُميز! نحن سعداء بانضمامك.</p>
+<p style="margin:0 0 28px;color:#666;">لتفعيل حسابك، يرجى إدخال كود التأكيد التالي:</p>
+<div style="text-align:center;margin:0 0 28px;">
+<div style="display:inline-block;padding:16px 36px;background:linear-gradient(135deg,#fffbeb,#fef3c7);border:2px solid #f59e0b;border-radius:12px;font-size:38px;font-weight:bold;color:#d97706;letter-spacing:12px;direction:ltr;font-family:monospace;box-shadow:0 2px 12px rgba(217,119,6,0.15);">${code}</div>
+</div>
+<p style="text-align:center;font-size:13px;color:#999;margin:0;"><span style="background:#fef3c7;padding:4px 12px;border-radius:4px;color:#d97706;">صالح لمدة 30 دقيقة</span></p>`);
 }
 function resetEmailHtml(name, code) {
   return emailShell('إعادة تعيين كلمة المرور',
-    `مرحباً ${name || 'طالب المنصة'}،<br>كود إعادة تعيين كلمة المرور هو:<br>
-     <div style="font-size:30px;font-weight:bold;color:#f3c969;text-align:center;margin:14px 0;letter-spacing:6px;">${code}</div>
-     <p style="text-align:center;color:#9fb0c9;font-size:13px;">أدخل الكود مع كلمة المرور الجديدة. صالح لمدة 30 دقيقة.</p>`);
+    `<p style="margin:0 0 20px;font-size:17px;">مرحباً <strong>${name || 'طالب'}،</strong></p>
+<p style="margin:0 0 6px;color:#666;">لقد تلقينا طلباً لإعادة تعيين كلمة المرور الخاصة بحسابك في منصة المُميز.</p>
+<p style="margin:0 0 28px;color:#666;">إذا كنت أنت من أرسل هذا الطلب، استخدم الكود التالي:</p>
+<div style="text-align:center;margin:0 0 28px;">
+<div style="display:inline-block;padding:16px 36px;background:linear-gradient(135deg,#fffbeb,#fef3c7);border:2px solid #f59e0b;border-radius:12px;font-size:38px;font-weight:bold;color:#d97706;letter-spacing:12px;direction:ltr;font-family:monospace;box-shadow:0 2px 12px rgba(217,119,6,0.15);">${code}</div>
+</div>
+<p style="text-align:center;font-size:13px;color:#999;margin:0;"><span style="background:#fef3c7;padding:4px 12px;border-radius:4px;color:#d97706;">صالح لمدة 30 دقيقة</span></p>`);
 }
+
+// Quick test: GET /api/debug/test-email?to=you@gmail.com
+app.get('/api/debug/test-email', requireAdmin, async (req, res) => {
+  var to = req.query.to || req.session?.user?.email;
+  if (!to) return res.json({ error: 'provide ?to=email' });
+  var ok = await sendMail(to, 'مرحباً بك في منصة المُميز ✨', verifyEmailHtml('Test', '123456'));
+  res.json({ sent: ok, gmailUser: process.env.GMAIL_USER ? process.env.GMAIL_USER.replace(/./g, '*') : null, hasPass: !!process.env.GMAIL_PASS });
+});
 
 function requireAuth(req, res, next) {
   if (!req.session.user) return res.redirect('/login');
@@ -401,6 +476,66 @@ app.use(async (req, res, next) => {
       res.locals.unreadCount = 0;
     }
   } catch (e) { res.locals.unreadCount = 0; }
+  next();
+});
+// Maintenance mode: block normal browsing for non-admins when enabled
+app.use(async (req, res, next) => {
+  const p = req.path;
+  // Bypass: admin panel, auth/login flows, APIs, and static assets
+  if (p.startsWith('/admin') || p.startsWith('/auth') || p.startsWith('/login') || p.startsWith('/logout') ||
+      p.startsWith('/api') || p.startsWith('/css') || p.startsWith('/js') || p.startsWith('/img') ||
+      p.startsWith('/icon') || p === '/manifest.json' || p === '/sw.js' || p.startsWith('/uploads')) {
+    return next();
+  }
+  try {
+    const mm = await readData('maintenanceMode');
+    if (mm && mm.enabled) {
+      const u = res.locals.user;
+      if (!u || u.role !== 'admin') {
+        const msg = mm.message || 'نعتذر، المنصة قيد الصيانة حالياً. يرجى المحاولة لاحقاً.';
+        return res.status(503).send(
+          '<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8">' +
+          '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+          '<title>المنصة قيد الصيانة</title>' +
+          '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">' +
+          '<style>*{box-sizing:border-box;margin:0;padding:0;}' +
+          'body{font-family:Cairo,Tahoma,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;' +
+          'background:radial-gradient(circle at 50% -10%,#1e293b 0%,#0f172a 60%);color:#e2e8f0;padding:20px;overflow:hidden;}' +
+          '.wrap{text-align:center;max-width:460px;animation:rise .6s cubic-bezier(.22,1,.36,1) both;}' +
+          '@keyframes rise{from{opacity:0;transform:translateY(18px);}to{opacity:1;transform:translateY(0);}}' +
+          '.ring{width:88px;height:88px;margin:0 auto 22px;border-radius:50%;display:flex;align-items:center;justify-content:center;' +
+          'background:linear-gradient(135deg,#F59E0B,#D97706);box-shadow:0 14px 34px rgba(245,158,11,.35);position:relative;}' +
+          '.ring i{font-size:36px;color:#fff;animation:spin 3s linear infinite;}' +
+          '@keyframes spin{to{transform:rotate(360deg);}}' +
+          '.ring::after{content:"";position:absolute;inset:-10px;border-radius:50%;border:2px solid rgba(245,158,11,.25);animation:pulse 2s ease-out infinite;}' +
+          '@keyframes pulse{0%{transform:scale(1);opacity:.8;}100%{transform:scale(1.28);opacity:0;}}' +
+          '.brand{font-size:13px;letter-spacing:1px;color:#94a3b8;margin-bottom:6px;font-weight:700;}' +
+          'h1{font-size:25px;margin-bottom:14px;color:#f8fafc;}' +
+          '.msg{font-size:15px;line-height:1.7;color:#cbd5e1;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);' +
+          'padding:14px 18px;border-radius:14px;margin-bottom:18px;}' +
+          '.dots{display:flex;gap:6px;justify-content:center;margin:18px 0 8px;}' +
+          '.dots span{width:8px;height:8px;border-radius:50%;background:#F59E0B;animation:blink 1.4s infinite both;}' +
+          '.dots span:nth-child(2){animation-delay:.2s;}.dots span:nth-child(3){animation-delay:.4s;}' +
+          '@keyframes blink{0%,80%,100%{opacity:.25;}40%{opacity:1;}}' +
+          '.note{font-size:12.5px;color:#64748b;line-height:1.6;}' +
+          '</style></head><body><div class="wrap">' +
+          '<div class="ring"><i class="fas fa-gear"></i></div>' +
+          '<div class="brand">المُميز</div>' +
+          '<h1>المنصة قيد الصيانة</h1>' +
+          '<div class="msg">' + String(msg).replace(/</g,'&lt;') + '</div>' +
+          '<div class="dots"><span></span><span></span><span></span></div>' +
+          '<p class="note">نعتذر عن الإزعاج المؤقت، نحن نعمل على تحسينات لخدمتكم بشكل أفضل. سنعود قريباً.</p>' +
+          '</div></body></html>'
+        );
+      }
+    }
+  } catch (e) { /* ignore maintenance read errors, allow request */ }
+  next();
+});
+// Platform theme: inject custom colors + button shape (cached, applies to all pages)
+app.use(async (req, res, next) => {
+  try { res.locals.themeStyle = await getThemeCss(); }
+  catch (e) { res.locals.themeStyle = ''; }
   next();
 });
 // API endpoint for live unread count (polled by the bell icon)
@@ -536,11 +671,9 @@ app.post('/api/auth/firebase-login', async (req, res) => {
   try {
     const { idToken } = req.body;
     const decoded = await fbAuth.verifyIdToken(idToken);
-    // Note: login is intentionally NOT gated on email verification — verification is
-    // offered as an optional confirmation code at registration (see /api/auth/verify-email).
     const uid = decoded.uid;
     const users = await readData('users');
-    let user = users.find(u => u.uid === uid);
+    let user = Array.isArray(users) ? users.find(u => u && u.uid === uid) : null;
 
     if (!user) {
       user = {
@@ -576,12 +709,16 @@ app.post('/api/auth/firebase-login', async (req, res) => {
       await writeData('users', users);
     }
 
+    // Block login if email verification was sent but not completed
+    if (user.emailVerified === false) {
+      return res.json({ error: 'email_not_verified', email: user.email });
+    }
+
     req.session.user = sessionUser(user);
     if (user.role === 'student') {
-      analytics.trackLogin(user.uid, { device: req.headers['user-agent'] || '', browser: req.headers['user-agent'] || '', ip: req.ip || req.connection.remoteAddress || '' }).catch(function(){});
-    }
-    res.json({ success: true, redirect: user.role === 'admin' ? '/admin' : '/student' });
-    } catch (e) {
+    analytics.trackLogin(user.uid, { device: req.headers['user-agent'] || '', browser: req.headers['user-agent'] || '', ip: req.ip || req.connection.remoteAddress || '' }).catch(function(){});
+  }
+    res.json({ success: true, redirect: user.role === 'admin' ? '/admin' : '/student' }); } catch (e) {
       console.error('Firebase login error:', e);
       res.status(401).json({ error: 'تعذر إتمام تسجيل الدخول. تأكد من صحة بريدك الإلكتروني وكلمة المرور، أو حاول مرة أخرى لاحقاً.' });
     }
@@ -597,7 +734,7 @@ app.post('/api/auth/firebase-register', async (req, res) => {
     let users = await readData('users');
     if (!Array.isArray(users)) users = users ? Object.values(users) : [];
     if (users.find(u => u.email === email)) {
-      return res.status(409).json({ error: 'البريد الإلكتروني مسجل بالفعل' });
+      return res.status(409).json({ error: 'حدث خطأ في التسجيل، يرجى المحاولة مرة أخرى' });
     }
 
     const newUser = {
@@ -614,7 +751,7 @@ app.post('/api/auth/firebase-register', async (req, res) => {
       subscriptionStatus: 'inactive',
       subscriptionStart: null,
       subscriptionEnd: null,
-      referralCode: 'REF-' + Math.random().toString(36).substr(2, 8).toUpperCase(),
+    referralCode: 'REF-' + crypto.randomBytes(4).toString('hex').toUpperCase(),
       referredBy: referralCode || '',
       fcmToken: '',
       createdAt: new Date().toISOString(),
@@ -630,7 +767,9 @@ app.post('/api/auth/firebase-register', async (req, res) => {
       if (referrer) {
         newUser.referredBy = referrer.id;
         if (!referrer.referrals) referrer.referrals = [];
-        referrer.referrals.push({ userId: uid, discount: 25, date: new Date().toISOString() });
+        var settingsRef = await readData('settings') || {};
+        var refDiscount = settingsRef.referralDiscount != null ? settingsRef.referralDiscount : 25;
+        referrer.referrals.push({ userId: uid, discount: refDiscount, date: new Date().toISOString() });
         const ri = users.findIndex(u => u.referralCode === referralCode);
         if (ri !== -1) users[ri] = referrer;
       }
@@ -658,7 +797,7 @@ app.post('/api/auth/send-verify-code', async (req, res) => {
     if (!email) return res.status(400).json({ error: 'البريد الإلكتروني مطلوب' });
     const users = await loadUsers();
     const user = users.find(u => u.email === email);
-    if (!user) return res.status(404).json({ error: 'لا يوجد حساب بهذا البريد' });
+    if (!user) return res.status(404).json({ error: 'إذا كان الحساب موجوداً، تم إرسال التعليمات' });
     user.emailCode = genEmailCode();
     user.emailCodeExpiry = Date.now() + EMAIL_CODE_TTL;
     await writeData('users', users);
@@ -673,7 +812,7 @@ app.post('/api/auth/verify-email', async (req, res) => {
     if (!email || !code) return res.status(400).json({ error: 'البريد والكود مطلوبان' });
     const users = await loadUsers();
     const idx = users.findIndex(u => u.email === email);
-    if (idx === -1) return res.status(404).json({ error: 'لا يوجد حساب بهذا البريد' });
+    if (idx === -1) return res.status(404).json({ error: 'إذا كان الحساب موجوداً، تم إرسال التعليمات' });
     const user = users[idx];
     if (user.emailVerified) return res.json({ success: true });
     if (!user.emailCode || !user.emailCodeExpiry || Date.now() > user.emailCodeExpiry)
@@ -697,7 +836,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     if (!email) return res.status(400).json({ error: 'البريد الإلكتروني مطلوب' });
     const users = await loadUsers();
     const user = users.find(u => u.email === email);
-    if (!user) return res.status(404).json({ error: 'لا يوجد حساب بهذا البريد' });
+    if (!user) return res.status(404).json({ error: 'إذا كان الحساب موجوداً، تم إرسال التعليمات' });
     user.resetCode = genEmailCode();
     user.resetCodeExpiry = Date.now() + EMAIL_CODE_TTL;
     await writeData('users', users);
@@ -712,7 +851,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
     if (!email || !code || !newPassword) return res.status(400).json({ error: 'جميع الحقول مطلوبة' });
     const users = await loadUsers();
     const idx = users.findIndex(u => u.email === email);
-    if (idx === -1) return res.status(404).json({ error: 'لا يوجد حساب بهذا البريد' });
+    if (idx === -1) return res.status(404).json({ error: 'إذا كان الحساب موجوداً، تم إرسال التعليمات' });
     const user = users[idx];
     if (!user.resetCode || !user.resetCodeExpiry || Date.now() > user.resetCodeExpiry)
       return res.status(400).json({ error: 'الكود غير صالح أو منتهي الصلاحية' });
@@ -733,7 +872,7 @@ app.post('/api/auth/firebase-admin-login', async (req, res) => {
     const { idToken } = req.body;
     const decoded = await fbAuth.verifyIdToken(idToken);
     const users = await readData('users');
-    const user = users.find(u => u.uid === decoded.uid && u.role === 'admin');
+    const user = Array.isArray(users) ? users.find(u => u && u.uid === decoded.uid && u.role === 'admin') : null;
     if (!user) return res.status(403).json({ error: 'غير مصرح بالدخول' });
 
     req.session.user = sessionUser(user);
@@ -742,6 +881,12 @@ app.post('/api/auth/firebase-admin-login', async (req, res) => {
     res.status(401).json({ error: 'تعذر تسجيل دخول المسؤول. حاول مرة أخرى.' });
   }
 });
+
+// Public legal pages (used for Zoom app publication)
+app.get('/privacy', (req, res) => res.render('privacy'));
+app.get('/terms', (req, res) => res.render('terms'));
+app.get('/docs', (req, res) => res.render('docs'));
+app.get('/support', (req, res) => res.render('support'));
 
 app.get('/', async (req, res) => {
   if (req.session.user) {
@@ -796,6 +941,9 @@ app.post('/login', async (req, res) => {
   const user = users[idx];
   const ok = await verifyPassword(user.password, password);
   if (!ok) return res.render('auth/login', { title: 'تسجيل الدخول - المُميز', error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة' });
+  if (user.emailVerified === false) {
+    return res.render('auth/login', { title: 'تسجيل الدخول - المُميز', error: 'يرجى تأكيد بريدك الإلكتروني أولاً. تم إرسال كود التأكيد إلى بريدك.' });
+  }
   if (typeof user.password === 'string' && !user.password.startsWith('scrypt$') && password) {
     user.password = await scryptHash(password);
     users[idx] = user;
@@ -814,13 +962,13 @@ app.get('/register', (req, res) => {
 app.post('/register', async (req, res) => {
   const { name, email, phone, parentPhone, grade, stage, governorate, password, referralCode } = req.body;
   const users = await readData('users');
-  if (users.find(u => u.email === email)) return res.render('auth/register', { title: 'إنشاء حساب - المُميز', error: 'البريد الإلكتروني مسجل بالفعل' });
+  if (users.find(u => u.email === email)) return res.render('auth/register', { title: 'إنشاء حساب - المُميز', error: 'حدث خطأ في التسجيل، يرجى المحاولة مرة أخرى' });
   const uid = uuidv4();
   const newUser = {
     id: uid, uid, name, email, phone: phone || '', parentPhone: parentPhone || '',
     grade, stage: stage || '', governorate: governorate || '', role: 'student',
     subscriptionStatus: 'inactive', subscriptionStart: null, subscriptionEnd: null,
-    referralCode: 'REF-' + Math.random().toString(36).substr(2, 8).toUpperCase(),
+    referralCode: 'REF-' + crypto.randomBytes(4).toString('hex').toUpperCase(),
     referredBy: referralCode || '',
     referralDiscount: 0,
     fcmToken: '', createdAt: new Date().toISOString(), lastLogin: new Date().toISOString(), progress: {},
@@ -831,7 +979,9 @@ app.post('/register', async (req, res) => {
     if (referrer) {
       newUser.referredBy = referrer.id;
       if (!referrer.referrals) referrer.referrals = [];
-      referrer.referrals.push({ userId: uid, discount: 25, date: new Date().toISOString() });
+      var refSettings = await readData('settings') || {};
+      var refDiscount = refSettings.referralDiscount != null ? refSettings.referralDiscount : 25;
+      referrer.referrals.push({ userId: uid, discount: refDiscount, date: new Date().toISOString() });
       const ri = users.findIndex(u => u.referralCode === referralCode);
       if (ri !== -1) users[ri] = referrer;
     }
@@ -1016,8 +1166,10 @@ app.get('/student/course/:id', requireStudentOrGuest, async (req, res) => {
   let lessonStatuses = null;
   if (!isGuest && user.uid) {
     try {
-      const a = await analytics.getAnalytics(user.uid);
-      const userCompleted = user.progress && user.progress[course.id] && user.progress[course.id].completedLessons;
+      const a = await analytics.getAnalyticsFresh(user.uid);
+      const fromProgress = (user.progress && user.progress[course.id] && user.progress[course.id].completedLessons) || [];
+      const fromSession = req.session.quizDoneLessons || [];
+      const userCompleted = [...new Set([...fromProgress, ...fromSession])];
       const computed = analytics.computeLessonStatuses(user.uid, course, a.lessonProgress || {}, a.courseProgress || {}, userCompleted);
       lessonStatuses = computed.lessonStatuses;
     } catch(e) {}
@@ -1051,8 +1203,10 @@ app.get('/student/lesson/:courseId/:lessonId', requireStudentOrGuest, async (req
 
   if (!isGuest && user.uid) {
     try {
-      const a = await analytics.getAnalytics(user.uid);
-      const userCompleted = user.progress && user.progress[course.id] && user.progress[course.id].completedLessons;
+      const a = await analytics.getAnalyticsFresh(user.uid);
+      const fromProgress = (user.progress && user.progress[course.id] && user.progress[course.id].completedLessons) || [];
+      const fromSession = req.session.quizDoneLessons || [];
+      const userCompleted = [...new Set([...fromProgress, ...fromSession])];
       const computed = analytics.computeLessonStatuses(user.uid, course, a.lessonProgress || {}, a.courseProgress || {}, userCompleted);
       lessonStatuses = computed.lessonStatuses;
       const thisLesson = lessonStatuses.find(s => s.lessonId === lesson.id);
@@ -1060,9 +1214,41 @@ app.get('/student/lesson/:courseId/:lessonId', requireStudentOrGuest, async (req
         isSequentiallyLocked = true;
       }
       if (!hasVideo && !isSequentiallyLocked && thisLesson && !thisLesson.isCompleted) {
-        await analytics.trackVideoHeartbeat(user.uid, course.id, lesson.id, 9999, 10000, 0, true);
+        const users2 = await readData('users', true);
+        const idx2 = users2.findIndex(u => u.uid === user.uid || u.id === user.uid);
+        if (idx2 !== -1) {
+          if (!users2[idx2].progress) users2[idx2].progress = {};
+          if (!users2[idx2].progress[course.id]) users2[idx2].progress[course.id] = { completedLessons: [], percentage: 0, positions: {} };
+          if (!users2[idx2].progress[course.id].completedLessons.includes(lesson.id)) {
+            users2[idx2].progress[course.id].completedLessons.push(lesson.id);
+            users2[idx2].progress[course.id].percentage = 100;
+            await writeData('users', users2);
+          }
+          user.progress = users2[idx2].progress;
+        }
       }
     } catch(e) {}
+  }
+
+  // Check if lesson quiz already attempted (one-time guard)
+  let quizDone = false;
+  if (lesson.quiz && lesson.quiz.enabled && !isGuest && user.uid) {
+    const qSessionDone = user.progress && user.progress[course.id] &&
+      user.progress[course.id].completedLessons &&
+      user.progress[course.id].completedLessons.includes(lesson.id);
+    let qFirebaseDone = false;
+    let qExamDone = false;
+    try {
+      const users2 = await readData('users', true);
+      const u2 = (users2 || []).find(u => u.uid === user.uid || u.id === user.uid);
+      if (u2) {
+        if (u2.progress && u2.progress[course.id] && u2.progress[course.id].completedLessons) {
+          qFirebaseDone = u2.progress[course.id].completedLessons.includes(lesson.id);
+        }
+        qExamDone = u2.examResults && u2.examResults.some(r => r.examId === lesson.id || r.quizId === lesson.id);
+      }
+    } catch(e) {}
+    quizDone = qSessionDone || qFirebaseDone || qExamDone || (req.session.quizDoneLessons && req.session.quizDoneLessons.includes(lesson.id));
   }
 
   if (isSequentiallyLocked) {
@@ -1070,7 +1256,7 @@ app.get('/student/lesson/:courseId/:lessonId', requireStudentOrGuest, async (req
   }
 
   res.render('student/lesson', {
-    course, lesson, user, isGuest, isSubscribed, isFree, hasVideo, lessonStatuses,
+    course, lesson, user, isGuest, isSubscribed, isFree, hasVideo, lessonStatuses, quizDone,
     title: `${lesson.title} - المُميز`
   });
 });
@@ -1091,8 +1277,57 @@ app.get('/student/lesson-quiz/:courseId/:lessonId', requireStudentOrGuest, async
     return res.render('student/subscription-locked', { title: 'الاشتراك مطلوب - المُميز', isGuest });
   }
 
+  // Check if lesson quiz already attempted (one-time only) — 3 layers of guard
+  // Layer 1: session-level (set directly in quiz submit handler, immune to Firebase/cookie issues)
+  const sessionQuizDone = req.session.quizDoneLessons && req.session.quizDoneLessons.includes(lesson.id);
+  // Layer 2: user progress from session cookie
+  let progressDone = false;
+  if (!sessionQuizDone && user.progress && user.progress[course.id] && user.progress[course.id].completedLessons) {
+    progressDone = user.progress[course.id].completedLessons.includes(lesson.id);
+  }
+  // Layer 3: Firebase (read fresh)
+  let firebaseDone = false;
+  let examDone = false;
+  if (!sessionQuizDone && !progressDone) {
+    try {
+      const users = await readData('users', true);
+      const u = (users || []).find(u => u.uid === user.uid || u.id === user.uid);
+      if (u) {
+        if (u.progress && u.progress[course.id] && u.progress[course.id].completedLessons) {
+          firebaseDone = u.progress[course.id].completedLessons.includes(lesson.id);
+        }
+        examDone = u.examResults && u.examResults.some(r => r.examId === lesson.id || r.quizId === lesson.id);
+      }
+    } catch(e) {}
+  }
+  const quizDone = sessionQuizDone || progressDone || firebaseDone || examDone;
+
+  // Find next lesson using computeLessonStatuses (respects order + unlock chain)
+  let nextLesson = null;
+  if (!isGuest && user.uid) {
+    try {
+      const a = await analytics.getAnalyticsFresh(user.uid);
+      const fromProgress = (user.progress && user.progress[course.id] && user.progress[course.id].completedLessons) || [];
+      const fromSession = req.session.quizDoneLessons || [];
+      const userCompleted = [...new Set([...fromProgress, ...fromSession])];
+      const computed = analytics.computeLessonStatuses(user.uid, course, a.lessonProgress || {}, a.courseProgress || {}, userCompleted);
+      const sorted = (course.lessons || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0));
+      // Find current position in lesson sequence
+      const curIdx = sorted.findIndex(l => l.id === lesson.id);
+      // If this lesson is the current one (first unlocked + not completed), next is after it
+      if (computed.currentLesson && computed.currentLesson.lessonId === lesson.id && curIdx >= 0 && curIdx < sorted.length - 1) {
+        nextLesson = sorted[curIdx + 1];
+      }
+      // If this lesson was already completed, the currentLesson is the actual next one to work on
+      if (!nextLesson && computed.currentLesson && computed.currentLesson.lessonId !== lesson.id) {
+        const nextIdx = sorted.findIndex(l => l.id === computed.currentLesson.lessonId);
+        if (nextIdx >= 0) nextLesson = sorted[nextIdx];
+      }
+    } catch(e) {}
+  }
+
   res.render('student/lesson-quiz', {
-    course, lesson, isGuest,
+    course, lesson, nextLesson, isGuest, quizDone,
     title: `اختبار ${lesson.title} - المُميز`
   });
 });
@@ -1472,11 +1707,15 @@ app.get('/student/review/:id', requireStudent, async (req, res) => {
 
 app.get('/student/subscription', requireAuth, async (req, res) => {
   const subscriptions = await readData('subscriptions');
+  var fresh = await readUserById(req.session.user.id);
+  if (fresh) req.session.user = sessionUser(fresh);
   const user = req.session.user;
   const isGuest = req.session.demoMode;
   const userStage = user && user.stage;
   const filtered = subscriptions.filter(s => !s.stage || s.stage === userStage);
-  res.render('student/subscription', { subscriptions: filtered, user, isGuest, title: 'الاشتراك - المُميز' });
+  var settingsSub = await readData('settings') || {};
+  var refDiscSetting = settingsSub.referralDiscount != null ? settingsSub.referralDiscount : 25;
+  res.render('student/subscription', { subscriptions: filtered, user, isGuest, refDiscSetting, title: 'الاشتراك - المُميز' });
 });
 
 app.get('/student/payment', requireAuth, async (req, res) => {
@@ -1487,6 +1726,10 @@ app.get('/student/payment', requireAuth, async (req, res) => {
 app.post('/api/student/submit-payment', requireAuth, async (req, res) => {
   try {
     const { transactionId, amount, paymentMethod: method, receiptImage } = req.body;
+    if (receiptImage) {
+      var imgErr = validateReceiptImage(receiptImage);
+      if (imgErr) return res.status(400).json({ error: imgErr });
+    }
     const payments = await readData('payments') || [];
     const payment = {
       id: 'PAY-' + Date.now(),
@@ -1506,10 +1749,14 @@ app.post('/api/student/submit-payment', requireAuth, async (req, res) => {
   }
 });
 
-app.get('/student/profile', requireStudent, (req, res) => {
+app.get('/student/profile', requireStudent, async (req, res) => {
+  var fresh = await readUserById(req.session.user.id);
+  if (fresh) req.session.user = sessionUser(fresh);
   const u = req.session.user;
   const isSubscribed = u && u.subscriptionStatus === 'active' && (!u.subscriptionEnd || new Date(u.subscriptionEnd) > new Date());
-  res.render('student/profile', { title: 'حسابي - المُميز', isSubscribed: !!isSubscribed });
+  var invites = await readData('parentInvites') || [];
+  var pendingInvite = invites.find(function(i) { return i.studentId === u.id && i.status === 'pending'; });
+  res.render('student/profile', { title: 'حسابي - المُميز', isSubscribed: !!isSubscribed, parentInvitePending: !!pendingInvite, parentInviteLink: pendingInvite ? ('https://almumayaz.online/parent/invite/' + pendingInvite.token) : '', parentInviteEmail: pendingInvite ? (pendingInvite.parentEmail || '') : '' });
 });
 
 app.put('/api/student/profile', requireAuth, async (req, res) => {
@@ -1533,7 +1780,10 @@ app.put('/api/student/profile', requireAuth, async (req, res) => {
     users[idx] = u;
     await writeData('users', users);
     req.session.user = sessionUser(users[idx]);
-    res.json({ success: true, user: users[idx] });
+    var safeUser = {};
+    var safeFields = ['id','name','email','phone','role','stage','grade','governorate','subscriptionStatus','subscriptionEnd','stage','referralCode','avatar','parentName','parentPhone','parentEmail','fcmEnabled','phoneVerified'];
+    safeFields.forEach(function(k) { if (users[idx][k] !== undefined) safeUser[k] = users[idx][k]; });
+    res.json({ success: true, user: safeUser });
   } catch (e) {
     res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' });
   }
@@ -1555,21 +1805,30 @@ app.post('/api/student/apply-referral', requireAuth, async (req, res) => {
     if (uidx === -1) return res.status(404).json({ error: 'المستخدم غير موجود' });
 
     if (users[uidx].referralDiscount) return res.status(400).json({ error: 'لقد استخدمت كود دعوة من قبل' });
+    if (users[uidx].referralUsedAt) {
+      var daysSince = (Date.now() - new Date(users[uidx].referralUsedAt).getTime()) / 86400000;
+      if (daysSince < 30) {
+        var daysLeft = 30 - Math.floor(daysSince);
+        return res.status(400).json({ error: 'يمكنك استخدام كود دعوة جديد بعد ' + daysLeft + ' يومًا' });
+      }
+    }
 
-    // Apply 25% discount
-    users[uidx].referralDiscount = 25;
+    // Apply discount from settings
+    var settingsRef = await readData('settings') || {};
+    var refDiscount = settingsRef.referralDiscount != null ? settingsRef.referralDiscount : 25;
+    users[uidx].referralDiscount = refDiscount;
     users[uidx].referredBy = referrer.referralCode;
 
     // Track on referrer
     if (!referrer.referrals) referrer.referrals = [];
-    referrer.referrals.push({ userId: req.session.user.id, discount: 25, date: new Date().toISOString() });
+    referrer.referrals.push({ userId: req.session.user.id, discount: refDiscount, date: new Date().toISOString() });
     const ri = users.findIndex(u => u.id === referrer.id);
     if (ri !== -1) users[ri] = referrer;
 
     await writeData('users', users);
     req.session.user = sessionUser(users[uidx]);
 
-    res.json({ success: true, discount: 25, message: 'تم تطبيق خصم 25% على جميع خطط الاشتراك!' });
+    res.json({ success: true, discount: refDiscount, message: 'تم تطبيق خصم ' + refDiscount + '% على جميع خطط الاشتراك!' });
   } catch (e) {
     res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' });
   }
@@ -1595,12 +1854,23 @@ function requireParent(req, res, next) {
 app.post('/api/student/send-parent-invite', requireAuth, async (req, res) => {
   try {
     const { parentName, parentPhone, parentEmail } = req.body;
+    console.log('[invite] received: name=' + parentName + ' phone=' + parentPhone + ' email=' + (parentEmail || '(empty)'));
     if (!parentName || !parentPhone) return res.status(400).json({ error: 'يرجى إدخال اسم ورقم هاتف ولي الأمر' });
     var invites = await readData('parentInvites') || [];
     // Check if already has active invite
     var existing = invites.find(i => i.studentId === req.session.user.id && i.status === 'pending');
     if (existing) {
-      var link = req.protocol + '://' + req.get('host') + '/parent/invite/' + existing.token;
+      // Update invite with fresh parent data
+      existing.parentName = parentName;
+      existing.parentPhone = parentPhone;
+      if (parentEmail) existing.parentEmail = parentEmail;
+      await writeData('parentInvites', invites);
+      var link = 'https://almumayaz.online/parent/invite/' + existing.token;
+      if (existing.parentEmail) {
+        var existingHtml = emailShell('دعوة ولي الأمر', inviteEmailHtml(parentName, req.session.user.name, link));
+        var resent = await sendMail(existing.parentEmail, 'دعوة لمتابعة الطالب - منصة المُميز', existingHtml);
+        console.log('[invite] resent to ' + existing.parentEmail + ': ' + (resent ? 'OK' : 'FAILED'));
+      }
       return res.json({ success: true, inviteLink: link });
     }
     // Save parent info to student profile
@@ -1613,7 +1883,7 @@ app.post('/api/student/send-parent-invite', requireAuth, async (req, res) => {
       await writeData('users', users);
       req.session.user = sessionUser(users[uidx]);
     }
-    var token = 'PINVITE-' + Date.now() + '-' + Math.random().toString(36).substr(2, 8);
+    var token = 'PINVITE-' + Date.now() + '-' + crypto.randomBytes(4).toString('hex');
     var invite = {
       id: 'PINV-' + Date.now(),
       token: token,
@@ -1629,8 +1899,20 @@ app.post('/api/student/send-parent-invite', requireAuth, async (req, res) => {
     };
     invites.push(invite);
     await writeData('parentInvites', invites);
-    var inviteLink = req.protocol + '://' + req.get('host') + '/parent/invite/' + token;
-    res.json({ success: true, inviteLink: inviteLink, invite: invite });
+    var inviteLink = 'https://almumayaz.online/parent/invite/' + token;
+
+    // Send invite link to parent email
+    console.log('[invite] check email: val="' + (parentEmail||'') + '" len=' + (parentEmail?parentEmail.length:0));
+    if (parentEmail && parentEmail.indexOf('@') > 0) {
+      console.log('[invite] will send to ' + parentEmail);
+      var inviteHtml = emailShell('دعوة ولي الأمر', inviteEmailHtml(parentName, req.session.user.name, inviteLink));
+      var emailSent = await sendMail(parentEmail, 'دعوة لمتابعة الطالب - منصة المُميز', inviteHtml);
+      console.log('[invite] sendMail result: ' + (emailSent ? 'OK' : 'FAILED'));
+    } else {
+      console.log('[invite] SKIP - no valid email');
+    }
+
+    res.json({ success: true, inviteLink: inviteLink, invite: invite, emailSent: !!(parentEmail) });
   } catch (e) {
     res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' });
   }
@@ -1848,6 +2130,10 @@ app.post('/api/student/subscribe', requireAuth, async (req, res) => {
   try {
     const { planName, price, transactionId, paymentMethod, receiptImage } = req.body;
     if (!transactionId) return res.status(400).json({ error: 'يرجى إدخال كود العملية' });
+    if (receiptImage) {
+      var imgErr = validateReceiptImage(receiptImage);
+      if (imgErr) return res.status(400).json({ error: imgErr });
+    }
     const subs = await readData('subscriptions') || [];
     const sub = subs.find(s => s.name === planName);
     const subRequests = await readData('subRequests') || [];
@@ -1868,6 +2154,40 @@ app.post('/api/student/subscribe', requireAuth, async (req, res) => {
     };
     subRequests.push(request);
     await writeData('subRequests', subRequests);
+    // Notify all admins via FCM + email
+    try {
+      var allUsers = await readData('users') || [];
+      var admins = allUsers.filter(function(u) { return u.role === 'admin'; });
+      console.log('[subscribe] found', admins.length, 'admins');
+      for (var ai = 0; ai < admins.length; ai++) {
+        var adminUser = admins[ai];
+        // Email notification (backup)
+        if (adminUser.email) {
+          try {
+            await sendMail(adminUser.email, '📋 طلب اشتراك جديد من ' + (req.session.user.name || 'طالب'), '<div style="font-family:Arial;padding:20px;max-width:500px;margin:auto;"><h2 style="color:#d6a23d;">طلب اشتراك جديد</h2><p>الطالب: <strong>' + (req.session.user.name || '') + '</strong></p><p>الهاتف: ' + (req.session.user.phone || '') + '</p><p>الباقة: ' + planName + '</p><p>المبلغ: ' + price + ' جنيه</p><p style="margin-top:20px;"><a href="https://almumayaz.online/admin/sub-requests" style="display:inline-block;background:#d6a23d;color:#fff;padding:10px 24px;border-radius:8px;text-decoration:none;">عرض الطلب</a></p></div>');
+            console.log('[subscribe] email sent to', adminUser.email);
+          } catch (e) { console.error('[subscribe] email error for', adminUser.id, ':', e.message); }
+        }
+        // FCM push notification (primary — works even when browser is closed on Android)
+        if (adminUser.fcmToken) {
+          try {
+            console.log('[subscribe] sending push to admin', adminUser.id, 'token length:', adminUser.fcmToken.length);
+            var subMsg = { token: adminUser.fcmToken, notification: { title: 'طلب اشتراك جديد 📋', body: 'من ' + (req.session.user.name || 'طالب') + ' - ' + planName }, data: { url: '/admin/sub-requests' } };
+            const subResp = await admin.messaging().send(subMsg);
+            fcmLog.add({ userId: adminUser.id, title: 'طلب اشتراك', messageId: subResp || 'unknown', success: true, error: null });
+          } catch (e) {
+            console.error('[subscribe] push error for', adminUser.id, ':', e.code || e.message);
+            fcmLog.add({ userId: adminUser.id, title: 'طلب اشتراك', messageId: null, success: false, error: e.code || e.message });
+            if (e.code === 'messaging/invalid-registration-token' || e.code === 'messaging/registration-token-not-registered') {
+              var uidx = allUsers.findIndex(function(u) { return u.id === adminUser.id; });
+              if (uidx !== -1) { allUsers[uidx].fcmToken = ''; await writeData('users', allUsers); console.log('[subscribe] cleared invalid token for', adminUser.id); }
+            }
+          }
+        } else {
+          console.log('[subscribe] admin', adminUser.id, 'has no fcmToken — push skipped');
+        }
+      }
+    } catch (e) { console.error('[subscribe] admin notify error:', e.message); }
     res.json({ success: true, request });
   } catch (e) {
     res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' });
@@ -1916,6 +2236,11 @@ app.put('/api/admin/sub-requests/:id', requireAdmin, async (req, res) => {
         if (subRequests[idx].planStage) users[uidx].subscribedStage = subRequests[idx].planStage;
         users[uidx].planName = subRequests[idx].planName || '';
         users[uidx].planPeriod = subRequests[idx].period || '';
+        // Consume referral discount after first subscription
+        if (users[uidx].referralDiscount > 0) {
+          users[uidx].referralDiscount = 0;
+          users[uidx].referralUsedAt = new Date().toISOString();
+        }
         await writeData('users', users);
       }
       // Record the payment for revenue tracking
@@ -1945,13 +2270,29 @@ app.put('/api/admin/sub-requests/:id', requireAdmin, async (req, res) => {
   }
 });
 
+app.get('/api/admin/sub-requests/sync', requireAdmin, async (req, res) => {
+  try {
+    var data = await require('./data-store').readData('subRequests');
+    var fbAdmin = require('./firebase-admin');
+    await fbAdmin.fbSet('subRequests', data || []);
+    await fbAdmin.writeData('subRequests', data || []);
+    res.json({ success: true, count: (data || []).length });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.delete('/api/admin/sub-requests/:id', requireAdmin, async (req, res) => {
   try {
     const subRequests = await readData('subRequests') || [];
     const idx = subRequests.findIndex(r => r.id === req.params.id);
     if (idx === -1) return res.status(404).json({ error: 'الطلب غير موجود' });
     subRequests.splice(idx, 1);
+    // Write to local + Firebase
     await writeData('subRequests', subRequests);
+    // Force direct Firebase write as backup
+    var fbAdmin = require('./firebase-admin');
+    if (fbAdmin.fbSet) {
+      try { await fbAdmin.fbSet('subRequests', subRequests); } catch(e) { console.error('Direct fbSet failed:', e.message); }
+    }
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' });
@@ -2004,29 +2345,38 @@ app.post('/api/student/chat/send', requireStudent, async (req, res) => {
     const key = await fbPush('chats/' + cid + '/messages', msg);
     const studentId = req.session.user.id || (req.session.guestChatId || '');
     const preview = text ? (text.length > 80 ? text.slice(0,80) + '...' : text) : '📷 صورة';
-    // Send push to admin + store notification in DB
-    const users = await readData('users');
-    const adminUser = users.find(u => u.role === 'admin' && u.fcmToken);
-    if (adminUser) {
-      try {
-        const m = { token: adminUser.fcmToken, data: { title: 'رسالة جديدة من ' + (req.session.user.name || 'طالب'), body: preview, url: '/admin/chat/' + encodeURIComponent(studentId) } };
-        await admin.messaging().send(m);
-      } catch(e) {
-        console.error('Chat push error:', e.code || e.message);
-        if (e.code === 'messaging/invalid-registration-token' || e.code === 'messaging/registration-token-not-registered') {
-          const idx = users.findIndex(u => u.id === adminUser.id);
-          if (idx !== -1) { users[idx].fcmToken = ''; await writeData('users', users); }
+    // Send push to all admins + store notification in DB
+    var allUsers = await readData('users') || [];
+    var adminUsers = allUsers.filter(u => u.role === 'admin');
+    adminUsers.forEach(async function(adminUser) {
+      if (adminUser.fcmToken) {
+        try {
+          var msg = { token: adminUser.fcmToken, notification: { title: 'رسالة جديدة من ' + (req.session.user.name || 'طالب'), body: preview }, data: { url: '/admin/chat/' + encodeURIComponent(studentId) } };
+          const resp = await admin.messaging().send(msg);
+          fcmLog.add({ userId: adminUser.id, title: 'رسالة جديدة', messageId: resp || 'unknown', success: true, error: null });
+        } catch(e) {
+          console.error('Chat push error for', adminUser.id, ':', e.code || e.message);
+          fcmLog.add({ userId: adminUser.id, title: 'رسالة جديدة', messageId: null, success: false, error: e.code || e.message });
+          if (e.code === 'messaging/invalid-registration-token' || e.code === 'messaging/registration-token-not-registered') {
+            var idx = allUsers.findIndex(u => u.id === adminUser.id);
+            if (idx !== -1) { allUsers[idx].fcmToken = ''; await writeData('users', allUsers); }
+          }
         }
+      } else {
+        console.log("[CHAT PUSH] no fcmToken for admin", adminUser.id);
       }
-    }
-    await saveNotification('admin', adminUser ? adminUser.id : 'admin-1', 'رسالة جديدة من ' + (req.session.user.name || 'طالب'), preview, '/admin/chat/' + encodeURIComponent(studentId));
+    });
+    var firstAdmin = adminUsers[0] || {};
+    await saveNotification('admin', firstAdmin.id || 'admin-1', 'رسالة جديدة من ' + (req.session.user.name || 'طالب'), preview, '/admin/chat/' + encodeURIComponent(studentId));
     res.json({ success: true, key: key, message: msg });
   } catch (e) { res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' }); }
 });
 
 app.get('/api/admin/chat/:studentId/messages', requireAdmin, async (req, res) => {
   try {
-    const chatId = 'student-' + req.params.studentId;
+    var studentId = req.params.studentId;
+    if (!/^[a-zA-Z0-9_\-]+$/.test(studentId)) return res.status(400).json({ error: 'Invalid student ID' });
+    const chatId = 'student-' + studentId;
     const data = await fbRead('chats/' + chatId + '/messages');
     const msgs = data ? Object.keys(data).map(function(k) { var m=data[k]; m._key=k; return m; }).sort(function(a,b){return (a.timestamp||0)-(b.timestamp||0)}) : [];
     res.json({ success: true, messages: msgs });
@@ -2036,6 +2386,7 @@ app.get('/api/admin/chat/:studentId/messages', requireAdmin, async (req, res) =>
 app.post('/api/admin/chat/:studentId/send', requireAdmin, async (req, res) => {
   try {
     const rawId = req.params.studentId;
+    if (!/^[a-zA-Z0-9_\-]+$/.test(rawId)) return res.status(400).json({ error: 'Invalid student ID' });
     const studentId = rawId.indexOf('student-') === 0 ? rawId : ('student-' + rawId);
     const chatId = studentId;
     const actualUserId = rawId.indexOf('student-') === 0 ? rawId.slice(8) : rawId;
@@ -2055,7 +2406,9 @@ app.post('/api/admin/chat/:studentId/send', requireAdmin, async (req, res) => {
 
 app.delete('/api/admin/chat/:studentId', requireAdmin, async (req, res) => {
   try {
-    const chatId = 'student-' + req.params.studentId;
+    var studentId = req.params.studentId;
+    if (!/^[a-zA-Z0-9_\-]+$/.test(studentId)) return res.status(400).json({ error: 'Invalid student ID' });
+    const chatId = 'student-' + studentId;
     await fbRemove('chats/' + chatId);
     res.json({ success: true });
   } catch (e) { res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' }); }
@@ -2074,7 +2427,9 @@ app.put('/api/student/chat/read', requireStudent, async (req, res) => {
 
 app.put('/api/admin/chat/:studentId/read', requireAdmin, async (req, res) => {
   try {
-    const chatId = 'student-' + req.params.studentId;
+    var studentId = req.params.studentId;
+    if (!/^[a-zA-Z0-9_\-]+$/.test(studentId)) return res.status(400).json({ error: 'Invalid student ID' });
+    const chatId = 'student-' + studentId;
     const data = await fbRead('chats/' + chatId + '/messages');
     if (!data) return res.json({ success: true });
     Object.keys(data).forEach(function(k) { if (data[k].senderId !== 'teacher') data[k].read = true; });
@@ -2089,7 +2444,7 @@ app.post('/api/student/progress', requireAuth, async (req, res) => {
   try {
     const { courseId, lessonId, completed, percentage, position } = req.body;
     const uid = req.session.user.uid || req.session.user.id;
-    const users = await readData('users');
+    const users = await readData('users') || [];
     const idx = users.findIndex(u => u.uid === uid || u.id === uid);
     if (idx === -1) return res.status(404).json({ error: 'المستخدم غير موجود' });
 
@@ -2101,17 +2456,16 @@ app.post('/api/student/progress', requireAuth, async (req, res) => {
 
     if (completed && !cp.completedLessons.includes(lessonId)) {
       cp.completedLessons.push(lessonId);
-      // Also update analytics so the next lesson unlocks
-      analytics.trackVideoHeartbeat(req.session.user.uid, courseId, lessonId, 9999, 10000, 0, true).catch(function(){});
     }
 
     if (percentage !== undefined) cp.percentage = percentage;
 
     if (position !== undefined) {
+      if (!cp.positions) cp.positions = {};
       cp.positions[lessonId] = Math.max(0, Math.floor(Number(position) || 0));
     }
 
-    await writeData('users', users);
+    await updateData('users/' + idx + '/progress/' + courseId, cp);
     req.session.user = sessionUser(users[idx]);
     res.json({ success: true, progress: cp });
   } catch (e) {
@@ -2138,10 +2492,11 @@ app.post('/api/analytics/video/heartbeat', requireAuth, async (req, res) => {
   try {
     const { courseId, lessonId, position, duration, watchedSeconds, forceComplete } = req.body;
     const uid = req.session.user.uid;
+    if (!courseId || !lessonId) return res.status(400).json({ error: 'courseId and lessonId are required' });
     const result = await analytics.trackVideoHeartbeat(uid, courseId, lessonId, position || 0, duration || 1, watchedSeconds || 0, !!forceComplete);
     // Keep student.progress in sync so the teacher view reflects real-time watch percentage
     try {
-      const users = await readData('users');
+      const users = await readData('users') || [];
       const idx = users.findIndex(u => u.uid === uid || u.id === uid);
       if (idx !== -1) {
         const dur = Number(duration || 1) || 1;
@@ -2151,9 +2506,7 @@ app.post('/api/analytics/video/heartbeat', requireAuth, async (req, res) => {
         users[idx].progress[courseId].percentage = pct;
         if (!users[idx].progress[courseId].positions) users[idx].progress[courseId].positions = {};
         users[idx].progress[courseId].positions[lessonId] = Math.max(0, Math.floor(Number(position) || 0));
-        // Sync total watch seconds so the teacher sees actual watch minutes
         users[idx].progress[courseId].watchTime = (users[idx].progress[courseId].watchTime || 0) + (Number(watchedSeconds || 0));
-        // Also track per-lesson watch time in user.progress (more reliable than analytics)
         if (!users[idx].progress[courseId].lessons) users[idx].progress[courseId].lessons = {};
         if (!users[idx].progress[courseId].lessons[lessonId]) users[idx].progress[courseId].lessons[lessonId] = { watchTime: 0 };
         if (watchedSeconds > 0) {
@@ -2163,7 +2516,8 @@ app.post('/api/analytics/video/heartbeat', requireAuth, async (req, res) => {
           const cl = users[idx].progress[courseId].completedLessons;
           if (!cl.includes(lessonId)) cl.push(lessonId);
         }
-        if (writeData) await writeData('users', users);
+        // Atomic per-user update — avoid race conditions from rewriting the entire users array
+        await updateData('users/' + idx + '/progress/' + courseId, users[idx].progress[courseId]);
       }
     } catch (pe) { console.error('heartbeat progress sync error:', pe.message); }
     res.json({ success: true, ...result });
@@ -2177,7 +2531,7 @@ app.get('/api/analytics/video/status', requireAuth, async (req, res) => {
   try {
     const { courseId, lessonId } = req.query;
     const uid = req.session.user.uid;
-    const a = await analytics.getAnalytics(uid);
+    const a = await analytics.getAnalyticsFresh(uid);
     const lk = courseId + '_' + lessonId;
     const wl = (a.watchHistory || {}).lessons || {};
     const lp = (a.lessonProgress || {})[lk] || {};
@@ -2211,7 +2565,7 @@ app.post('/api/analytics/quiz/submit', requireAuth, async (req, res) => {
   try {
     const { courseId, quizId, quizTitle, score, total, correct, wrong, timeTaken } = req.body;
     const result = await analytics.trackQuizSubmit(req.session.user.uid, courseId, quizId, quizTitle, score, total, correct, wrong, timeTaken);
-    // Save exam result directly in user's examResults array
+    // Save exam result + mark lesson as completed if quiz passed
     try {
       const users = await readData('users');
       const idx = users.findIndex(u => u.uid === req.session.user.uid || u.id === req.session.user.uid);
@@ -2223,7 +2577,26 @@ app.post('/api/analytics/quiz/submit', requireAuth, async (req, res) => {
           timeTaken: Number(timeTaken) || 0, percentage: result.percentage,
           date: new Date().toISOString(), completedAt: new Date().toISOString()
         });
+        // If this quiz belongs to a lesson, push to completedLessons ALWAYS (one-time guard)
+        // Next lesson unlocks regardless of pass/fail so student can progress
+        const courses = await readData('courses');
+        const course = (courses || []).find(c => c.id === courseId);
+        const lesson = course ? (course.lessons || []).find(l => l.id === quizId) : null;
+        if (lesson) {
+          if (!users[idx].progress) users[idx].progress = {};
+          if (!users[idx].progress[courseId]) users[idx].progress[courseId] = { completedLessons: [], percentage: 0, positions: {} };
+          if (!users[idx].progress[courseId].completedLessons.includes(quizId)) {
+            users[idx].progress[courseId].completedLessons.push(quizId);
+          }
+        }
+        // Full array write (safe — quiz submit is low frequency, avoids index drift in array)
         await writeData('users', users);
+        req.session.user = sessionUser(users[idx]);
+        // Session-level one-time guard (immune to Firebase/cookie issues)
+        if (!req.session.quizDoneLessons) req.session.quizDoneLessons = [];
+        if (!req.session.quizDoneLessons.includes(quizId)) {
+          req.session.quizDoneLessons.push(quizId);
+        }
       }
     } catch (pe) { console.error('quiz submit save error:', pe.message); }
     res.json({ success: true, ...result });
@@ -2869,9 +3242,13 @@ app.get('/admin', requireAdmin, async (req, res) => {
 });
 
 app.get('/admin/students', requireAdmin, async (req, res) => {
-  const users = await readData('users');
-  const students = users.filter(u => u.role === 'student');
-  res.render('admin/students', { students, title: 'الطلاب - الإدارة' });
+  try {
+    const users = await readData('users') || [];
+    const students = users.filter(u => u.role === 'student');
+    res.render('admin/students', { students, title: 'الطلاب - الإدارة' });
+  } catch(e) {
+    res.render('admin/students', { students: [], title: 'الطلاب - الإدارة' });
+  }
 });
 
 app.get('/admin/courses', requireAdmin, async (req, res) => {
@@ -2912,6 +3289,8 @@ app.get('/admin/payments', requireAdmin, async (req, res) => {
 
 app.get('/admin/settings', requireAdmin, async (req, res) => {
   var settings = await readData('settings') || {};
+  var theme = {};
+  try { theme = await readData('themeConfig') || {}; } catch (e) {}
   res.render('admin/settings', {
     currentSemester: settings.currentSemester || 'all',
     vodafoneCash: settings.vodafoneCash || process.env.VODAFONE_CASH || '01000000000',
@@ -2921,8 +3300,136 @@ app.get('/admin/settings', requireAdmin, async (req, res) => {
     contactAddress: settings.contactAddress || 'القاهرة، مصر',
     contactWhatsapp: settings.contactWhatsapp || '0100 000 0000',
     announcementsEnabled: settings.announcementsEnabled !== false,
+    referralDiscount: settings.referralDiscount != null ? settings.referralDiscount : 25,
+    themeAccent: theme.accent || '#F59E0B',
+    themeBtnShape: theme.btnShape || 'rounded',
     title: 'الإعدادات - الإدارة'
   });
+});
+
+// POST /api/admin/theme — Save platform theme (colors + button shape)
+app.post('/api/admin/theme', requireAdmin, async (req, res) => {
+  try {
+    var accent = (req.body.accent || '').trim();
+    var btnShape = (req.body.btnShape || 'rounded').trim();
+    if (!/^#?[0-9a-fA-F]{6}$/.test(accent) && !/^#?[0-9a-fA-F]{3}$/.test(accent)) {
+      return res.status(400).json({ error: 'يرجى إدخال لون صالح (مثال: #3B82F6)' });
+    }
+    if (accent[0] !== '#') accent = '#' + accent;
+    if (!['square', 'rounded', 'circular'].includes(btnShape)) btnShape = 'rounded';
+    var theme = { accent: accent, btnShape: btnShape, updatedAt: new Date().toISOString(), updatedBy: req.session.user ? (req.session.user.name || req.session.user.id) : 'admin' };
+    await writeData('themeConfig', theme);
+    themeCache.css = buildThemeCss(theme);
+    themeCache.at = Date.now();
+    res.json({ success: true, theme: theme });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/* ===================== Zoom App Management (Admin) ===================== */
+
+// Helper: call Vercel API to upsert an environment variable
+async function vercelUpsertEnv(name, value) {
+  if (!process.env.VERCEL_TOKEN) throw new Error('VERCEL_TOKEN غير مضبوط');
+  var projectId = process.env.VERCEL_PROJECT_ID || 'prj_sv79LLQiLzy77WaEjqvGc75XVlcF';
+  var teamId = process.env.VERCEL_TEAM_ID; // optional
+  var base = 'https://api.vercel.com/v10/projects/' + projectId + '/env';
+  var qs = teamId ? ('?teamId=' + teamId) : '';
+  // 1) list existing
+  var listRes = await new Promise(function(resolve, reject) {
+    var req = https.request(base + qs, { method: 'GET', headers: { 'Authorization': 'Bearer ' + process.env.VERCEL_TOKEN } }, function(r) {
+      var d = ''; r.on('data', function(c){ d += c; }); r.on('end', function(){ try { resolve(JSON.parse(d)); } catch(e){ reject(e); } });
+    });
+    req.on('error', reject); req.end();
+  });
+  var existing = (listRes.env || []).find(function(e) { return e.key === name; });
+  var payload = JSON.stringify({ key: name, value: value, type: 'encrypted', target: ['production'] });
+  if (existing) {
+    var upd = await new Promise(function(resolve, reject) {
+      var req = https.request(base + '/' + existing.id + qs, { method: 'PATCH', headers: { 'Authorization': 'Bearer ' + process.env.VERCEL_TOKEN, 'Content-Type': 'application/json' } }, function(r) {
+        var d = ''; r.on('data', function(c){ d += c; }); r.on('end', function(){ try { resolve(JSON.parse(d)); } catch(e){ reject(e); } });
+      });
+      req.on('error', reject); req.write(payload); req.end();
+    });
+    return upd;
+  }
+  var created = await new Promise(function(resolve, reject) {
+    var req = https.request(base + qs, { method: 'POST', headers: { 'Authorization': 'Bearer ' + process.env.VERCEL_TOKEN, 'Content-Type': 'application/json' } }, function(r) {
+      var d = ''; r.on('data', function(c){ d += c; }); r.on('end', function(){ try { resolve(JSON.parse(d)); } catch(e){ reject(e); } });
+    });
+    req.on('error', reject); req.write(payload); req.end();
+  });
+  return created;
+}
+
+app.post('/admin/zoom-app/reset', requireAdmin, async (req, res) => {
+  try {
+    // Try Vercel API first, fallback to current env vars
+    var cid = '', csec = '', ruri = '';
+    try {
+      var projectId = process.env.VERCEL_PROJECT_ID || 'prj_sv79LLQiLzy77WaEjqvGc75XVlcF';
+      var token = process.env.VERCEL_TOKEN || '';
+      var envs = await new Promise(function(resolve, reject) {
+        var d = ''; var qs = '?teamId=abdoulrahmanofficial-engs-projects';
+        var req2 = https.get('https://api.vercel.com/v10/projects/' + projectId + '/env' + qs, { headers: { 'Authorization': 'Bearer ' + token } }, function(r) {
+          r.on('data', function(c){ d += c; }); r.on('end', function(){ try { resolve(JSON.parse(d)); } catch(e){ reject(e); } });
+        });
+        req2.on('error', reject); req2.end();
+      });
+      var getVal = function(key) {
+        var e = (envs.env || []).find(function(e2) { return e2.key === key; });
+        return e ? e.value : '';
+      };
+      cid = getVal('ZOOM_CLIENT_ID');
+      csec = getVal('ZOOM_CLIENT_SECRET');
+      ruri = getVal('ZOOM_REDIRECT_URI');
+    } catch(e) { console.error('Vercel API failed:', e.message); }
+    // Fallback to known credentials
+    if (!cid) cid = 'oYQXQYlnRVGCLjVdujSVg';
+    if (!csec) csec = 'YY4P5GoLPPGKezUDixSSek1sGGKrNxtA';
+    if (!ruri) ruri = 'https://almumayaz.online/auth/zoom/callback';
+    await zoom.saveCredentials(cid, csec, ruri, cid, csec);
+    res.redirect('/admin/zoom-app?saved=1');
+  } catch (e) {
+    res.status(500).send('فشل إعادة التعيين: ' + e.message);
+  }
+});
+
+app.get('/admin/zoom-app', requireAdmin, async (req, res) => {
+  var creds = await zoom.getStoredCredentials();
+  var cid = creds ? creds.clientId : (process.env.ZOOM_CLIENT_ID || '');
+  var csec = creds ? creds.clientSecret : (process.env.ZOOM_CLIENT_SECRET || '');
+  var ruri = creds ? creds.redirectUri : (process.env.ZOOM_REDIRECT_URI || '');
+  var sk = creds ? creds.sdkKey : (process.env.ZOOM_SDK_KEY || '');
+  var ssec = creds ? creds.sdkSecret : (process.env.ZOOM_SDK_SECRET || '');
+  res.render('admin/zoom-app', {
+    clientId: cid ? cid.substring(0, 6) + '…' : '',
+    clientIdFull: cid,
+    clientSecretFull: csec,
+    clientSecretDisplay: csec ? csec.substring(0, 6) + '…' : '',
+    redirectUri: ruri,
+    sdkKeyFull: sk,
+    sdkSecretFull: ssec,
+    saved: req.query.saved === '1',
+    title: 'إعدادات تطبيق Zoom - الإدارة'
+  });
+});
+
+app.post('/admin/zoom-app', requireAdmin, async (req, res) => {
+  try {
+    var clientId = (req.body.clientId || '').trim();
+    var clientSecret = (req.body.clientSecret || '').trim();
+    var redirectUri = (req.body.redirectUri || '').trim() || 'https://almumayaz.online/auth/zoom/callback';
+    var sdkKey = (req.body.sdkKey || '').trim();
+    var sdkSecret = (req.body.sdkSecret || '').trim();
+    if (!clientId || !clientSecret) return res.status(400).send('يرجى إدخال Client ID و Client Secret');
+    await zoom.saveCredentials(clientId, clientSecret, redirectUri, sdkKey, sdkSecret);
+    res.redirect('/admin/zoom-app?saved=1');
+  } catch (e) {
+    console.error('Zoom app save error:', e.message);
+    res.status(500).send('فشل الحفظ: ' + e.message);
+  }
 });
 
 app.get('/admin/charge-codes', requireAdmin, async (req, res) => {
@@ -3010,9 +3517,12 @@ app.get('/admin/sub-requests', requireAdmin, async (req, res) => {
   res.render('admin/sub-requests', { title: 'طلبات الاشتراك - الإدارة' });
 });
 
-app.get('/admin/chat/:studentId', requireAdmin, (req, res) => {
+app.get('/admin/chat/:studentId', requireAdmin, async (req, res) => {
   const chatId = 'student-' + req.params.studentId;
-  res.render('admin/chat', { chatId, title: 'محادثة طالب - الإدارة' });
+  const studentId = req.params.studentId;
+  const users = await readData('users') || [];
+  const student = users.find(function(u) { return u.id === studentId || u.uid === studentId; });
+  res.render('admin/chat', { chatId, studentName: student ? student.name : '', title: 'محادثة طالب - الإدارة' });
 });
 
 /* ===================== ADMIN API: CHATS ===================== */
@@ -3021,6 +3531,7 @@ app.get('/api/admin/chats', requireAdmin, async (req, res) => {
   try {
     const allChats = await fbRead('chats');
     if (!allChats || typeof allChats !== 'object') return res.json({ success: true, chats: [] });
+    const allUsers = await readData('users') || [];
     const chats = [];
     Object.keys(allChats).forEach(function(chatId) {
       const chat = allChats[chatId];
@@ -3032,7 +3543,14 @@ app.get('/api/admin/chats', requireAdmin, async (req, res) => {
       let unreadCount = 0;
       msgKeys.forEach(function(k) { if (chat.messages[k].senderId !== 'teacher' && !chat.messages[k].read) unreadCount++; });
       const studentId = chatId.startsWith('student-') ? chatId.replace('student-', '') : chatId;
-      const studentName = lastMsg ? lastMsg.senderName : (chatId.startsWith('guest-') ? 'زائر' : studentId);
+      var studentName = '';
+      if (lastMsg && lastMsg.senderId !== 'teacher') {
+        studentName = lastMsg.senderName;
+      } else {
+        // Last message was from teacher — look up real student name from users
+        var chatStudent = allUsers.find(function(u) { return u.id === studentId || u.uid === studentId; });
+        studentName = chatStudent ? chatStudent.name : (lastMsg ? lastMsg.senderName : (chatId.startsWith('guest-') ? 'زائر' : studentId));
+      }
       chats.push({
         id: chatId, studentId, name: studentName, initial: studentName.charAt(0),
         lastText: lastMsg ? (lastMsg.text || '(صورة)') : '',
@@ -3081,7 +3599,8 @@ app.put('/api/admin/courses/:id', requireAdmin, async (req, res) => {
     const courses = await readData('courses');
     const idx = courses.findIndex(c => c.id === req.params.id);
     if (idx === -1) return res.status(404).json({ error: 'المادة غير موجودة' });
-    Object.assign(courses[idx], req.body);
+    var allowedFields = ['title','subtitle','description','icon','color','gradient','image','grade','stage','price','guestVisible','active','order','semester','sections','lessons','quiz'];
+    allowedFields.forEach(function(k) { if (req.body[k] !== undefined) courses[idx][k] = req.body[k]; });
     await writeData('courses', courses);
     res.json({ success: true, course: courses[idx] });
   } catch (e) {
@@ -3491,7 +4010,8 @@ app.delete('/api/admin/subscriptions/:id', requireAdmin, async (req, res) => {
 app.post('/api/admin/settings', requireAdmin, async (req, res) => {
   try {
     var settings = await readData('settings') || {};
-    Object.assign(settings, req.body);
+    var allowedFields = ['vodafoneCash','instaPay','contactPhone','contactEmail','contactAddress','contactWhatsapp','referralDiscount','currentSemester','announcementsEnabled'];
+    allowedFields.forEach(function(k) { if (req.body[k] !== undefined) settings[k] = req.body[k]; });
     await writeData('settings', settings);
     res.json({ success: true, settings });
   } catch (e) {
@@ -3615,7 +4135,8 @@ app.put('/api/admin/students/:id', requireAdmin, async (req, res) => {
     const users = await readData('users');
     const idx = users.findIndex(u => u.id === req.params.id);
     if (idx === -1) return res.status(404).json({ error: 'الطالب غير موجود' });
-    Object.assign(users[idx], req.body);
+    var allowedFields = ['name','email','phone','stage','grade','governorate','subscriptionStatus','subscriptionEnd','notes','active'];
+    allowedFields.forEach(function(k) { if (req.body[k] !== undefined) users[idx][k] = req.body[k]; });
     await writeData('users', users);
     res.json({ success: true, student: users[idx] });
   } catch (e) {
@@ -3628,10 +4149,46 @@ app.delete('/api/admin/students/:id', requireAdmin, async (req, res) => {
     const users = await readData('users');
     const idx = users.findIndex(u => u.id === req.params.id);
     if (idx === -1) return res.status(404).json({ error: 'الطالب غير موجود' });
+    var student = users[idx];
+
+    // 1. Delete from Firebase Authentication
+    try {
+      await admin.auth().deleteUser(student.id);
+      console.log('[delete] Firebase Auth user removed:', student.id);
+    } catch (e) {
+      if (e.code !== 'auth/user-not-found') console.error('[delete] Firebase Auth delete error:', e.message);
+    }
+
+    // 2. Delete chat from Firebase RTDB
+    try {
+      if (admin && admin.database) {
+        await admin.database().ref('chats/student-' + student.id).remove();
+      }
+    } catch (e) { /* ignore */ }
+
+    // 3. Remove from parent's childrenIds
+    if (student.parentId) {
+      try {
+        var parentIdx = users.findIndex(u => u.id === student.parentId);
+        if (parentIdx !== -1) {
+          var parent = users[parentIdx];
+          if (parent.childrenIds) {
+            parent.childrenIds = parent.childrenIds.filter(function(cid) { return cid !== student.id; });
+          }
+          if (parent.parentOf) {
+            parent.parentOf = parent.parentOf.filter(function(n) { return n !== student.name; });
+          }
+        }
+      } catch (e) { console.error('[delete] parent cleanup error:', e.message); }
+    }
+
+    // 4. Remove from users array
     users.splice(idx, 1);
     await writeData('users', users);
+
     res.json({ success: true });
   } catch (e) {
+    console.error('[delete] student error:', e.message);
     res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' });
   }
 });
@@ -3732,7 +4289,7 @@ app.post('/api/admin/charge-codes', requireAdmin, async (req, res) => {
     const days = duration || expiryDays || 365;
     const newCode = {
       id: Date.now().toString(),
-      code: code || 'CODE-' + Math.random().toString(36).substr(2, 6).toUpperCase(),
+      code: code || 'CODE-' + crypto.randomBytes(3).toString('hex').toUpperCase(),
       expiryDate: new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString(),
       subscriptionType: subscriptionType || 'monthly',
       name: name || '',
@@ -3804,7 +4361,8 @@ app.put('/api/admin/charge-codes/:id', requireAdmin, async (req, res) => {
     var chargeArr = Array.isArray(chargeCodes) ? chargeCodes : (chargeCodes ? Object.keys(chargeCodes).map(function(k){chargeCodes[k]._key=k; return chargeCodes[k];}) : []);
     const idx = chargeArr.findIndex(c => c.id === req.params.id);
     if (idx === -1) return res.status(404).json({ error: 'الكود غير موجود' });
-    Object.assign(chargeArr[idx], req.body);
+    var allowedFields = ['expiresAt','maxUses','active','notes'];
+    allowedFields.forEach(function(k) { if (req.body[k] !== undefined) chargeArr[idx][k] = req.body[k]; });
     await fbSet('chargeCodes', chargeArr);
     res.json({ success: true, code: chargeArr[idx] });
   } catch (e) {
@@ -3968,6 +4526,76 @@ app.post('/api/fcm/register', requireAuth, async (req, res) => {
   }
 });
 
+// ===================== FCM DIAGNOSTIC ENDPOINTS =====================
+
+app.get('/api/fcm/debug', requireAdmin, async (req, res) => {
+  try {
+    const users = await readData('users') || [];
+    const adminUser = users.find(u => u.id === req.session.user.id) || {};
+    const allWithToken = users.filter(u => u.fcmToken).map(u => ({
+      id: u.id, name: u.name, role: u.role, tokenPreview: (u.fcmToken || '').slice(0, 15) + '...', tokenSavedAt: u.fcmTokenSavedAt || null
+    }));
+    res.json({
+      admin: {
+        id: adminUser.id,
+        name: adminUser.name,
+        hasToken: !!adminUser.fcmToken,
+        tokenPreview: adminUser.fcmToken ? adminUser.fcmToken.slice(0, 15) + '...' : null,
+        tokenSavedAt: adminUser.fcmTokenSavedAt || null,
+        tokenLength: (adminUser.fcmToken || '').length
+      },
+      firebaseAdmin: {
+        initialized: !!(await (async () => { try { const a = require('./firebase-admin'); return a.fbAuth !== null; } catch(e) { return false; } })()),
+        projectId: process.env.FIREBASE_PROJECT_ID || (() => { try { const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || '{}'); return sa.project_id; } catch(e) { return null; } })()
+      },
+      vapidPreview: process.env.FIREBASE_VAPID_KEY ? process.env.FIREBASE_VAPID_KEY.slice(0, 10) + '...' + process.env.FIREBASE_VAPID_KEY.slice(-10) : null,
+      allTokens: allWithToken,
+      totalUsersWithToken: allWithToken.length,
+      logs: fcmLog.list(20)
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/fcm/test', requireAdmin, async (req, res) => {
+  try {
+    const users = await readData('users') || [];
+    const adminUser = users.find(u => u.id === req.session.user.id);
+    if (!adminUser || !adminUser.fcmToken) {
+      return res.json({ success: false, error: 'ليس لديك Token FCM مسجل', errorCode: 'NO_TOKEN' });
+    }
+    const testBody = { token: adminUser.fcmToken, notification: { title: '🔧 إشعار اختبار من لوحة التشخيص', body: 'إذا رأيت هذه الرسالة فهذا يعني أن FCM يعمل بشكل صحيح ✅' }, data: { url: '/admin/fcm-debug' } };
+    let result;
+    try {
+      result = await admin.messaging().send(testBody);
+      fcmLog.add({ userId: adminUser.id, title: '🔧 اختبار تشخيص', messageId: result, success: true, error: null });
+      res.json({ success: true, messageId: result, error: null });
+    } catch (e) {
+      fcmLog.add({ userId: adminUser.id, title: '🔧 اختبار تشخيص', messageId: null, success: false, error: e.code || e.message });
+      res.json({ success: false, messageId: null, error: e.message || 'unknown', errorCode: e.code || 'UNKNOWN', errorInfo: e.errorInfo || null });
+    }
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+app.get('/admin/fcm-debug', requireAdmin, async (req, res) => {
+  try {
+    const users = await readData('users') || [];
+    const user = users.find(u => u.id === req.session.user.id) || {};
+    const _vapidKey = process.env.FIREBASE_VAPID_KEY || '';
+    res.render('admin/fcm-debug', {
+      title: 'تشخيص الإشعارات',
+      bodyClass: 'admin-body',
+      user: req.session.user,
+      currentPath: req.path,
+      users: users,
+      firebaseConfig: res.locals.firebaseConfig || {},
+      vapidKey: _vapidKey,
+      vapidPreview: _vapidKey ? _vapidKey.slice(0, 10) + '...' + _vapidKey.slice(-10) : '',
+      darkMode: res.locals.darkMode,
+      adminFcmToken: user.fcmToken || ''
+    });
+  } catch (e) { res.status(500).send(e.message); }
+});
+
 app.post('/api/admin/send-notification', requireAdmin, async (req, res) => {
   try {
     const { title, body, target, targetValue } = req.body;
@@ -4001,7 +4629,8 @@ app.post('/api/admin/send-notification', requireAdmin, async (req, res) => {
       try {
         const message = {
           token: u.fcmToken,
-          data: { title: title, body: body, url: '/' }
+          notification: { title: title, body: body },
+          data: { url: '/' }
         };
         await admin.messaging().send(message);
         sent++;
@@ -4034,7 +4663,24 @@ function triggerSchedulerCheck() {
 app.get('/api/admin/scheduled-notifications', requireAdmin, async (req, res) => {
   try {
     const list = await readData('scheduledNotifications') || [];
-    res.json(list);
+    const users = await readData('users') || [];
+    const userById = {};
+    users.forEach(u => { if (u && u.id) userById[u.id] = u; });
+    const enriched = list.map(n => {
+      const out = Object.assign({}, n);
+      if (n.target === 'student' && n.targetValue) {
+        const u = userById[n.targetValue];
+        out.targetName = u ? (u.name || u.id) : ('طالب (' + n.targetValue + ')');
+      } else if (n.target === 'grade' && n.targetValue) {
+        out.targetName = 'صف: ' + n.targetValue;
+      } else if (n.target === 'stage' && n.targetValue) {
+        out.targetName = 'مرحلة: ' + n.targetValue;
+      } else {
+        out.targetName = 'جميع الطلاب';
+      }
+      return out;
+    });
+    res.json(enriched);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -4154,7 +4800,7 @@ app.post('/api/admin/schedule-notification/:id/cancel', requireAdmin, async (req
 // GET /api/admin/notifications/check-scheduled — Trigger manual check (for external cron jobs)
 app.get('/api/admin/notifications/check-scheduled', requireAdmin, async (req, res) => {
   try {
-    const result = await checkScheduledNotifications();
+    const result = await runSchedulerCheck();
     res.json(result);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -4184,7 +4830,7 @@ async function sendScheduledNotification(notif) {
     let sent = 0;
     for (const u of recipients) {
       try {
-        const message = { token: u.fcmToken, data: { title: notif.title, body: notif.body, url: '/' } };
+        const message = { token: u.fcmToken, notification: { title: notif.title, body: notif.body }, data: { url: '/' } };
         await admin.messaging().send(message);
         sent++;
       } catch (e) {
@@ -4265,17 +4911,39 @@ async function checkScheduledNotifications() {
 const SCHEDULER_INTERVAL = 30000;
 let schedulerTimer = null;
 
+async function recordCronRun(result) {
+  try {
+    await writeData('cronLastRun', {
+      at: new Date().toISOString(),
+      processed: result && result.processed ? result.processed : 0,
+      checked: result ? result.checked : false,
+      error: result && result.error ? result.error : null
+    });
+  } catch (e) { /* non-fatal */ }
+}
+
+async function runSchedulerCheck() {
+  try {
+    const result = await checkScheduledNotifications();
+    await recordCronRun(result);
+    return result;
+  } catch (e) {
+    await recordCronRun({ checked: false, processed: 0, error: e.message });
+    return { checked: false, processed: 0, error: e.message };
+  }
+}
+
 function startScheduler() {
   if (schedulerTimer) clearInterval(schedulerTimer);
   console.log('[scheduler] Starting scheduled notifications checker every ' + (SCHEDULER_INTERVAL / 1000) + 's');
   schedulerTimer = setInterval(() => {
-    checkScheduledNotifications().then(r => {
+    runSchedulerCheck().then(r => {
       if (r.processed > 0) console.log('[scheduler] Processed ' + r.processed + ' scheduled notification(s)');
     });
   }, SCHEDULER_INTERVAL);
   // Also run once immediately after startup
   setTimeout(() => {
-    checkScheduledNotifications().then(r => {
+    runSchedulerCheck().then(r => {
       if (r.processed > 0) console.log('[scheduler] Initial check processed ' + r.processed + ' notification(s)');
     });
   }, 5000);
@@ -4286,13 +4954,198 @@ startScheduler();
 // Scheduler check is now triggered exclusively by cron-job.org hitting /api/cron/check-scheduled
 // (The admin page and middleware are NOT used to avoid duplicate processing)
 
+// One-time admin endpoint: store CRON_SECRET in Firebase
+app.get('/api/admin/set-cron-secret', requireAdmin, async (req, res) => {
+  try {
+    var s = (req.query.secret || '').trim();
+    if (!s) return res.status(400).send('يرجى إدخال secret');
+    var cfg = {};
+    try { var cur = await readData('appConfig'); if (cur) cfg = cur; } catch(e) {}
+    cfg.cronSecret = s;
+    await writeData('appConfig', cfg);
+    res.send('<h2 style="font-family:Cairo;color:#22c55e;padding:20px;">✅ تم حفظ CRON_SECRET في Firebase</h2><p style="font-family:Cairo;padding:0 20px;">الرابط: https://almumayaz.online/api/cron/check-scheduled?key=' + s + '</p>');
+  } catch (e) {
+    res.status(500).send('فشل: ' + e.message);
+  }
+});
+
+// ===================== Platform Theme (colors + button shape) =====================
+function hexToRgb(hex) {
+  if (!hex) return null;
+  hex = String(hex).replace('#', '').trim();
+  if (hex.length === 3) hex = hex.split('').map(function(c){return c+c;}).join('');
+  if (hex.length !== 6) return null;
+  return { r: parseInt(hex.slice(0,2),16), g: parseInt(hex.slice(2,4),16), b: parseInt(hex.slice(4,6),16) };
+}
+function rgbToHex(c) {
+  var h = function(n){ var s = Math.max(0, Math.min(255, Math.round(n))).toString(16); return s.length===1?'0'+s:s; };
+  return '#' + h(c.r) + h(c.g) + h(c.b);
+}
+function mixRgb(a, b, t) { return { r: a.r+(b.r-a.r)*t, g: a.g+(b.g-a.g)*t, b: a.b+(b.b-a.b)*t }; }
+function btnShapeRadius(shape) {
+  if (shape === 'square') return '0px';
+  if (shape === 'circular') return '999px';
+  return '12px'; // rounded (نصف دائرية)
+}
+function buildThemeCss(theme) {
+  if (!theme || !theme.accent) return '';
+  var rgb = hexToRgb(theme.accent) || { r: 245, g: 158, b: 11 };
+  var light = mixRgb(rgb, { r: 255, g: 255, b: 255 }, 0.35);
+  var lighter = mixRgb(rgb, { r: 255, g: 255, b: 255 }, 0.6);
+  var hover = mixRgb(rgb, { r: 0, g: 0, b: 0 }, 0.15);
+  var hex = theme.accent;
+  var glow = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0.18)';
+  var radius = btnShapeRadius(theme.btnShape);
+  return ':root,[data-theme="light"],[data-theme="dark"]{' +
+    '--primary:' + hex + ';' +
+    '--primary-light:' + rgbToHex(light) + ';' +
+    '--primary-lighter:' + rgbToHex(lighter) + ';' +
+    '--accent:' + hex + ';' +
+    '--accent-light:' + rgbToHex(light) + ';' +
+    '--accent-hover:' + rgbToHex(hover) + ';' +
+    '--accent-glow:' + glow + ';' +
+    '--gold-gradient:linear-gradient(135deg,' + hex + ' 0%,' + rgbToHex(hover) + ' 100%);' +
+    '--gold-gradient-text:linear-gradient(90deg,' + hex + ',' + rgbToHex(hover) + ');' +
+    '--shadow-accent:0 8px 25px rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0.25);' +
+    '--course-c1:' + hex + ';' +
+    '--course-c2:' + rgbToHex(mixRgb(rgb, { r: 109, g: 74, b: 255 }, 0.55)) + ';' +
+    '--course-c3:' + rgbToHex(mixRgb(rgb, { r: 13, g: 148, b: 136 }, 0.55)) + ';' +
+    '--course-c4:' + rgbToHex(mixRgb(rgb, { r: 184, g: 134, b: 11 }, 0.5)) + ';' +
+    '--btn-radius:' + radius + ';' +
+    '}' +
+    '.btn,.btn-lg,.btn-sm,.btn-outline,.btn-primary,.btn-danger,.action-btn{border-radius:var(--btn-radius,14px)!important;}';
+}
+
+let themeCache = { css: '', at: 0, TTL: 60000 };
+async function getThemeCss() {
+  const now = Date.now();
+  if (themeCache.css && now - themeCache.at < themeCache.TTL) return themeCache.css;
+  try {
+    const t = await readData('themeConfig');
+    const css = buildThemeCss(t);
+    themeCache.css = css;
+    themeCache.at = now;
+    return css;
+  } catch (e) {
+    return themeCache.css || '';
+  }
+}
+
+// GET /admin/dev — Developer control panel (Zoom settings + cron control)
+app.get('/admin/dev', requireAdmin, async (req, res) => {
+  try {
+    var creds = await zoom.getStoredCredentials();
+    var cid = creds ? creds.clientId : (process.env.ZOOM_CLIENT_ID || '');
+    var csec = creds ? creds.clientSecret : (process.env.ZOOM_CLIENT_SECRET || '');
+    var ruri = creds ? creds.redirectUri : (process.env.ZOOM_REDIRECT_URI || '');
+    var sk = creds ? creds.sdkKey : (process.env.ZOOM_SDK_KEY || '');
+    var ssec = creds ? creds.sdkSecret : (process.env.ZOOM_SDK_SECRET || '');
+    res.render('admin/dev', {
+      clientId: cid ? cid.substring(0, 6) + '…' : '',
+      clientIdFull: cid,
+      clientSecretFull: csec,
+      clientSecretDisplay: csec ? csec.substring(0, 6) + '…' : '',
+      redirectUri: ruri,
+      sdkKeyFull: sk,
+      sdkSecretFull: ssec,
+      title: 'لوحة المطور - الإدارة'
+    });
+  } catch (e) {
+    res.status(500).send('فشل تحميل لوحة المطور: ' + e.message);
+  }
+});
+
+// GET /api/dev/status — Developer panel status (Zoom + cron)
+app.get('/api/dev/status', requireAdmin, async (req, res) => {
+  try {
+    var creds = await zoom.getStoredCredentials();
+    var clientId = creds ? creds.clientId : (process.env.ZOOM_CLIENT_ID || '');
+    var status = {
+      zoom: {
+        configured: !!(clientId && (creds ? creds.clientSecret : process.env.ZOOM_CLIENT_SECRET)),
+        hasFirebaseCreds: !!(creds && creds.clientId),
+        clientIdPrefix: clientId ? clientId.substring(0, 6) + '…' : '',
+        redirectUri: creds ? creds.redirectUri : (process.env.ZOOM_REDIRECT_URI || ''),
+        hasSdk: !!(creds && creds.sdkKey)
+      },
+      cron: { intervalSeconds: SCHEDULER_INTERVAL / 1000 }
+    };
+    try { var lr = await readData('cronLastRun'); if (lr) status.cron.lastRun = lr; } catch (e) {}
+    try {
+      var cfg = await readData('appConfig');
+      status.cron.secretSet = !!(cfg && cfg.cronSecret);
+      if (cfg && cfg.cronSecret) {
+        status.cron.cronUrl = 'https://almumayaz.online/api/cron/check-scheduled?key=' + cfg.cronSecret;
+      }
+    } catch (e) {}
+    try { var mm = await readData('maintenanceMode'); status.maintenance = mm || { enabled: false, message: '' }; } catch (e) {}
+    res.json(status);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/dev/maintenance — Toggle maintenance mode (platform on/off)
+app.post('/api/dev/maintenance', requireAdmin, async (req, res) => {
+  try {
+    var enabled = !!req.body.enabled;
+    var message = (req.body.message || '').toString().trim();
+    await writeData('maintenanceMode', {
+      enabled: enabled,
+      message: message,
+      updatedAt: new Date().toISOString(),
+      updatedBy: req.session.user ? (req.session.user.name || req.session.user.id) : 'admin'
+    });
+    res.json({ success: true, enabled: enabled });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/dev/notify-teacher — Send a push notification to the teacher (admin)
+app.post('/api/dev/notify-teacher', requireAdmin, async (req, res) => {
+  try {
+    var title = (req.body.title || '').trim();
+    var body = (req.body.body || '').trim();
+    var url = (req.body.url || '/admin').trim() || '/admin';
+    if (!title || !body) return res.status(400).json({ error: 'العنوان والنص مطلوبان.' });
+    var sent = 0;
+    if (typeof admin !== 'undefined' && admin && admin.messaging) {
+      sent = await sendFCMToRole('admin', title, body, url);
+    }
+    // Also record in notification history so it appears in the admin notification center
+    try {
+      var notifications = await readData('notifications') || [];
+      notifications.push({
+        id: 'dev-' + Date.now(),
+        title: title,
+        body: body,
+        target: 'admin',
+        targetValue: '',
+        sentAt: new Date().toISOString(),
+        recipientCount: sent,
+        source: 'dev'
+      });
+      await writeData('notifications', notifications);
+    } catch (e) {}
+    res.json({ success: true, sent: sent });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Public cron endpoint for Vercel Cron Jobs (x-vercel-cron) / cron-job.org (?key=SECRET)
 app.get('/api/cron/check-scheduled', async function(req, res) {
-  var isVercelCron = req.headers['x-vercel-cron'];
-  var secret = process.env.CRON_SECRET;
-  if (!isVercelCron && secret && req.query.key !== secret) return res.status(403).json({ error: 'Forbidden' });
+  // Accept secret from env var OR Firebase (appConfig.cronSecret)
+  var envSecret = process.env.CRON_SECRET || '';
+  var fbSecret = '';
+  try { var cfg = await readData('appConfig'); if (cfg && cfg.cronSecret) fbSecret = cfg.cronSecret; } catch(e) {}
+  var provided = req.query.key || '';
+  if (provided !== envSecret && provided !== fbSecret) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
   try {
-    var result = await checkScheduledNotifications();
+    var result = await runSchedulerCheck();
     res.json(result);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -4323,7 +5176,7 @@ app.get('/api/admin/test-fcm', requireAdmin, async (req, res) => {
     let fcmCredsOk = false;
     let fcmCredsError = null;
     try {
-      const testMsg2 = { token: 'FAKE_TOKEN_FOR_TEST', data: { title: 't', body: 't', url: '/' } };
+      const testMsg2 = { token: 'FAKE_TOKEN_FOR_TEST', notification: { title: 't', body: 't' }, data: { url: '/' } };
       await admin.messaging().send(testMsg2);
     } catch (e) {
       fcmCredsError = e.code || e.message;
@@ -4362,7 +5215,7 @@ app.get('/api/admin/test-send-raw-fcm', requireAdmin, async (req, res) => {
       res.json({ success: false, errorCode: e.code || '', errorMessage: e.message, fullError: e.errorInfo || null });
     }
   } catch (e) {
-    res.status(500).json({ success: false, serverError: e.message, stack: (e.stack || '').split('\n').slice(0,3).join(' | ') });
+    res.status(500).json({ success: false, serverError: e.message });
   }
 });
 
@@ -4454,7 +5307,7 @@ app.get('/api/admin/test-send-fcm', requireAdmin, async (req, res) => {
     const users = await readData('users');
     const adminUser = users.find(u => u.role === 'admin' && u.fcmToken);
     if (!adminUser) return res.json({ success: false, error: 'Admin has no FCM token' });
-    const message = { token: adminUser.fcmToken, data: { title: 'Test', body: 'This is a test notification', url: '/' } };
+    const message = { token: adminUser.fcmToken, notification: { title: 'Test', body: 'This is a test notification' }, data: { url: '/' } };
     try {
       const result = await admin.messaging().send(message);
       res.json({ success: true, result: result });
@@ -4632,10 +5485,12 @@ app.post('/api/admin/upload-word-file', requireAdmin, upload.single('file'), asy
 app.post('/api/admin/upload-note-file', requireAdmin, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'لم يتم رفع ملف' });
+    var ext = path.extname(req.file.originalname) || '.pdf';
+    var allowedExts = ['.pdf','.png','.jpg','.jpeg','.webp','.gif','.doc','.docx','.ppt','.pptx','.txt','.zip'];
+    if (allowedExts.indexOf(ext.toLowerCase()) === -1) return res.status(400).json({ error: 'نوع الملف غير مسموح به' });
     const fs = require('fs');
     const dir = path.join(__dirname, 'uploads', 'notes');
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    const ext = path.extname(req.file.originalname) || '.pdf';
     const filename = 'note-' + Date.now() + ext;
     fs.writeFileSync(path.join(dir, filename), req.file.buffer);
     res.json({ success: true, url: '/uploads/notes/' + filename });
@@ -4692,20 +5547,42 @@ app.get('/auth/zoom', requireAdmin, (req, res) => {
   if (!zoom.isConfigured()) {
     return res.send('<html dir="rtl"><head><meta charset="utf-8"><title>Zoom - الإعدادات</title><style>body{font-family:Cairo,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#0F172A;color:#fff;direction:rtl;text-align:center;padding:20px;}div{max-width:400px;}.btn{display:inline-block;margin-top:16px;padding:10px 24px;background:#F59E0B;color:#fff;text-decoration:none;border-radius:10px;font-weight:700;}</style></head><body><div><h2>⚙️ لم يتم تكوين Zoom</h2><p style="color:#94a3b8;font-size:14px;">يرجى ضبط المتغيرات البيئية التالية في Vercel:</p><p style="background:#1E293B;padding:12px;border-radius:8px;font-size:12px;font-family:monospace;text-align:left;direction:ltr;">ZOOM_CLIENT_ID<br>ZOOM_CLIENT_SECRET<br>ZOOM_REDIRECT_URI</p><a href="/admin/settings" class="btn">← العودة للإعدادات</a></div></body></html>');
   }
-  var state = (req.session.user ? req.session.user.id || req.session.user.uid : '') + '|' + Date.now();
-  var url = zoom.getAuthorizeUrl(state);
+  var state = crypto.randomBytes(16).toString('hex');
+  if (req.session) req.session.zoomOAuthState = state;
+  console.error('ZOOM AUTH DEBUG set state=', state, 'sessionExists=', !!req.session, 'cookieHeader=', (req.headers && req.headers.cookie) ? 'present' : 'missing');
+  var proto = (req.headers && req.headers['x-forwarded-proto']) || req.protocol || 'https';
+  if (proto.indexOf(',') !== -1) proto = proto.split(',')[0].trim();
+  var host = (req.headers && req.headers['x-forwarded-host']) || req.get('host');
+  if (host.indexOf(',') !== -1) host = host.split(',')[0].trim();
+  var redirectUri = proto + '://' + host + '/auth/zoom/callback';
+  var url = zoom.getAuthorizeUrl(state, redirectUri);
   res.redirect(url);
 });
 
 // GET /auth/zoom/callback — Handle Zoom OAuth callback
 app.get('/auth/zoom/callback', async (req, res) => {
   try {
-    var code = req.query.code;
     var error = req.query.error;
-    if (error) return res.status(400).send('تم رفض الإذن من Zoom: ' + error);
+    var state = req.query.state;
+    var code = req.query.code;
+    
+    console.error('ZOOM CB DEBUG sessionExists=', !!req.session, 'hasState=', !!(req.session && req.session.zoomOAuthState), 'queryState=', state, 'cookieHeader=', (req.headers && req.headers.cookie) ? 'present' : 'missing');
+    if (!req.session || !req.session.zoomOAuthState || state !== req.session.zoomOAuthState) {
+      if (req.session) delete req.session.zoomOAuthState;
+      return res.status(403).send('طلب غير مصرح به');
+    }
+    delete req.session.zoomOAuthState;
+    
+    if (error) return res.status(400).send('تم رفض الإذن من Zoom');
     if (!code) return res.status(400).send('رمز الترخيص مفقود');
 
-    await zoom.completeOAuth(code);
+    var uid = (req.session && req.session.user && req.session.user.id) || 'global';
+    var proto = (req.headers && req.headers['x-forwarded-proto']) || req.protocol || 'https';
+    if (proto.indexOf(',') !== -1) proto = proto.split(',')[0].trim();
+    var host = (req.headers && req.headers['x-forwarded-host']) || req.get('host');
+    if (host.indexOf(',') !== -1) host = host.split(',')[0].trim();
+    var callbackRedirectUri = proto + '://' + host + '/auth/zoom/callback';
+    await zoom.completeOAuth(uid, code, callbackRedirectUri);
     res.redirect('/admin/settings?zoom=connected');
   } catch (e) {
     console.error('Zoom OAuth callback error:', e.message);
@@ -4713,14 +5590,74 @@ app.get('/auth/zoom/callback', async (req, res) => {
   }
 });
 
-// POST /auth/zoom/disconnect — Disconnect teacher's Zoom account
+// GET /api/zoom/debug — Check token scopes (diagnostic, requires admin or CRON_SECRET)
+app.get('/api/zoom/debug', async (req, res) => {
+  var cronSecret = process.env.CRON_SECRET || '';
+  if (req.query.secret !== cronSecret && !(req.session && req.session.user && req.session.user.role === 'admin')) {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+  try {
+    var uid = (req.query.userId || req.session?.user?.id || '').trim() || 'global';
+    var tokens = await zoom.loadTokens(uid);
+    if (!tokens) return res.json({ error: 'لا يوجد توكين', uid: uid });
+    var tokenInfo = null;
+    try {
+      var https = require('https');
+      var info = await new Promise(function(resolve, reject) {
+        var r = https.request({ hostname: 'api.zoom.us', path: '/oauth/tokeninfo', method: 'GET', headers: { 'Authorization': 'Bearer ' + tokens.accessToken } }, function(resp) { var d = ''; resp.on('data', function(c){ d += c; }); resp.on('end', function(){ resolve({ status: resp.statusCode, data: d }); }); });
+        r.on('error', reject); r.end();
+      });
+      tokenInfo = JSON.parse(info.data);
+    } catch(e) { tokenInfo = { error: e.message }; }
+    res.json({ uid, tokenEncrypted: !!tokens, connectedAt: tokens.connectedAt, userName: tokens.userName, tokenInfo });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+// GET /api/zoom/creds-check — Verify credentials are loaded correctly
+app.get('/api/zoom/creds-check', async (req, res) => {
+  var cronSecret = process.env.CRON_SECRET || '';
+  if (req.query.secret !== cronSecret && !(req.session && req.session.user && req.session.user.role === 'admin')) {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+  var cid = process.env.ZOOM_CLIENT_ID || '';
+  var csec = process.env.ZOOM_CLIENT_SECRET || '';
+  var ruri = process.env.ZOOM_REDIRECT_URI || '';
+  var testSig = zoom.generateSignature('123456789', 0);
+  res.json({
+    clientIdPrefix: cid.substring(0, 6) + '…',
+    clientIdLength: cid.length,
+    clientSecretPrefix: csec.substring(0, 4) + '…',
+    clientSecretLength: csec.length,
+    redirectUri: ruri,
+    hasFirebaseCreds: !!(await zoom.readData && await zoom.readData('zoomAppCredentials')),
+    testSignaturePrefix: testSig.substring(0, 20) + '…',
+    testSignatureLength: testSig.length,
+    isConfigured: zoom.isConfigured()
+  });
+});
+
 app.post('/auth/zoom/disconnect', requireAdmin, async (req, res) => {
   try {
-    await zoom.disconnect();
+    var uid = (req.session && req.session.user && req.session.user.id) || 'global';
+    await zoom.disconnect(uid);
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// GET /auth/zoom/reauthorize — Disconnect then redirect to Zoom OAuth (single step)
+app.get('/auth/zoom/reauthorize', requireAdmin, async (req, res) => {
+  try {
+    var uid = (req.session && req.session.user && req.session.user.id) || 'global';
+    await zoom.disconnect(uid);
+    console.error('ZOOM REAUTH: tokens cleared for', uid);
+  } catch (e) {
+    console.error('ZOOM REAUTH disconnect error (ignored):', e.message);
+  }
+  // Now redirect to the standard /auth/zoom route
+  res.redirect('/auth/zoom');
 });
 
 // GET /api/zoom/status — Get Zoom connection status
@@ -4728,21 +5665,23 @@ app.get('/api/zoom/status', requireAdmin, async (req, res) => {
   try {
     var configured = zoom.isConfigured();
     if (!configured) return res.json({ connected: false, configured: false });
-    var status = await zoom.getStatus();
+    var uid = (req.session && req.session.user && req.session.user.id) || 'global';
+    var status = await zoom.getStatus(uid);
     res.json({ ...status, configured: true });
   } catch (e) {
-    res.status(500).json({ error: e.message, connected: false, configured: zoom.isConfigured() });
+    res.status(500).json({ error: 'تعذر التحقق من حالة Zoom', connected: false, configured: zoom.isConfigured() });
   }
 });
 
 // GET /api/zoom/profile — Get Zoom user profile
 app.get('/api/zoom/profile', requireAdmin, async (req, res) => {
   try {
-    var status = await zoom.getStatus();
+    var uid = (req.session && req.session.user && req.session.user.id) || 'global';
+    var status = await zoom.getStatus(uid);
     if (!status.connected) return res.json({ connected: false });
     res.json({ connected: true, userName: status.userName, userEmail: status.userEmail, userAvatar: status.userAvatar, connectedAt: status.connectedAt });
   } catch (e) {
-    res.status(500).json({ connected: false, error: e.message });
+    res.status(500).json({ connected: false, error: 'تعذر جلب بيانات حساب Zoom' });
   }
 });
 
@@ -4760,7 +5699,7 @@ app.get('/student/live-session/:id', requireStudentOrGuest, async (req, res) => 
     if (!session) return res.status(404).send('الحصة غير موجودة');
     var zoomSignature = '';
     if (session.meetingId && zoom.isConfigured()) {
-      try { zoomSignature = zoom.generateSignature(session.meetingId, 0); } catch(e) {}
+      try { zoomSignature = await zoom.generateSignatureAsync(session.meetingId, 0); } catch(e) {}
     }
     res.render('student/live-session', {
       session: session,
@@ -4772,7 +5711,7 @@ app.get('/student/live-session/:id', requireStudentOrGuest, async (req, res) => 
     });
   } catch(e) {
     console.error('[live-session page] error:', e.message, e.stack);
-    res.status(500).send('خطأ في تحميل الحصة: ' + e.message);
+    res.status(500).send('خطأ في تحميل الحصة');
   }
 });
 
@@ -4783,15 +5722,19 @@ app.get('/zoom-embed/:id', requireStudentOrGuest, async (req, res) => {
     var session = sessions.find(function(s) { return s.id === req.params.id; });
     if (!session) return res.status(404).send('الحصة غير موجودة');
     var zoomSignature = '';
+    var embedSdkKey = process.env.ZOOM_SDK_KEY || process.env.ZOOM_CLIENT_ID || '';
     if (session.meetingId && zoom.isConfigured()) {
-      try { zoomSignature = zoom.generateSignature(session.meetingId, 0); } catch(e) {}
+      var embedCreds = await zoom.getStoredCredentials();
+      embedSdkKey = embedCreds ? (embedCreds.sdkKey || embedCreds.clientId) : embedSdkKey;
+      try { zoomSignature = await zoom.generateSignatureAsync(session.meetingId, 0); } catch(e) {}
     }
-    // Override CSP to allow framing from same origin
+    // Override CSP + XFO to allow same-origin iframe embedding
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
     res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
     res.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
     res.setHeader('Content-Security-Policy',
       "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; " +
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://source.zoom.us https://*.zoom.us https://zoom.us; " +
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://source.zoom.us https://*.zoom.us https://zoom.us https://*.firebaseio.com; " +
       "style-src 'self' 'unsafe-inline' https://source.zoom.us https://*.zoom.us https://zoom.us; " +
       "img-src * data: blob:; " +
       "media-src * blob:; " +
@@ -4804,7 +5747,7 @@ app.get('/zoom-embed/:id', requireStudentOrGuest, async (req, res) => {
     res.render('zoom-embed', {
       session: session,
       zoomSignature: zoomSignature,
-      sdkKey: process.env.ZOOM_CLIENT_ID || '',
+      sdkKey: embedSdkKey,
       userName: (req.session.user && req.session.user.name) || 'زائر',
       userEmail: (req.session.user && req.session.user.email) || '',
       isStudent: userRole === 'student'
@@ -4834,12 +5777,13 @@ app.post('/api/admin/live-sessions', requireAdmin, async (req, res) => {
     // Try to create Zoom meeting if configured
     var zoomResult = null;
     if (zoom.isConfigured()) {
-      var status = await zoom.getStatus();
+      var uid = (req.session && req.session.user && req.session.user.id) || 'global';
+      var status = await zoom.getStatus(uid);
       if (!status.connected) {
         return res.status(400).json({ error: 'يجب ربط حساب Zoom أولاً من صفحة الإعدادات.' });
       }
       try {
-        zoomResult = await zoom.createMeeting({
+        zoomResult = await zoom.createMeeting(uid, {
           title: title,
           startTime: startTime,
           duration: parseInt(duration) || 60,
@@ -4943,14 +5887,19 @@ app.post('/api/admin/live-sessions/:id/start', requireAdmin, async (req, res) =>
       } else if (s.stage) {
         var cs = stageMap[s.stage] || s.stage;
         recipients = allUsers.filter(function(u) { return u.role === 'student' && u.stage === cs && u.fcmToken; });
+      } else {
+        recipients = allUsers.filter(function(u) { return u.role === 'student' && u.fcmToken; });
       }
       var startSent = 0;
       for (var ri = 0; ri < recipients.length; ri++) {
         try {
           var msg = {
             token: recipients[ri].fcmToken,
-            data: { title: '📺 الحصة المباشرة بدأت الآن!', body: (s.title || 'حصة مباشرة') + ' - اضغط للانضمام', url: '/student/live-session/' + s.id, click_action: 'FLUTTER_NOTIFICATION_CLICK' }
+            notification: { title: '📺 الحصة المباشرة بدأت الآن!', body: (s.title || 'حصة مباشرة') + ' - اضغط للانضمام' },
+            data: { url: '/student/live-session/' + s.id, click_action: 'FLUTTER_NOTIFICATION_CLICK' }
           };
+          await admin.messaging().send(msg);
+          sessionSent++;
           if (admin.messaging) { await admin.messaging().send(msg); startSent++; }
         } catch (fcmErr) {
           console.error('[start] FCM error:', fcmErr.code || fcmErr.message);
@@ -5001,9 +5950,11 @@ app.post('/api/admin/live-sessions/:id/end', requireAdmin, async (req, res) => {
     // End Zoom meeting if we have a meetingId (uses teacher's linked account)
     if (sessions[idx].meetingId && zoom.isConfigured()) {
       try {
-        await zoom.endMeeting(sessions[idx].meetingId);
+        var ownerId = sessions[idx].createdBy || (req.session && req.session.user && req.session.user.id) || 'global';
+        await zoom.endMeeting(ownerId, sessions[idx].meetingId);
       } catch (ze) {
         console.error('Zoom end meeting failed:', ze.message);
+        return res.status(500).json({ error: 'تعذر إنهاء اجتماع Zoom: ' + ze.message });
       }
     }
 
@@ -5054,8 +6005,8 @@ app.get('/api/debug/sessions', requireAdmin, async (req, res) => {
   }
 });
 
-// GET /api/debug/student-sessions — Debug endpoint for students (no auth)
-app.get('/api/debug/student-sessions', async (req, res) => {
+// GET /api/debug/student-sessions — Debug endpoint for admin
+app.get('/api/debug/student-sessions', requireAdmin, async (req, res) => {
   try {
     var sessions = await readData('liveSessions') || [];
     var user = req.session.user;
@@ -5105,12 +6056,14 @@ app.get('/api/live-sessions/:id', requireStudentOrGuest, async (req, res) => {
     var sessions = await readData('liveSessions') || [];
     var session = sessions.find(function(s) { return s.id === req.params.id; });
     if (!session) return res.status(404).json({ error: 'الحصة غير موجودة' });
+    var creds = await zoom.getStoredCredentials();
+    var cid = creds ? creds.clientId : (process.env.ZOOM_CLIENT_ID || '');
     // Generate signature for Zoom Meeting SDK
     var signature = '';
-    var sdkKey = process.env.ZOOM_CLIENT_ID || '';
+    var sdkKey = cid;
     if (session.meetingId && zoom.isConfigured()) {
       try {
-        signature = zoom.generateSignature(session.meetingId, 0);
+        signature = await zoom.generateSignatureAsync(session.meetingId, 0);
       } catch(e) {}
     }
     res.json({ session: session, signature: signature, sdkKey: sdkKey });
@@ -5125,7 +6078,7 @@ app.post('/api/live-sessions/:id/attendance', requireStudentOrGuest, async (req,
     var userId = req.session.user ? (req.session.user.id || req.session.user.uid) : 'guest';
     var { action } = req.body; // 'join' or 'leave'
     if (!action) return res.status(400).json({ error: 'action مطلوب' });
-
+    if (!/^[a-zA-Z0-9_\-]+$/.test(req.params.id)) return res.status(400).json({ error: 'Invalid session ID' });
     var path = 'liveSessionAttendance/' + req.params.id + '/' + userId;
     var existing = await admin.database().ref(path).once('value').then(function(s) { return s.val(); }).catch(function() { return null; });
 
@@ -5188,7 +6141,7 @@ app.get('/api/admin/live-sessions/:id/attendance', requireAdmin, async (req, res
 
 // GET /api/cron/check-notifications — Cron job: send scheduled notifications
 app.get('/api/cron/check-notifications', async (req, res) => {
-  if (req.query.secret !== (process.env.CRON_SECRET || 'almumayaz-cron-2024')) {
+  if (!process.env.CRON_SECRET || req.query.secret !== process.env.CRON_SECRET) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   try {
@@ -5203,9 +6156,12 @@ app.get('/api/cron/check-notifications', async (req, res) => {
     var sent = 0;
     for (var si = 0; si < sessions.length; si++) {
       var s = sessions[si];
-      if (!s.notifyAt || s.notified) continue;
-      if (s.notifyAt > now) continue;
-      if (s.status !== 'Scheduled') continue;
+      if (!s.notifyAt || s.notified) {
+        console.log('[cron] skip session ' + s.id + ': notifyAt=' + (s.notifyAt||'none') + ' notified=' + s.notified);
+        continue;
+      }
+      if (s.notifyAt > now) { console.log('[cron] session ' + s.id + ' notifyAt in future'); continue; }
+      if (s.status !== 'Scheduled') { console.log('[cron] session ' + s.id + ' status=' + s.status); continue; }
       var recipients = [];
       if (s.grade) {
         recipients = users.filter(function(u) {
@@ -5216,7 +6172,13 @@ app.get('/api/cron/check-notifications', async (req, res) => {
         recipients = users.filter(function(u) {
           return u.role === 'student' && u.stage === cs && u.fcmToken;
         });
+      } else {
+        // No grade/stage = all students
+        recipients = users.filter(function(u) {
+          return u.role === 'student' && u.fcmToken;
+        });
       }
+      console.log('[cron] session ' + s.id + ' found ' + recipients.length + ' recipients');
       if (recipients.length === 0) continue;
       // Atomic lock via Firebase to prevent duplicate sends from concurrent requests
       try {
@@ -5255,12 +6217,8 @@ app.get('/api/cron/check-notifications', async (req, res) => {
         try {
           var msg = {
             token: recipients[ri].fcmToken,
-            data: {
-              title: '🔔 الحصة المباشرة على وشك البدء',
-              body: (s.title || 'حصة مباشرة') + ' ستبدأ قريباً - اضغط للانضمام!',
-              url: '/student/live-session/' + s.id,
-              click_action: 'FLUTTER_NOTIFICATION_CLICK'
-            }
+            notification: { title: '🔔 الحصة المباشرة على وشك البدء', body: (s.title || 'حصة مباشرة') + ' ستبدأ قريباً - اضغط للانضمام!' },
+            data: { url: '/student/live-session/' + s.id, click_action: 'FLUTTER_NOTIFICATION_CLICK' }
           };
           await admin.messaging().send(msg);
           sessionSent++;
@@ -5309,7 +6267,7 @@ app.get('/api/cron/check-notifications', async (req, res) => {
 });
 
 // Debug endpoint to inspect sessions
-app.get('/api/debug/notifications', async (req, res) => {
+app.get('/api/debug/notifications', requireAdmin, async (req, res) => {
   try {
     var sessions = await readData('liveSessions') || [];
     var users = await readData('users') || [];

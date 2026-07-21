@@ -142,12 +142,37 @@ async function getAnalytics(uid) {
   };
 }
 
+// Fresh version — reads directly from Firebase, bypasses cache.
+// Use after lesson completion to ensure next lesson unlock is immediate.
+async function getAnalyticsFresh(uid) {
+  const users = await readData('users', true);
+  const u = (users || []).find(u => u.uid === uid || u.id === uid) || {};
+  const courses = await readData('courses') || [];
+  const lp = buildLessonProgress(u, courses);
+  const cp = buildCourseProgress(u, courses);
+  const qh = buildQuizHistory(u);
+  const wh = buildWatchHistory(u, courses);
+  const sm = makeSummaryFromUser(u, courses);
+  const pf = {
+    name: u.name || '', email: u.email || '', phone: u.phone || '',
+    stage: u.stage || '', grade: u.grade || '', governorate: u.governorate || '',
+    subscriptionStatus: u.subscriptionStatus || 'inactive', lastLogin: u.lastLogin || ''
+  };
+  return {
+    profile: pf, lessonProgress: lp, courseProgress: cp, quizHistory: qh,
+    summary: sm, watchHistory: wh,
+    pdfHistory: { totalOpens: 0, lessons: {} },
+    achievements: { unlocked: [], total: 0, perfectQuiz: false },
+    streak: { current: 0, longest: 0, lastStudyDate: null },
+    activityLog: [], sessions: { totalLogins: 0, lastLogin: null, history: [] }
+  };
+}
+
 // No-op tracking functions — actual data is stored by app.js directly in users array
 async function trackLogin(uid, reqInfo) {}
 async function trackVideoHeartbeat(uid, cid, lid, position, duration, watchedSeconds, forceComplete) {
   const pct = duration > 0 ? Math.min(Math.round((position / duration) * 100), 100) : 0;
-  const isComplete = forceComplete || pct >= 95;
-  return { completed: isComplete, completionPercent: pct, status: isComplete ? 'completed' : 'watching' };
+  return { completed: !!forceComplete, completionPercent: pct, status: forceComplete ? 'completed' : 'watching' };
 }
 async function trackPdfOpen(uid, cid, lid, lessonTitle) {}
 async function trackQuizSubmit(uid, cid, qid, quizTitle, score, total, correct, wrong, timeTaken) {
@@ -245,7 +270,7 @@ async function getStudentDashboardData(uid) {
 
 // Admin analytics — compute from all users + courses
 async function computeAdminAnalytics() {
-  const users = await readData('users');
+  const users = await readData('users', true);
   const courses = await readData('courses') || [];
   const rows = [];
   (users || []).forEach(u => {
@@ -377,7 +402,7 @@ async function getAdminAnalytics() {
 }
 
 async function getAdminStudentDetail(studentId) {
-  const users = await readData('users');
+  const users = await readData('users', true);
   const u = (users || []).find(u => u.uid === studentId || u.id === studentId);
   const courses = await readData('courses') || [];
   const lp = buildLessonProgress(u, courses);
@@ -417,7 +442,7 @@ async function backupAnalytics() { return { success: true, name: '' }; }
 async function cleanupOrphanAnalytics() { return { removed: 0 }; }
 
 module.exports = {
-  getAnalytics, trackLogin, trackVideoHeartbeat, trackPdfOpen, trackQuizSubmit,
+  getAnalytics, getAnalyticsFresh, trackLogin, trackVideoHeartbeat, trackPdfOpen, trackQuizSubmit,
   computeLessonStatuses, getStudentDashboardData, getAdminAnalytics,
   getAdminStudentDetail, migrateAll, deleteAllAnalytics, backupAnalytics, cleanupOrphanAnalytics
 };

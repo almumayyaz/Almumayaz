@@ -15,7 +15,26 @@
   </div>
 </main>
 
+<div id="receiptModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;" onclick="if(event.target===this)closeReceiptModal()">
+  <div style="background:var(--card);border-radius:var(--radius-xl);padding:16px;max-width:92vw;max-height:92vh;position:relative;box-shadow:0 20px 60px rgba(0,0,0,0.3);display:flex;flex-direction:column;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+      <div style="display:flex;gap:6px;">
+        <button onclick="zoomReceiptIn()" title="تكبير" style="background:var(--accent-glow);color:var(--accent);border:none;border-radius:var(--radius);width:34px;height:34px;cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;"><i class="fas fa-plus"></i></button>
+        <button onclick="zoomReceiptOut()" title="تصغير" style="background:var(--accent-glow);color:var(--accent);border:none;border-radius:var(--radius);width:34px;height:34px;cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;"><i class="fas fa-minus"></i></button>
+        <button onclick="resetReceiptZoom()" title="استعادة الحجم" style="background:var(--bg-alt);color:var(--text);border:none;border-radius:var(--radius);width:34px;height:34px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;"><i class="fas fa-expand"></i></button>
+      </div>
+      <button onclick="closeReceiptModal()" style="background:rgba(220,38,38,0.15);color:var(--danger);border:none;border-radius:var(--radius);width:34px;height:34px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;"><i class="fas fa-times"></i></button>
+    </div>
+    <div id="receiptZoomContainer" style="overflow:hidden;border-radius:var(--radius);position:relative;cursor:grab;background:var(--bg);min-height:300px;display:flex;align-items:center;justify-content:center;">
+      <img id="receiptModalImg" style="max-width:100%;max-height:75vh;display:block;border-radius:var(--radius);transform-origin:center center;transition:transform 0.15s ease;user-select:none;-webkit-user-drag:none;">
+    </div>
+    <div id="receiptZoomLevel" style="text-align:center;font-size:12px;color:var(--text-muted);margin-top:8px;direction:ltr;">100%</div>
+  </div>
+</div>
+
 <script>
+function escHtml(t) { return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
+var receiptImages = {};
 (function(){
   var container = document.getElementById('requestsContainer');
 
@@ -24,7 +43,7 @@
     fetch('/api/admin/sub-requests')
       .then(function(r) { return r.json(); })
       .then(function(d) {
-        if (!d.success) { container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--danger);">' + d.error + '</div>'; return; }
+        if (!d.success) { container.textContent = d.error || 'حدث خطأ'; return; }
         var requests = d.requests;
         if (requests.length === 0) {
           container.innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--text-muted);"><i class="fas fa-inbox" style="font-size:40px;display:block;margin-bottom:12px;opacity:0.4;"></i>لا توجد طلبات اشتراك</div>';
@@ -32,6 +51,7 @@
         }
         var html = '<table><thead><tr><th>#</th><th>الطالب</th><th>الهاتف</th><th>الخطة</th><th>المرحلة</th><th>المبلغ</th><th>الخصم</th><th>المُحيل</th><th>كود العملية</th><th>طريقة الدفع</th><th>الإيصال</th><th>التاريخ</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody>';
         requests.forEach(function(r, i) {
+          if (r.receiptImage) receiptImages[r.id] = r.receiptImage;
           var statusHtml = '';
           if (r.status === 'pending') statusHtml = '<span class="status-badge pending">قيد المراجعة</span>';
           else if (r.status === 'approved') statusHtml = '<span class="status-badge active">تم التفعيل</span>';
@@ -39,22 +59,22 @@
           var isPending = r.status === 'pending';
           html += '<tr>' +
             '<td>' + (i + 1) + '</td>' +
-            '<td><strong>' + (r.userName || '---') + '</strong></td>' +
-            '<td>' + (r.userPhone || '---') + '</td>' +
-            '<td>' + (r.planName || '---') + '</td>' +
-            '<td>' + (r.planStage || '---') + '</td>' +
-            '<td><strong>' + (r.price || '---') + ' جنيه</strong></td>' +
-            '<td>' + (r.discount ? '<span style="color:var(--success);font-weight:600;">' + r.discount + '%</span>' : '---') + '</td>' +
-            '<td>' + (r.referredByName || '—') + '</td>' +
-            '<td dir="ltr" style="font-size:12px;">' + (r.transactionId || '---') + '</td>' +
+            '<td><strong>' + escHtml(r.userName || '---') + '</strong></td>' +
+            '<td>' + escHtml(r.userPhone || '---') + '</td>' +
+            '<td>' + escHtml(r.planName || '---') + '</td>' +
+            '<td>' + escHtml(r.planStage || '---') + '</td>' +
+            '<td><strong>' + escHtml(r.price || '---') + ' جنيه</strong></td>' +
+            '<td>' + (r.discount ? '<span style="color:var(--success);font-weight:600;">' + escHtml(r.discount) + '%</span>' : '---') + '</td>' +
+            '<td>' + escHtml(r.referredByName || '—') + '</td>' +
+            '<td dir="ltr" style="font-size:12px;">' + escHtml(r.transactionId || '---') + '</td>' +
             '<td>' + (r.paymentMethod === 'instapay' ? 'إنستا باي' : 'فودافون كاش') + '</td>' +
-            '<td>' + (r.receiptImage ? '<a href="' + r.receiptImage + '" target="_blank" style="color:var(--accent);"><i class="fas fa-image"></i> عرض</a>' : '---') + '</td>' +
+            '<td>' + (r.receiptImage ? '<a href="javascript:void(0)" onclick="showReceipt(\'' + escHtml(r.id) + '\')" style="color:var(--accent);"><i class="fas fa-image"></i> عرض</a>' : '---') + '</td>' +
             '<td style="font-size:11px;">' + (r.date ? new Date(r.date).toLocaleDateString('ar-EG') : '---') + '</td>' +
             '<td>' + statusHtml + '</td>' +
             '<td>' +
               (isPending
-                ? '<div class="admin-actions"><button class="edit" onclick="approveRequest(\'' + r.id + '\')" title="موافقة"><i class="fas fa-check"></i></button><button class="delete" onclick="rejectRequest(\'' + r.id + '\')" title="رفض"><i class="fas fa-times"></i></button><button class="delete" onclick="deleteRequest(\'' + r.id + '\')" style="background:rgba(220,38,38,0.15);color:var(--danger);" title="حذف"><i class="fas fa-trash"></i></button></div>'
-                : '<div class="admin-actions"><button class="delete" onclick="deleteRequest(\'' + r.id + '\')" title="حذف"><i class="fas fa-trash"></i></button> <span style="font-size:11px;color:var(--text-muted);">' + (r.status === 'approved' ? 'مفعل' : 'مرفوض') + '</span></div>'
+                ? '<div class="admin-actions"><button class="edit" onclick="approveRequest(\'' + escHtml(r.id) + '\')" title="موافقة"><i class="fas fa-check"></i></button><button class="delete" onclick="rejectRequest(\'' + escHtml(r.id) + '\')" title="رفض"><i class="fas fa-times"></i></button><button class="delete" onclick="deleteRequest(\'' + escHtml(r.id) + '\')" style="background:rgba(220,38,38,0.15);color:var(--danger);" title="حذف"><i class="fas fa-trash"></i></button></div>'
+                : '<div class="admin-actions"><button class="delete" onclick="deleteRequest(\'' + escHtml(r.id) + '\')" title="حذف"><i class="fas fa-trash"></i></button> <span style="font-size:11px;color:var(--text-muted);">' + (r.status === 'approved' ? 'مفعل' : 'مرفوض') + '</span></div>'
               ) +
             '</td>' +
           '</tr>';
@@ -62,7 +82,7 @@
         html += '</tbody></table>';
         container.innerHTML = html;
       })
-      .catch(function() { container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--danger);">حدث خطأ في تحميل الطلبات</div>'; });
+      .catch(function() { container.textContent = 'حدث خطأ في تحميل الطلبات'; });
   }
 
   window.approveRequest = function(id) {
@@ -88,6 +108,120 @@
 
   loadRequests();
 })();
+
+var receiptZoom = 1;
+var receiptPanX = 0, receiptPanY = 0;
+var receiptDragging = false, receiptDragStartX, receiptDragStartY, receiptPanStartX, receiptPanStartY;
+
+function applyReceiptTransform() {
+  var img = document.getElementById('receiptModalImg');
+  img.style.transform = 'translate(' + receiptPanX + 'px, ' + receiptPanY + 'px) scale(' + receiptZoom + ')';
+  document.getElementById('receiptZoomLevel').textContent = Math.round(receiptZoom * 100) + '%';
+}
+
+function resetReceiptZoom() {
+  receiptZoom = 1; receiptPanX = 0; receiptPanY = 0;
+  applyReceiptTransform();
+}
+
+function zoomReceiptIn() {
+  var old = receiptZoom;
+  receiptZoom = Math.min(receiptZoom * 1.3, 8);
+  if (receiptZoom !== old) applyReceiptTransform();
+}
+
+function zoomReceiptOut() {
+  var old = receiptZoom;
+  receiptZoom = Math.max(receiptZoom / 1.3, 0.2);
+  if (receiptZoom !== old) applyReceiptTransform();
+}
+
+window.showReceipt = function(id) {
+  var imgSrc = receiptImages[id];
+  if (!imgSrc) return;
+  resetReceiptZoom();
+  document.getElementById('receiptModalImg').src = imgSrc;
+  document.getElementById('receiptModal').style.display = 'flex';
+};
+
+window.closeReceiptModal = function() {
+  document.getElementById('receiptModal').style.display = 'none';
+  document.getElementById('receiptModalImg').src = '';
+};
+
+(function(){
+  var container = document.getElementById('receiptZoomContainer');
+  var img = document.getElementById('receiptModalImg');
+
+  container.addEventListener('wheel', function(e) {
+    if (e.ctrlKey || e.metaKey) { e.preventDefault(); return; }
+    var rect = container.getBoundingClientRect();
+    var mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    var old = receiptZoom;
+    if (e.deltaY < 0) receiptZoom = Math.min(receiptZoom * 1.2, 8);
+    else receiptZoom = Math.max(receiptZoom / 1.2, 0.2);
+    if (receiptZoom !== old) {
+      var ratio = receiptZoom / old;
+      receiptPanX = mx - (mx - receiptPanX) * ratio;
+      receiptPanY = my - (my - receiptPanY) * ratio;
+      applyReceiptTransform();
+    }
+  }, { passive: true });
+
+  container.addEventListener('mousedown', function(e) {
+    if (e.button !== 0 || receiptZoom <= 1) return;
+    receiptDragging = true;
+    container.style.cursor = 'grabbing';
+    receiptDragStartX = e.clientX;
+    receiptDragStartY = e.clientY;
+    receiptPanStartX = receiptPanX;
+    receiptPanStartY = receiptPanY;
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', function(e) {
+    if (!receiptDragging) return;
+    receiptPanX = receiptPanStartX + (e.clientX - receiptDragStartX);
+    receiptPanY = receiptPanStartY + (e.clientY - receiptDragStartY);
+    applyReceiptTransform();
+  });
+
+  document.addEventListener('mouseup', function() {
+    if (!receiptDragging) return;
+    receiptDragging = false;
+    container.style.cursor = receiptZoom > 1 ? 'grab' : 'grab';
+  });
+
+  var pinchDist = 0;
+  container.addEventListener('touchstart', function(e) {
+    if (e.touches.length === 2) {
+      pinchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+    }
+  }, { passive: true });
+
+  container.addEventListener('touchmove', function(e) {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      var dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+      var scale = dist / pinchDist;
+      var old = receiptZoom;
+      receiptZoom = Math.min(Math.max(receiptZoom * scale, 0.2), 8);
+      if (receiptZoom !== old) applyReceiptTransform();
+      pinchDist = dist;
+    }
+  }, { passive: false });
+
+  img.addEventListener('dblclick', function(e) {
+    if (receiptZoom > 1) { resetReceiptZoom(); return; }
+    var rect = container.getBoundingClientRect();
+    var mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    receiptZoom = 2.5;
+    receiptPanX = -(mx - rect.width / 2) + (rect.width / 2 - mx) * 0.5;
+    receiptPanY = -(my - rect.height / 2) + (rect.height / 2 - my) * 0.5;
+    applyReceiptTransform();
+  });
+})();
 </script>
+<%- include("../partials/footer") %>
 </body>
 </html>

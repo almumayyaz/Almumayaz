@@ -1,176 +1,359 @@
 <%- include('../partials/header', { title: title, navPageTitle: 'حسابي', bodyClass: 'student-body' }) %>
 <%- include('../partials/student-sidebar') %>
 <main class="main-content">
-  <div class="page-header">
-    <div>
-      <h1>حسابي</h1>
-      <p>معلومات الحساب الشخصية</p>
-    </div>
-  </div>
-  <div class="profile-card">
-    <div class="profile-header">
-      <div class="profile-avatar" id="profileAvatarWrap" style="position:relative;">
-        <% if (user.avatar) { %><img src="<%= user.avatar %>" style="width:100%;height:100%;object-fit:cover;border-radius:50%;"><% } else { %><%= user.name.charAt(0) %><% } %>
-      </div>
-      <input type="file" id="avatarInput" accept="image/*" style="display:none;" onchange="onAvatarPicked(event)">
-      <h2 id="profileNameDisplay"><%= user.name %></h2>
-    </div>
+  <style>
+    .sp-profile { max-width: 880px; margin: 0 auto; }
+    .sp-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+      animation: sp-fade-up .6s cubic-bezier(.2,.7,.2,1) both;
+    }
+    .sp-anim2 { animation: sp-fade-up .6s cubic-bezier(.2,.7,.2,1) .14s both; }
+    @keyframes sp-fade-up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
 
-    <!-- Edit mode inputs (hidden by default) -->
-    <div id="profileEditForm" style="display:none;">
-      <button type="button" class="btn btn-sm" style="margin:0 auto 20px;background:var(--bg);color:var(--text);display:block;" onclick="document.getElementById('avatarInput').click()"><i class="fas fa-camera"></i> تغيير الصورة الشخصية</button>
-      <div class="info-row">
-        <span class="label">اسم الطالب</span>
-        <input id="editName" class="value" value="<%= user.name %>" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;width:100%;">
-      </div>
-      <div class="info-row">
-        <span class="label">رقم الهاتف</span>
-        <input id="editPhone" class="value" value="<%= user.phone||'' %>" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;width:100%;">
-      </div>
-      <div class="info-row">
-        <span class="label">رقم ولي الأمر</span>
-        <input id="editParentPhone" class="value" value="<%= user.parentPhone||'' %>" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;width:100%;">
-      </div>
-      <div class="info-row">
-        <span class="label">اسم ولي الأمر</span>
-        <input id="editParentName" class="value" value="<%= user.parentName||'' %>" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;width:100%;">
-      </div>
-      <div class="info-row">
-        <span class="label">بريد ولي الأمر (اختياري)</span>
-        <input id="editParentEmail" class="value" value="<%= user.parentEmail||'' %>" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;width:100%;" dir="ltr">
-      </div>
-      <div class="info-row">
-        <span class="label">المرحلة</span>
-        <select id="editStage" class="value" onchange="updateGrades()" <%= isSubscribed ? 'disabled' : '' %> style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;width:100%;">
-          <option value="">اختر المرحلة</option>
-          <option value="إعدادية" <%= user.stage==='إعدادية'?'selected':'' %>>إعدادية</option>
-          <option value="ثانوية" <%= user.stage==='ثانوية'?'selected':'' %>>ثانوية</option>
-        </select>
-      </div>
-      <div class="info-row">
-        <span class="label">الصف الدراسي</span>
-        <select id="editGrade" class="value" <%= isSubscribed ? 'disabled' : '' %> style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;width:100%;">
-          <option value="">اختر الصف</option>
-        </select>
-      </div>
-      <div class="info-row">
-        <span class="label">المحافظة</span>
-        <select id="editGovernorate" class="value" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;width:100%;">
-          <option value="">اختر المحافظة</option>
-          <% ['القاهرة','الجيزة','الإسكندرية','الدقهلية','الشرقية','القليوبية','الغربية','المنوفية','كفر الشيخ','البحيرة','دمياط','بورسعيد','السويس','الإسماعيلية','الفيوم','بني سويف','المنيا','أسيوط','سوهاج','قنا','الأقصر','أسوان'].forEach(function(g) { %>
-          <option value="<%= g %>" <%= user.governorate===g?'selected':'' %>><%= g %></option>
-          <% }) %>
-        </select>
-      </div>
-      <div class="info-row">
-        <span class="label">البريد الإلكتروني</span>
-        <span class="value" dir="ltr" style="color:var(--text-muted);"><%= user.email || '---' %></span>
-      </div>
-      <div style="margin-top:20px;display:flex;gap:12px;flex-wrap:wrap;">
-        <button class="btn btn-primary" onclick="saveProfile()"><i class="fas fa-save"></i> حفظ التغييرات</button>
-        <button class="btn" style="background:var(--bg);color:var(--text);" onclick="toggleEdit()"><i class="fas fa-times"></i> إلغاء</button>
-      </div>
-    </div>
+    .sp-cover {
+      position: relative;
+      height: 150px;
+      background: linear-gradient(120deg, var(--purple) 0%, var(--accent) 100%);
+      background-size: 220% 220%;
+      animation: sp-cover 9s ease infinite;
+    }
+    @keyframes sp-cover { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+    .sp-cover::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(circle at 25% 15%, rgba(255,255,255,.20), transparent 55%),
+                  radial-gradient(circle at 85% 90%, rgba(255,255,255,.10), transparent 50%);
+    }
 
-    <!-- View mode (default) -->
-    <div id="profileView">
-      <div class="info-row">
-        <span class="label">اسم الطالب</span>
-        <span class="value" id="viewName"><%= user.name %></span>
-      </div>
-      <div class="info-row">
-        <span class="label">البريد الإلكتروني</span>
-        <span class="value" dir="ltr"><%= user.email || '---' %></span>
-      </div>
-      <div class="info-row">
-        <span class="label">رقم الهاتف</span>
-        <span class="value" id="viewPhone"><%= user.phone || '---' %></span>
-      </div>
-      <div class="info-row">
-        <span class="label">رقم ولي الأمر</span>
-        <span class="value" id="viewParentPhone"><%= user.parentPhone || '---' %></span>
-      </div>
-      <div class="info-row">
-        <span class="label">اسم ولي الأمر</span>
-        <span class="value" id="viewParentName"><%= user.parentName || '---' %></span>
-      </div>
-      <div class="info-row">
-        <span class="label">بريد ولي الأمر</span>
-        <span class="value" id="viewParentEmail" dir="ltr"><%= user.parentEmail || '---' %></span>
-      </div>
-      <div class="info-row">
-        <span class="label">المرحلة</span>
-        <span class="value" id="viewStage"><%= user.stage || '---' %></span>
-      </div>
-      <div class="info-row">
-        <span class="label">الصف الدراسي</span>
-        <span class="value" id="viewGrade"><%= user.grade || '---' %></span>
-      </div>
-      <div class="info-row">
-        <span class="label">المحافظة</span>
-        <span class="value" id="viewGovernorate"><%= user.governorate || '---' %></span>
-      </div>
-      <div class="info-row">
-        <span class="label">حالة الاشتراك</span>
-        <% var subStatus = user.subscriptionStatus; %>
-        <% if (subStatus === 'active') { %>
-        <span class="value" style="color:var(--success);font-weight:700;">نشط<% if (user.planName) { %> — <%= user.planName %><% } %><% if (user.planPeriod) { %> · <%= user.planPeriod %><% } %> <span style="font-size:12px;font-weight:400;color:var(--text-light);">(حتى <%= new Date(user.subscriptionEnd).toLocaleDateString('ar-EG') %>)</span></span>
-        <% } else if (subStatus === 'expired') { %>
-        <span class="value" style="color:var(--danger);font-weight:700;">منتهي</span>
-        <% } else if (subStatus === 'cancelled') { %>
-        <span class="value" style="color:var(--warning);font-weight:700;">ملغي</span>
-        <% } else { %>
-        <span class="value" style="color:var(--text-light);">غير مشترك</span>
-        <% } %>
-      </div>
-      <div class="info-row">
-        <span class="label">كود الإحالة</span>
-        <span class="value" dir="ltr" style="font-family:monospace;background:var(--bg);padding:2px 10px;border-radius:4px;font-weight:700;letter-spacing:1px;"><%= user.referralCode || '---' %></span>
-        <button class="btn btn-sm" onclick="navigator.clipboard.writeText('<%= user.referralCode %>');this.innerHTML='<i class=\\'fas fa-check\\'></i>';setTimeout(()=>this.innerHTML='<i class=\\'fas fa-copy\\'></i>',1500)" style="font-size:12px;padding:4px 10px;"><i class="fas fa-copy"></i></button>
-      </div>
-      <div style="margin-top:24px;display:flex;gap:12px;flex-wrap:wrap;">
-        <button class="btn btn-primary" onclick="toggleEdit()"><i class="fas fa-edit"></i> تعديل البيانات</button>
-        <a href="/student/subscription" class="btn" style="background:var(--accent);color:#fff;"><i class="fas fa-credit-card"></i> إدارة الاشتراك</a>
-      </div>
-    </div>
-  </div>
+    .sp-avatar {
+      position: relative;
+      width: 124px; height: 124px;
+      margin: -62px auto 0;
+      border-radius: 50%;
+      border: 5px solid var(--card);
+      background: linear-gradient(135deg, var(--purple), var(--accent));
+      color: #fff;
+      font-size: 46px; font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 0 4px var(--card), var(--shadow-md);
+      overflow: visible;
+      transition: transform .3s cubic-bezier(.2,.8,.2,1);
+      animation: sp-pop .6s cubic-bezier(.2,.8,.2,1) .12s both;
+    }
+    .sp-avatar:hover { transform: scale(1.04); }
+    @keyframes sp-pop { 0% { opacity: 0; transform: scale(.8); } 100% { opacity: 1; transform: scale(1); } }
+    .sp-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
 
-  <!-- Parent Connect Section -->
-  <div class="profile-card" style="margin-top:20px;">
-    <div class="profile-header" style="border-bottom:1px solid var(--border);padding-bottom:16px;">
-      <div class="profile-avatar" style="background:linear-gradient(135deg,#059669,#34d399);"><i class="fas fa-user-friends"></i></div>
-      <h2>ربط حساب ولي الأمر</h2>
-    </div>
-    <div style="padding:20px 0 0;">
-      <div id="parentConnectedInfo" style="display:<%= user.parentId ? 'block' : 'none' %>;">
-        <div style="background:rgba(22,163,74,0.08);border:1px solid rgba(22,163,74,0.2);border-radius:var(--radius);padding:16px;text-align:center;">
-          <i class="fas fa-check-circle" style="font-size:32px;color:var(--success);display:block;margin-bottom:8px;"></i>
-          <div style="font-weight:700;font-size:15px;">تم ربط حساب ولي الأمر</div>
-          <div style="font-size:13px;color:var(--text-light);margin-top:4px;">يمكن لولي الأمر متابعة مستواك من خلال حسابه</div>
+    .sp-head { text-align: center; padding: 14px 24px 4px; }
+    .sp-head h1 { margin: 0; font-size: 24px; font-weight: 800; color: var(--text); letter-spacing: -.3px; }
+    .sp-email { margin-top: 4px; font-size: 13px; color: var(--text-light); word-break: break-all; }
+    .sp-pills { margin-top: 12px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+
+    .sp-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 14px; border-radius: 999px;
+      font-size: 13px; font-weight: 700;
+    }
+    .sp-pill i { font-size: 12px; }
+    .sp-pill-green { background: rgba(22,163,74,.13); color: var(--success); border: 1px solid rgba(22,163,74,.28); }
+    .sp-pill-red { background: rgba(220,38,38,.12); color: var(--danger); border: 1px solid rgba(220,38,38,.26); }
+    .sp-pill-amber { background: rgba(202,138,4,.14); color: #ca8a04; border: 1px solid rgba(202,138,4,.3); }
+    .sp-pill-gray { background: var(--bg); color: var(--text-light); border: 1px solid var(--border); }
+    .sp-pill .sp-sub-meta { font-weight: 400; font-size: 12px; opacity: .85; }
+
+    .sp-section { padding: 22px 24px 28px; }
+    .sp-info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 14px;
+    }
+    .sp-info {
+      display: flex; align-items: center; gap: 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 13px 15px;
+      transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease;
+      animation: sp-fade-up .5s ease both;
+    }
+    .sp-info:hover { transform: translateY(-3px); border-color: var(--accent); box-shadow: var(--shadow); }
+    .sp-info-icon {
+      width: 40px; height: 40px; flex-shrink: 0;
+      border-radius: 11px;
+      background: var(--accent-glow); color: var(--accent);
+      display: flex; align-items: center; justify-content: center; font-size: 15px;
+    }
+    .sp-info-body { min-width: 0; flex: 1; }
+    .sp-info-label { font-size: 11px; color: var(--text-muted); margin-bottom: 2px; }
+    .sp-info-value { font-size: 14px; font-weight: 600; color: var(--text); word-break: break-word; }
+    .sp-code { font-family: monospace; letter-spacing: 1px; background: var(--card); padding: 2px 10px; border-radius: 6px; border: 1px solid var(--border); }
+    .sp-copy {
+      border: 1px solid var(--border); background: var(--card); color: var(--accent);
+      width: 30px; height: 30px; border-radius: 8px; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center; font-size: 12px;
+      transition: transform .15s ease, background .2s ease;
+    }
+    .sp-copy:hover { transform: scale(1.08); background: var(--accent-glow); }
+
+    .sp-actions { margin-top: 24px; display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+    .sp-actions .btn { transition: transform .2s ease, box-shadow .2s ease; }
+    .sp-actions .btn:hover { transform: translateY(-2px); }
+
+    .sp-edit { padding: 22px 24px 28px; }
+    .sp-change-pic {
+      display: block; margin: 0 auto 22px; padding: 9px 18px;
+      background: var(--bg); color: var(--text); border: 1px solid var(--border);
+      border-radius: 999px; font-size: 13px; font-weight: 600; cursor: pointer;
+      transition: transform .2s ease, border-color .2s ease;
+    }
+    .sp-change-pic:hover { transform: translateY(-2px); border-color: var(--accent); }
+    .sp-edit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 560px) { .sp-edit-grid { grid-template-columns: 1fr; } }
+    .sp-edit .form-group { margin-bottom: 0; }
+    .sp-edit .form-group label { font-size: 12px; color: var(--text-light); margin-bottom: 6px; display: block; }
+    .sp-edit .form-input, .sp-edit select.form-input { width: 100%; }
+
+    .sp-parent-head { display: flex; align-items: center; gap: 14px; padding: 22px 24px 0; }
+    .sp-parent-avatar {
+      width: 52px; height: 52px; border-radius: 14px; flex-shrink: 0;
+      background: linear-gradient(135deg, #059669, #34d399); color: #fff;
+      display: flex; align-items: center; justify-content: center; font-size: 22px;
+    }
+    .sp-parent-head h2 { margin: 0; font-size: 18px; font-weight: 800; color: var(--text); }
+    .sp-parent-body { padding: 18px 24px 26px; }
+
+    .sp-note {
+      background: rgba(22,163,74,.08); border: 1px solid rgba(22,163,74,.2);
+      border-radius: var(--radius); padding: 16px; text-align: center;
+    }
+    .sp-note i.fa-check-circle { font-size: 32px; color: var(--success); display: block; margin-bottom: 8px; }
+    .sp-note .t { font-weight: 700; font-size: 15px; color: var(--text); }
+    .sp-note .s { font-size: 13px; color: var(--text-light); margin-top: 4px; }
+
+    .sp-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 560px) { .sp-form-row { grid-template-columns: 1fr; } }
+    .sp-invite-hint { font-size: 14px; color: var(--text-light); margin-bottom: 16px; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .sp-card, .sp-anim2, .sp-cover, .sp-avatar, .sp-info { animation: none !important; }
+    }
+  </style>
+
+  <div class="sp-profile">
+    <div class="sp-card">
+      <div class="sp-cover"></div>
+
+      <div class="sp-avatar" id="profileAvatarWrap" style="position:relative;">
+        <% if (user.avatar) { %><img src="<%= user.avatar %>" alt=""><% } else { %><%= user.name.charAt(0) %><% } %>
+      </div>
+
+      <div class="sp-head">
+        <h1 id="profileNameDisplay"><%= user.name %></h1>
+        <div class="sp-email" dir="ltr"><%= user.email || '---' %></div>
+        <div class="sp-pills">
+          <% var subStatus = user.subscriptionStatus; %>
+          <% if (subStatus === 'active') { %>
+            <span class="sp-pill sp-pill-green"><i class="fas fa-check-circle"></i> نشط<% if (user.planName) { %> — <%= user.planName %><% } %><% if (user.planPeriod) { %> · <%= user.planPeriod %><% } %><span class="sp-sub-meta">(حتى <%= new Date(user.subscriptionEnd).toLocaleDateString('ar-EG') %>)</span></span>
+          <% } else if (subStatus === 'expired') { %>
+            <span class="sp-pill sp-pill-red"><i class="fas fa-exclamation-circle"></i> منتهي</span>
+          <% } else if (subStatus === 'cancelled') { %>
+            <span class="sp-pill sp-pill-amber"><i class="fas fa-ban"></i> ملغي</span>
+          <% } else { %>
+            <span class="sp-pill sp-pill-gray"><i class="fas fa-hourglass-half"></i> غير مشترك</span>
+          <% } %>
         </div>
       </div>
-      <div id="parentInviteStatus"></div>
-      <div id="parentInviteActions" style="display:<%= user.parentId ? 'none' : 'block' %>;">
-        <p style="font-size:14px;color:var(--text-light);margin-bottom:16px;">أدخل بيانات ولي الأمر لإنشاء حساب متابعة خاص به. سيتم إرسال رابط دعوة ليقوم بإنشاء كلمة المرور والدخول لمتابعة مستواك.</p>
-        <div style="display:flex;flex-direction:column;gap:12px;">
-          <div class="form-group" style="margin-bottom:0;">
+
+      <!-- Edit mode (hidden by default) -->
+      <div id="profileEditForm" class="sp-edit" style="display:none;">
+        <button type="button" class="sp-change-pic" onclick="document.getElementById('avatarInput').click()"><i class="fas fa-camera"></i> تغيير الصورة الشخصية</button>
+        <input type="file" id="avatarInput" accept="image/*" style="display:none;" onchange="onAvatarPicked(event)">
+        <div class="sp-edit-grid">
+          <div class="form-group">
+            <label>اسم الطالب</label>
+            <input id="editName" class="form-input" value="<%= user.name %>">
+          </div>
+          <div class="form-group">
+            <label>رقم الهاتف</label>
+            <input id="editPhone" class="form-input" value="<%= user.phone||'' %>">
+          </div>
+          <div class="form-group">
+            <label>رقم ولي الأمر</label>
+            <input id="editParentPhone" class="form-input" value="<%= user.parentPhone||'' %>">
+          </div>
+          <div class="form-group">
             <label>اسم ولي الأمر</label>
-            <input type="text" id="parentInviteName" class="form-input" value="<%= user.parentName||'' %>" placeholder="اسم ولي الأمر">
+            <input id="editParentName" class="form-input" value="<%= user.parentName||'' %>">
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-            <div class="form-group" style="margin-bottom:0;">
-              <label>رقم الهاتف</label>
-              <input type="tel" id="parentInvitePhone" class="form-input" value="<%= user.parentPhone||'' %>" placeholder="مثال: 01234567890">
-            </div>
-            <div class="form-group" style="margin-bottom:0;">
-              <label>البريد الإلكتروني (اختياري)</label>
-              <input type="email" id="parentInviteEmail" class="form-input" value="<%= user.parentEmail||'' %>" placeholder="example@email.com" dir="ltr">
-            </div>
+          <div class="form-group">
+            <label>بريد ولي الأمر (اختياري)</label>
+            <input id="editParentEmail" class="form-input" value="<%= user.parentEmail||'' %>" dir="ltr">
           </div>
-          <button class="btn btn-primary" onclick="sendParentInvite()" id="sendInviteBtn" style="align-self:flex-start;margin-top:8px;">
-            <i class="fas fa-paper-plane"></i> إرسال دعوة لولي الأمر
-          </button>
+          <div class="form-group">
+            <label>المرحلة</label>
+            <select id="editStage" class="form-input" onchange="updateGrades()" <%= isSubscribed ? 'disabled' : '' %>>
+              <option value="">اختر المرحلة</option>
+              <option value="إعدادية" <%= user.stage==='إعدادية'?'selected':'' %>>إعدادية</option>
+              <option value="ثانوية" <%= user.stage==='ثانوية'?'selected':'' %>>ثانوية</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>الصف الدراسي</label>
+            <select id="editGrade" class="form-input" <%= isSubscribed ? 'disabled' : '' %>>
+              <option value="">اختر الصف</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>المحافظة</label>
+            <select id="editGovernorate" class="form-input">
+              <option value="">اختر المحافظة</option>
+              <% ['القاهرة','الجيزة','الإسكندرية','الدقهلية','الشرقية','القليوبية','الغربية','المنوفية','كفر الشيخ','البحيرة','دمياط','بورسعيد','السويس','الإسماعيلية','الفيوم','بني سويف','المنيا','أسيوط','سوهاج','قنا','الأقصر','أسوان'].forEach(function(g) { %>
+              <option value="<%= g %>" <%= user.governorate===g?'selected':'' %>><%= g %></option>
+              <% }) %>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>البريد الإلكتروني</label>
+            <input class="form-input" value="<%= user.email || '---' %>" dir="ltr" disabled style="color:var(--text-muted);">
+          </div>
         </div>
+        <div style="margin-top:20px;display:flex;gap:12px;flex-wrap:wrap;">
+          <button class="btn btn-primary" onclick="saveProfile()"><i class="fas fa-save"></i> حفظ التغييرات</button>
+          <button class="btn" style="background:var(--bg);color:var(--text);" onclick="toggleEdit()"><i class="fas fa-times"></i> إلغاء</button>
+        </div>
+      </div>
+
+      <!-- View mode (default) -->
+      <div id="profileView" class="sp-section">
+        <div class="sp-info-grid">
+          <div class="sp-info">
+            <div class="sp-info-icon"><i class="fas fa-phone"></i></div>
+            <div class="sp-info-body">
+              <div class="sp-info-label">رقم الهاتف</div>
+              <div class="sp-info-value" id="viewPhone"><%= user.phone || '---' %></div>
+            </div>
+          </div>
+          <div class="sp-info">
+            <div class="sp-info-icon"><i class="fas fa-user-friends"></i></div>
+            <div class="sp-info-body">
+              <div class="sp-info-label">رقم ولي الأمر</div>
+              <div class="sp-info-value" id="viewParentPhone"><%= user.parentPhone || '---' %></div>
+            </div>
+          </div>
+          <div class="sp-info">
+            <div class="sp-info-icon"><i class="fas fa-id-badge"></i></div>
+            <div class="sp-info-body">
+              <div class="sp-info-label">اسم ولي الأمر</div>
+              <div class="sp-info-value" id="viewParentName"><%= user.parentName || '---' %></div>
+            </div>
+          </div>
+          <div class="sp-info">
+            <div class="sp-info-icon"><i class="fas fa-envelope"></i></div>
+            <div class="sp-info-body">
+              <div class="sp-info-label">بريد ولي الأمر</div>
+              <div class="sp-info-value" id="viewParentEmail" dir="ltr"><%= user.parentEmail || '---' %></div>
+            </div>
+          </div>
+          <div class="sp-info">
+            <div class="sp-info-icon"><i class="fas fa-layer-group"></i></div>
+            <div class="sp-info-body">
+              <div class="sp-info-label">المرحلة</div>
+              <div class="sp-info-value" id="viewStage"><%= user.stage || '---' %></div>
+            </div>
+          </div>
+          <div class="sp-info">
+            <div class="sp-info-icon"><i class="fas fa-book"></i></div>
+            <div class="sp-info-body">
+              <div class="sp-info-label">الصف الدراسي</div>
+              <div class="sp-info-value" id="viewGrade"><%= user.grade || '---' %></div>
+            </div>
+          </div>
+          <div class="sp-info">
+            <div class="sp-info-icon"><i class="fas fa-map-marker-alt"></i></div>
+            <div class="sp-info-body">
+              <div class="sp-info-label">المحافظة</div>
+              <div class="sp-info-value" id="viewGovernorate"><%= user.governorate || '---' %></div>
+            </div>
+          </div>
+          <div class="sp-info">
+            <div class="sp-info-icon"><i class="fas fa-gift"></i></div>
+            <div class="sp-info-body">
+              <div class="sp-info-label">كود الإحالة</div>
+              <div class="sp-info-value" style="display:flex;align-items:center;gap:8px;">
+                <span class="sp-code" dir="ltr"><%= user.referralCode || '---' %></span>
+                <button class="sp-copy" onclick="navigator.clipboard.writeText('<%= user.referralCode %>');this.innerHTML='<i class=\\'fas fa-check\\'></i>';setTimeout(()=>this.innerHTML='<i class=\\'fas fa-copy\\'></i>',1500)" title="نسخ"><i class="fas fa-copy"></i></button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="sp-actions">
+          <button class="btn btn-primary" onclick="toggleEdit()"><i class="fas fa-edit"></i> تعديل البيانات</button>
+          <a href="/student/subscription" class="btn" style="background:var(--accent);color:#fff;"><i class="fas fa-credit-card"></i> إدارة الاشتراك</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Parent Connect Section -->
+    <div class="sp-card sp-anim2" style="margin-top:20px;">
+      <div class="sp-parent-head">
+        <div class="sp-parent-avatar"><i class="fas fa-user-friends"></i></div>
+        <div>
+          <h2>ربط حساب ولي الأمر</h2>
+          <div style="font-size:12px;color:var(--text-light);">متابعة مستوى الطالب وتقاريره الدراسية</div>
+        </div>
+      </div>
+      <div class="sp-parent-body">
+
+        <!-- Linked state -->
+        <div id="parentConnectedInfo" style="display:<%= user.parentId ? 'block' : 'none' %>;">
+          <div class="sp-note">
+            <i class="fas fa-check-circle"></i>
+            <div class="t">تم ربط حساب ولي الأمر</div>
+            <div class="s">يمكن لولي الأمر متابعة مستواك من خلال حسابه</div>
+          </div>
+        </div>
+
+        <!-- Pending state -->
+        <div id="parentPending" style="display:<%= (!user.parentId && parentInvitePending) ? 'block' : 'none' %>;">
+          <div class="sp-note" style="background:rgba(245,158,11,.10);border-color:rgba(245,158,11,.28);">
+            <i class="fas fa-clock" style="color:var(--accent);"></i>
+            <div class="t">تم إرسال الدعوة بانتظار القبول</div>
+            <div class="s">سيتم تفعيل الربط بمجرد دخول ولي الأمر عبر رابط الدعوة</div>
+          </div>
+          <div id="parentPendingLink" style="margin-top:14px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;font-size:12px;color:var(--text-light);word-break:break-all;direction:ltr;"></div>
+          <button class="btn" style="margin-top:14px;background:var(--bg);color:var(--text);" onclick="showParentForm()"><i class="fas fa-redo"></i> إعادة إرسال الدعوة</button>
+        </div>
+
+        <!-- Invite form -->
+        <div id="parentInviteActions" style="display:<%= (user.parentId || parentInvitePending) ? 'none' : 'block' %>;">
+          <p class="sp-invite-hint">أدخل بيانات ولي الأمر لإنشاء حساب متابعة خاص به. سيتم إرسال رابط دعوة ليقوم بإنشاء كلمة المرور والدخول لمتابعة مستواك.</p>
+          <div style="display:flex;flex-direction:column;gap:14px;">
+            <div class="form-group" style="margin-bottom:0;">
+              <label>اسم ولي الأمر</label>
+              <input type="text" id="parentInviteName" class="form-input" value="<%= user.parentName||'' %>" placeholder="اسم ولي الأمر">
+            </div>
+            <div class="sp-form-row">
+              <div class="form-group" style="margin-bottom:0;">
+                <label>رقم الهاتف</label>
+                <input type="tel" id="parentInvitePhone" class="form-input" value="<%= user.parentPhone||'' %>" placeholder="مثال: 01234567890">
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label>البريد الإلكتروني <span style="color:var(--danger);">*</span></label>
+                <input type="email" id="parentInviteEmail" class="form-input" value="<%= user.parentEmail||'' %>" placeholder="example@email.com" dir="ltr">
+              </div>
+            </div>
+            <button class="btn btn-primary" onclick="sendParentInvite()" id="sendInviteBtn" style="align-self:flex-start;margin-top:4px;">
+              <i class="fas fa-paper-plane"></i> إرسال دعوة لولي الأمر
+            </button>
+          </div>
+        </div>
+
+        <div id="parentInviteStatus"></div>
       </div>
     </div>
   </div>
@@ -178,7 +361,7 @@
 
 <div id="cropModal" style="display:none;position:fixed;inset:0;z-index:99999;background:rgba(5,8,15,.82);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:20px;">
   <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:22px;max-width:340px;width:100%;text-align:center;box-shadow:var(--shadow);">
-    <h3 style="margin:0 0 4px;font-size:18px;">تعديل الصورة</h3>
+    <h3 style="margin:0 0 4px;font-size:18px;color:var(--text);">تعديل الصورة</h3>
     <p style="margin:0 0 16px;font-size:13px;color:var(--text-light);">اسحب لتحريك • استخدم + / − للتقريب</p>
     <div style="position:relative;width:256px;height:256px;margin:0 auto 16px;">
       <canvas id="cropCanvas" width="256" height="256" style="width:256px;height:256px;border-radius:50%;display:block;cursor:grab;touch-action:none;box-shadow:0 0 0 4px var(--border);"></canvas>
@@ -186,7 +369,7 @@
     </div>
     <div style="display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:18px;">
       <button type="button" class="btn" style="width:42px;height:42px;padding:0;font-size:18px;border-radius:50%;" onclick="cropZoomBy(0.9)"><i class="fas fa-minus"></i></button>
-      <span id="cropZoomLabel" style="font-size:14px;font-weight:700;min-width:42px;">1.0×</span>
+      <span id="cropZoomLabel" style="font-size:14px;font-weight:700;color:var(--text);min-width:42px;">1.0×</span>
       <button type="button" class="btn" style="width:42px;height:42px;padding:0;font-size:18px;border-radius:50%;" onclick="cropZoomBy(1.1)"><i class="fas fa-plus"></i></button>
     </div>
     <div style="display:flex;gap:12px;">
@@ -197,6 +380,7 @@
 </div>
 
 <script>
+function escHtml(t) { return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
 var profileSubscribed = <%- JSON.stringify(!!isSubscribed) %>;
 if (profileSubscribed) {
   (function () {
@@ -277,102 +461,119 @@ function saveProfile() {
   });
 }
  var avatarBase64 = <%- JSON.stringify(user.avatar || '') %>;
- function setAvatar(wrap, avatar, name) {
-   if (!wrap) return;
-   var cam = '<span style="position:absolute;bottom:0;left:0;background:var(--accent);color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;border:2px solid var(--card);"><i class="fas fa-camera"></i></span>';
-   wrap.innerHTML = (avatar ? '<img src="'+avatar+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">' : (name ? name.charAt(0) : 'ز')) + cam;
- }
- function onAvatarPicked(e) {
-   var f = e.target.files && e.target.files[0];
-   e.target.value = '';
-   if (!f) return;
-   if (f.size > 5*1024*1024) { alert('حجم الصورة كبير جداً (الحد الأقصى 5 ميجابايت)'); return; }
-   openCropper(f);
- }
- var cropImg = null, cropBaseW = 0, cropBaseH = 0, cropPanX = 0, cropPanY = 0, cropZoom = 1, cropDrag = false, cropLX = 0, cropLY = 0;
- var CROP_S = 256;
- function openCropper(file) {
-   var reader = new FileReader();
-   reader.onload = function(ev) {
-     var img = new Image();
-     img.onload = function() {
-       cropImg = img;
-       var sc = Math.max(CROP_S/img.width, CROP_S/img.height);
-       cropBaseW = img.width*sc; cropBaseH = img.height*sc;
-       cropPanX = 0; cropPanY = 0; cropZoom = 1;
-       var m = document.getElementById('cropModal'); if (m) m.style.display = 'flex';
-       drawCrop();
-       var zl = document.getElementById('cropZoomLabel'); if (zl) zl.textContent = '1.0×';
-     };
-     img.src = ev.target.result;
-   };
-   reader.readAsDataURL(file);
- }
- function drawCrop() {
-   var c = document.getElementById('cropCanvas'); if (!c || !cropImg) return;
-   c.width = CROP_S; c.height = CROP_S;
-   var ctx = c.getContext('2d');
-   ctx.clearRect(0, 0, CROP_S, CROP_S);
-   ctx.save();
-   ctx.translate(CROP_S/2 + cropPanX, CROP_S/2 + cropPanY);
-   ctx.scale(cropZoom, cropZoom);
-   ctx.translate(-cropBaseW/2, -cropBaseH/2);
-   ctx.drawImage(cropImg, 0, 0, cropBaseW, cropBaseH);
-   ctx.restore();
- }
- function cropClamp() {
-   var mw = (cropBaseW*cropZoom - CROP_S)/2, mh = (cropBaseH*cropZoom - CROP_S)/2;
-   cropPanX = Math.max(-mw, Math.min(mw, cropPanX));
-   cropPanY = Math.max(-mh, Math.min(mh, cropPanY));
- }
- function cropZoomBy(f) {
-   cropZoom = Math.max(1, Math.min(4, cropZoom*f));
-   cropClamp(); drawCrop();
-   var zl = document.getElementById('cropZoomLabel'); if (zl) zl.textContent = cropZoom.toFixed(1) + '×';
- }
- function cropPt(e) { var r = document.getElementById('cropCanvas').getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
- function cropDown(e) { cropDrag = true; var p = cropPt(e); cropLX = p.x; cropLY = p.y; e.preventDefault(); }
- function cropMove(e) { if (!cropDrag) return; var p = cropPt(e); cropPanX += (p.x - cropLX); cropPanY += (p.y - cropLY); cropLX = p.x; cropLY = p.y; cropClamp(); drawCrop(); e.preventDefault(); }
- function cropUp() { cropDrag = false; }
-  function confirmCrop() {
-    var c = document.getElementById('cropCanvas'); if (!c) return;
-    avatarBase64 = c.toDataURL('image/jpeg', 0.82);
-    setAvatar(document.getElementById('profileAvatarWrap'), avatarBase64, '<%= user.name %>');
-    var m = document.getElementById('cropModal'); if (m) m.style.display = 'none';
+   function setAvatar(wrap, avatar, name) {
+     if (!wrap) return;
+     var cam = '<span style="position:absolute;bottom:0;left:0;background:var(--accent);color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;border:2px solid var(--card);"><i class="fas fa-camera"></i></span>';
+     wrap.innerHTML = (avatar ? '<img src="'+escHtml(avatar)+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">' : escHtml(name ? name.charAt(0) : 'ز')) + cam;
+   }
+  function onAvatarPicked(e) {
+    var f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    if (f.size > 5*1024*1024) { alert('حجم الصورة كبير جداً (الحد الأقصى 5 ميجابايت)'); return; }
+    openCropper(f);
   }
- (function() {
-   var c = document.getElementById('cropCanvas'); if (!c) return;
-   c.addEventListener('pointerdown', cropDown);
-   window.addEventListener('pointermove', cropMove);
-   window.addEventListener('pointerup', cropUp);
-   c.addEventListener('wheel', function(e) { e.preventDefault(); cropZoomBy(e.deltaY < 0 ? 1.1 : 0.9); }, { passive:false });
- })();
- function sendParentInvite() {
-  var name = document.getElementById('parentInviteName').value.trim();
-  var phone = document.getElementById('parentInvitePhone').value.trim();
-  var email = document.getElementById('parentInviteEmail').value.trim();
-  var statusDiv = document.getElementById('parentInviteStatus');
-  var btn = document.getElementById('sendInviteBtn');
-  if (!name) { statusDiv.innerHTML = '<div style="background:rgba(220,38,38,0.1);border:1px solid rgba(220,38,38,0.2);border-radius:var(--radius);padding:12px;margin-bottom:12px;text-align:center;font-size:13px;color:var(--danger);"><i class="fas fa-exclamation-circle"></i> يرجى إدخال اسم ولي الأمر</div>'; return; }
-  if (!phone) { statusDiv.innerHTML = '<div style="background:rgba(220,38,38,0.1);border:1px solid rgba(220,38,38,0.2);border-radius:var(--radius);padding:12px;margin-bottom:12px;text-align:center;font-size:13px;color:var(--danger);"><i class="fas fa-exclamation-circle"></i> يرجى إدخال رقم هاتف ولي الأمر</div>'; return; }
-  statusDiv.innerHTML = '';
-  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الإرسال...';
-  fetch('/api/student/send-parent-invite', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ parentName: name, parentPhone: phone, parentEmail: email })
-  }).then(function(r) { return r.json(); }).then(function(d) {
-    if (d.success) {
-      statusDiv.innerHTML = '<div style="background:rgba(22,163,74,0.08);border:1px solid rgba(22,163,74,0.2);border-radius:var(--radius);padding:16px;margin-bottom:12px;text-align:center;"><i class="fas fa-check-circle" style="font-size:28px;color:var(--success);display:block;margin-bottom:6px;"></i><div style="font-weight:700;font-size:14px;">تم إرسال الدعوة بنجاح ✅</div><div style="font-size:12px;color:var(--text-light);margin-top:4px;">رابط الدعوة: <a href="' + d.inviteLink + '" target="_blank" style="direction:ltr;display:inline-block;font-size:11px;word-break:break-all;">' + d.inviteLink + '</a></div></div>';
-      document.getElementById('parentInviteActions').style.display = 'none';
-    } else {
-      statusDiv.innerHTML = '<div style="background:rgba(220,38,38,0.1);border:1px solid rgba(220,38,38,0.2);border-radius:var(--radius);padding:12px;margin-bottom:12px;text-align:center;font-size:13px;color:var(--danger);"><i class="fas fa-exclamation-circle"></i> ' + (d.error || 'فشل الإرسال') + '</div>';
-      btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> إرسال دعوة لولي الأمر';
+  var cropImg = null, cropBaseW = 0, cropBaseH = 0, cropPanX = 0, cropPanY = 0, cropZoom = 1, cropDrag = false, cropLX = 0, cropLY = 0;
+  var CROP_S = 256;
+  function openCropper(file) {
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      var img = new Image();
+      img.onload = function() {
+        cropImg = img;
+        var sc = Math.max(CROP_S/img.width, CROP_S/img.height);
+        cropBaseW = img.width*sc; cropBaseH = img.height*sc;
+        cropPanX = 0; cropPanY = 0; cropZoom = 1;
+        var m = document.getElementById('cropModal'); if (m) m.style.display = 'flex';
+        drawCrop();
+        var zl = document.getElementById('cropZoomLabel'); if (zl) zl.textContent = '1.0×';
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+  function drawCrop() {
+    var c = document.getElementById('cropCanvas'); if (!c || !cropImg) return;
+    c.width = CROP_S; c.height = CROP_S;
+    var ctx = c.getContext('2d');
+    ctx.clearRect(0, 0, CROP_S, CROP_S);
+    ctx.save();
+    ctx.translate(CROP_S/2 + cropPanX, CROP_S/2 + cropPanY);
+    ctx.scale(cropZoom, cropZoom);
+    ctx.translate(-cropBaseW/2, -cropBaseH/2);
+    ctx.drawImage(cropImg, 0, 0, cropBaseW, cropBaseH);
+    ctx.restore();
+  }
+  function cropClamp() {
+    var mw = (cropBaseW*cropZoom - CROP_S)/2, mh = (cropBaseH*cropZoom - CROP_S)/2;
+    cropPanX = Math.max(-mw, Math.min(mw, cropPanX));
+    cropPanY = Math.max(-mh, Math.min(mh, cropPanY));
+  }
+  function cropZoomBy(f) {
+    cropZoom = Math.max(1, Math.min(4, cropZoom*f));
+    cropClamp(); drawCrop();
+    var zl = document.getElementById('cropZoomLabel'); if (zl) zl.textContent = cropZoom.toFixed(1) + '×';
+  }
+  function cropPt(e) { var r = document.getElementById('cropCanvas').getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+  function cropDown(e) { cropDrag = true; var p = cropPt(e); cropLX = p.x; cropLY = p.y; e.preventDefault(); }
+  function cropMove(e) { if (!cropDrag) return; var p = cropPt(e); cropPanX += (p.x - cropLX); cropPanY += (p.y - cropLY); cropLX = p.x; cropLY = p.y; cropClamp(); drawCrop(); e.preventDefault(); }
+  function cropUp() { cropDrag = false; }
+   function confirmCrop() {
+     var c = document.getElementById('cropCanvas'); if (!c) return;
+     avatarBase64 = c.toDataURL('image/jpeg', 0.82);
+     setAvatar(document.getElementById('profileAvatarWrap'), avatarBase64, '<%= user.name %>');
+     var m = document.getElementById('cropModal'); if (m) m.style.display = 'none';
+   }
+  (function() {
+    var c = document.getElementById('cropCanvas'); if (!c) return;
+    c.addEventListener('pointerdown', cropDown);
+    window.addEventListener('pointermove', cropMove);
+    window.addEventListener('pointerup', cropUp);
+    c.addEventListener('wheel', function(e) { e.preventDefault(); cropZoomBy(e.deltaY < 0 ? 1.1 : 0.9); }, { passive:false });
+  })();
+  function showParentForm() {
+    document.getElementById('parentPending').style.display = 'none';
+    document.getElementById('parentInviteStatus').innerHTML = '';
+    document.getElementById('parentInviteActions').style.display = 'block';
+  }
+  function showParentPending(link) {
+    var linkEl = document.getElementById('parentPendingLink');
+    if (linkEl) linkEl.innerHTML = 'رابط الدعوة: <a href="' + escHtml(link) + '" target="_blank" style="color:var(--accent);">' + escHtml(link) + '</a>';
+    document.getElementById('parentInviteActions').style.display = 'none';
+    document.getElementById('parentPending').style.display = 'block';
+  }
+  function sendParentInvite() {
+   var name = document.getElementById('parentInviteName').value.trim();
+   var phone = document.getElementById('parentInvitePhone').value.trim();
+   var email = document.getElementById('parentInviteEmail').value.trim();
+   var statusDiv = document.getElementById('parentInviteStatus');
+   var btn = document.getElementById('sendInviteBtn');
+   if (!name) { statusDiv.innerHTML = '<div style="background:rgba(220,38,38,0.1);border:1px solid rgba(220,38,38,0.2);border-radius:var(--radius);padding:12px;margin-bottom:12px;text-align:center;font-size:13px;color:var(--danger);"><i class="fas fa-exclamation-circle"></i> يرجى إدخال اسم ولي الأمر</div>'; return; }
+   if (!phone) { statusDiv.innerHTML = '<div style="background:rgba(220,38,38,0.1);border:1px solid rgba(220,38,38,0.2);border-radius:var(--radius);padding:12px;margin-bottom:12px;text-align:center;font-size:13px;color:var(--danger);"><i class="fas fa-exclamation-circle"></i> يرجى إدخال رقم هاتف ولي الأمر</div>'; return; }
+   if (!email) { statusDiv.innerHTML = '<div style="background:rgba(220,38,38,0.1);border:1px solid rgba(220,38,38,0.2);border-radius:var(--radius);padding:12px;margin-bottom:12px;text-align:center;font-size:13px;color:var(--danger);"><i class="fas fa-exclamation-circle"></i> يرجى إدخال البريد الإلكتروني لولي الأمر</div>'; return; }
+   statusDiv.innerHTML = '';
+   btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الإرسال...';
+   fetch('/api/student/send-parent-invite', {
+     method: 'POST',
+     headers: {'Content-Type':'application/json'},
+     body: JSON.stringify({ parentName: name, parentPhone: phone, parentEmail: email })
+   }).then(function(r) { return r.json(); }).then(function(d) {
+     if (d.success) {
+       showParentPending(d.inviteLink);
+     } else {
+       statusDiv.textContent = '⚠️ ' + (d.error || 'فشل الإرسال');
+       btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> إرسال دعوة لولي الأمر';
+     }
+   }).catch(function() {
+     statusDiv.innerHTML = '<div style="background:rgba(220,38,38,0.1);border:1px solid rgba(220,38,38,0.2);border-radius:var(--radius);padding:12px;margin-bottom:12px;text-align:center;font-size:13px;color:var(--danger);"><i class="fas fa-exclamation-circle"></i> فشل الاتصال بالخادم</div>';
+     btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> إرسال دعوة لولي الأمر';
+   });
+ }
+  (function () {
+    if (<%- JSON.stringify(!!parentInvitePending) %> && <%- JSON.stringify(parentInviteLink || '') %>) {
+      showParentPending(<%- JSON.stringify(parentInviteLink || '') %>);
     }
-  }).catch(function() {
-    statusDiv.innerHTML = '<div style="background:rgba(220,38,38,0.1);border:1px solid rgba(220,38,38,0.2);border-radius:var(--radius);padding:12px;margin-bottom:12px;text-align:center;font-size:13px;color:var(--danger);"><i class="fas fa-exclamation-circle"></i> فشل الاتصال بالخادم</div>';
-    btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> إرسال دعوة لولي الأمر';
-  });
-}
+  })();
+
 </script>
 <%- include('../partials/footer') %>

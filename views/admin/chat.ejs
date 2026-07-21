@@ -32,6 +32,7 @@
   var studentNameEl = document.getElementById('chatStudentName');
   var lastDate = '';
   var nameSet = false;
+  <% if (studentName) { %>studentNameEl.textContent = '<%= studentName %>'; nameSet = true;<% } %>
   var isSending = false;
   var pendingKeys = {};
 
@@ -184,5 +185,6 @@ function openImagePopup(src) { document.getElementById('popupImage').src = src; 
 function closeImagePopup(e) { if (e && e.target !== e.currentTarget) return; document.getElementById('imagePopup').style.display = 'none'; document.body.style.overflow = ''; }
 function downloadImage() { var src = document.getElementById('popupImage').src; var a = document.createElement('a'); a.href = src; a.download = 'image-' + Date.now() + '.jpg'; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
 </script>
+<%- include("../partials/footer") %>
 </body>
 </html>

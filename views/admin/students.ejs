@@ -4,7 +4,7 @@
   <div class="page-header">
     <div>
       <h1>الطلاب</h1>
-      <p>إدارة الطلاب المسجلين في المنصة (<%= students.length %> طالب)</p>
+      <p>إدارة الطلاب المسجلين في المنصة (<span id="studentCount"><%= students.length %></span> طالب)</p>
     </div>
   </div>
 
@@ -27,6 +27,29 @@
     </div>
   </div>
 
+  <div class="admin-filters" style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
+    <div class="form-group" style="margin:0;min-width:160px;">
+      <label style="font-size:12px;margin-bottom:4px;display:block;">المرحلة الدراسية</label>
+      <select id="filterStage" onchange="populateGradeFilter();applyStudentFilter();">
+        <option value="">كل المراحل</option>
+        <option value="إعدادية">إعدادية</option>
+        <option value="ثانوية">ثانوية</option>
+      </select>
+    </div>
+    <div class="form-group" style="margin:0;min-width:160px;">
+      <label style="font-size:12px;margin-bottom:4px;display:block;">الصف الدراسي</label>
+      <select id="filterGrade" onchange="applyStudentFilter();">
+        <option value="">كل الصفوف</option>
+      </select>
+    </div>
+    <div class="form-group" style="margin:0;flex:1;min-width:200px;">
+      <label style="font-size:12px;margin-bottom:4px;display:block;">بحث عن طالب</label>
+      <input id="filterSearch" type="text" placeholder="الاسم أو البريد الإلكتروني..." oninput="applyStudentFilter();" style="width:100%;">
+    </div>
+    <button class="btn" type="button" onclick="resetStudentFilter()" style="align-self:flex-end;background:var(--bg);border:1px solid var(--border);"><i class="fas fa-times"></i> إزالة التصفية</button>
+    <span id="filterResult" style="align-self:flex-end;font-size:12px;color:var(--text-muted);"></span>
+  </div>
+
   <div class="admin-table">
     <table>
       <thead>
@@ -41,10 +64,10 @@
           <th>الإجراءات</th>
         </tr>
       </thead>
-      <tbody>
+      <tbody id="studentsTableBody">
         <% if (students.length > 0) { %>
           <% students.forEach(function(s, i) { %>
-            <tr>
+            <tr data-stage="<%= (s.stage||'').replace(/"/g,'') %>" data-grade="<%= (s.grade||'').replace(/"/g,'') %>" data-name="<%= (s.name||'').replace(/"/g,'').toLowerCase() %>" data-email="<%= (s.email||'').replace(/"/g,'').toLowerCase() %>">
               <td><%= i + 1 %></td>
               <td>
                 <% if (s.avatar) { %><img src="<%= s.avatar %>" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid var(--border);"><% } else { %><div style="width:40px;height:40px;border-radius:50%;background:var(--purple);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px;"><%= (s.name||'?').charAt(0) %></div><% } %>
@@ -166,6 +189,42 @@
 </div>
 
 <script>
+function populateGradeFilter() {
+  var stage = document.getElementById('filterStage').value;
+  var g = document.getElementById('filterGrade');
+  g.innerHTML = '<option value="">كل الصفوف</option>';
+  var grades = [];
+  if (stage === 'إعدادية') grades = ['الأول الإعدادي','الثاني الإعدادي','الثالث الإعدادي'];
+  else if (stage === 'ثانوية') grades = ['الأول الثانوي','الثاني الثانوي','الثالث الثانوي'];
+  else grades = ['الأول الإعدادي','الثاني الإعدادي','الثالث الإعدادي','الأول الثانوي','الثاني الثانوي','الثالث الثانوي'];
+  grades.forEach(function(x) { g.innerHTML += '<option value="'+x+'">'+x+'</option>'; });
+}
+function applyStudentFilter() {
+  var stage = document.getElementById('filterStage').value;
+  var grade = document.getElementById('filterGrade').value;
+  var q = (document.getElementById('filterSearch').value || '').trim().toLowerCase();
+  var rows = document.querySelectorAll('#studentsTableBody tr[data-stage]');
+  var shown = 0;
+  rows.forEach(function(tr) {
+    var ts = tr.getAttribute('data-stage') || '';
+    var tg = tr.getAttribute('data-grade') || '';
+    var tn = tr.getAttribute('data-name') || '';
+    var te = tr.getAttribute('data-email') || '';
+    var ok = (!stage || ts === stage) && (!grade || tg === grade) && (!q || tn.indexOf(q) !== -1 || te.indexOf(q) !== -1);
+    tr.style.display = ok ? '' : 'none';
+    if (ok) shown++;
+  });
+  document.getElementById('studentCount').textContent = shown;
+  document.getElementById('filterResult').textContent = 'عرض ' + shown + ' طالب';
+}
+function resetStudentFilter() {
+  document.getElementById('filterStage').value = '';
+  populateGradeFilter();
+  document.getElementById('filterGrade').value = '';
+  document.getElementById('filterSearch').value = '';
+  applyStudentFilter();
+}
+populateGradeFilter();
 function updateStudentGrades() {
   var stage = document.getElementById('studentStage').value;
   var gradeSel = document.getElementById('studentGrade');
@@ -236,9 +295,9 @@ document.getElementById('studentModal').addEventListener('click', function(e) { 
 function openStudentDetails(s) {
   var statusMap = { active: 'نشط', inactive: 'غير مشترك', expired: 'منتهي', stopped: 'موقوف', cancelled: 'ملغي' };
   var status = statusMap[s.subscriptionStatus] || 'غير مشترك';
-  var av = s.avatar ? '<img src="'+s.avatar+'" style="width:84px;height:84px;border-radius:50%;object-fit:cover;border:3px solid var(--border);margin:0 auto 14px;display:block;">' : '<div style="width:84px;height:84px;border-radius:50%;background:var(--purple);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:30px;margin:0 auto 14px;">'+(s.name?s.name.charAt(0):'?')+'</div>';
+  var av = s.avatar ? '<img src="'+escHtml(s.avatar)+'" style="width:84px;height:84px;border-radius:50%;object-fit:cover;border:3px solid var(--border);margin:0 auto 14px;display:block;">' : '<div style="width:84px;height:84px;border-radius:50%;background:var(--purple);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:30px;margin:0 auto 14px;">'+(s.name?s.name.charAt(0):'?')+'</div>';
   var html = '<div style="text-align:center;">'+av+'</div>' + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">' +
-    '<div style="background:var(--bg);padding:12px;border-radius:8px;"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">المعرف</div><div style="font-weight:700;font-family:monospace;direction:ltr;font-size:14px;">' + escHtml(s.id||'---') + ' <i class="fas fa-copy" style="cursor:pointer;font-size:11px;opacity:0.6;" onclick="copyToClipboard(\'' + (s.id||'') + '\')"></i></div></div>' +
+    '<div style="background:var(--bg);padding:12px;border-radius:8px;"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">المعرف</div><div style="font-weight:700;font-family:monospace;direction:ltr;font-size:14px;">' + escHtml(s.id||'---') + ' <i class="fas fa-copy" style="cursor:pointer;font-size:11px;opacity:0.6;" onclick="copyToClipboard(\'' + escHtml(s.id||'') + '\')"></i></div></div>' +
     '<div style="background:var(--bg);padding:12px;border-radius:8px;"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">الاسم</div><div style="font-weight:700;">' + escHtml(s.name||'---') + '</div></div>' +
     '<div style="background:var(--bg);padding:12px;border-radius:8px;"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">حالة الاشتراك</div><div style="font-weight:700;">' + status + '</div></div>' +
     '<div style="background:var(--bg);padding:12px;border-radius:8px;grid-column:1/-1;"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">البريد الإلكتروني</div><div style="font-weight:500;" dir="ltr">' + escHtml(s.email||'---') + '</div></div>' +
@@ -250,14 +309,14 @@ function openStudentDetails(s) {
     '<div style="background:var(--bg);padding:12px;border-radius:8px;"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">تاريخ بداية الاشتراك</div><div>' + (s.subscriptionStart ? new Date(s.subscriptionStart).toLocaleDateString('ar-EG') : '---') + '</div></div>' +
     '<div style="background:var(--bg);padding:12px;border-radius:8px;"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">تاريخ نهاية الاشتراك</div><div>' + (s.subscriptionEnd ? new Date(s.subscriptionEnd).toLocaleDateString('ar-EG') : '---') + '</div></div>' +
     '<div style="background:var(--bg);padding:12px;border-radius:8px;"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">آخر دخول</div><div>' + (s.lastLogin ? new Date(s.lastLogin).toLocaleDateString('ar-EG') : '---') + '</div></div>' +
-    '<div style="background:var(--bg);padding:12px;border-radius:8px;"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">كود الإحالة</div><div>' + escHtml(s.referralCode||'---') + ' <i class="fas fa-copy" style="cursor:pointer;font-size:11px;opacity:0.6;" onclick="copyToClipboard(\'' + (s.referralCode||'') + '\')"></i></div></div>' +
+    '<div style="background:var(--bg);padding:12px;border-radius:8px;"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">كود الإحالة</div><div>' + escHtml(s.referralCode||'---') + ' <i class="fas fa-copy" style="cursor:pointer;font-size:11px;opacity:0.6;" onclick="copyToClipboard(\'' + escHtml(s.referralCode||'') + '\')"></i></div></div>' +
   '</div>';
   document.getElementById('studentDetailsBody').innerHTML = html;
   document.getElementById('studentDetailsModal').classList.add('show');
 }
 function closeSDM() { document.getElementById('studentDetailsModal').classList.remove('show'); }
 document.getElementById('studentDetailsModal').addEventListener('click', function(e) { if (e.target === this) this.classList.remove('show'); });
-function escHtml(t) { return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escHtml(t) { return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
 
 // ===== SUBSCRIPTION MANAGEMENT =====
 function openSubModal(s) {
@@ -295,5 +354,6 @@ function manageSubscription() {
 }
 document.getElementById('subModal').addEventListener('click', function(e) { if (e.target === this) this.classList.remove('show'); });
 </script>
+<%- include("../partials/footer") %>
 </body>
 </html>

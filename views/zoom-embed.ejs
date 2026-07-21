@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <title><%= session.title %></title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
@@ -14,9 +15,9 @@
   @keyframes spin { to { transform:rotate(360deg); } }
   #zoom-loading span { color:#aaa; font-size:14px; }
   <% if (isStudent) { %>
-  #leaveBtn { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); z-index:99999; padding:10px 28px; background:#dc2626; color:#fff; border:none; border-radius:8px; font-size:15px; font-weight:700; cursor:pointer; box-shadow:0 4px 20px rgba(220,38,38,0.4); transition:background 0.2s; }
-  #leaveBtn:hover { background:#b91c1c; }
-  #leaveBtn:active { transform:translateX(-50%) scale(0.97); }
+  #leaveBtn { position:fixed; bottom:20px; right:20px; z-index:99999; width:50px; height:50px; border-radius:50%; background:#dc2626; color:#fff; border:none; cursor:pointer; font-size:20px; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 16px rgba(0,0,0,0.35); transition:background 0.2s,transform 0.15s; }
+  #leaveBtn:hover { background:#b91c1c; transform:scale(1.05); }
+  #leaveBtn:active { transform:scale(0.95); }
   <% } %>
 </style>
 </head>
@@ -27,7 +28,7 @@
 </div>
 <div id="zmmtg-root"></div>
 <% if (isStudent) { %>
-<button id="leaveBtn" onclick="leaveSession()">الخروج من الحصة</button>
+<button id="leaveBtn" onclick="leaveSession()" title="خروج"><i class="fas fa-sign-out-alt"></i></button>
 <% } %>
 
 <script src="https://source.zoom.us/3.11.2/lib/vendor/react.min.js"></script>

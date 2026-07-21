@@ -120,10 +120,6 @@
   }
 
   function updateUI(pct, completed) {
-    var bar = document.getElementById('progressBar');
-    var label = document.getElementById('progressPct');
-    if (bar) bar.style.width = pct + '%';
-    if (label) label.textContent = pct + '%';
     var ib = document.getElementById('lessonInfoBar');
     if (ib) ib.style.display = 'flex';
     var st = document.getElementById('watchStatus');
@@ -203,11 +199,6 @@
 
         updateUI(pct, false);
 
-        if (pct >= 95 && !completedSent && valid) {
-          completeLesson();
-          return;
-        }
-
         var now = Date.now();
         if (now - lastSaveTime < 5000) return;
         lastSaveTime = now;
@@ -234,10 +225,6 @@
 
         updateUI(pct, false);
 
-        if (pct >= 95 && !completedSent && valid) {
-          completeLesson();
-          return;
-        }
         var pos = Math.floor(ct);
         savePosition(pct, false, pos);
         saveLocal({ position: pos, percentage: pct });
@@ -248,8 +235,8 @@
         hbLastPos = pos;
       });
 
-      // ── Ended: mark complete ──
-      player.on('ended', function() { completeLesson(); });
+      // ── Ended: mark complete only if no quiz (quiz-based completion) ──
+      player.on('ended', function() { if (!lessonHasQuiz) completeLesson(); });
 
       // ── YouTube overlay ──
       (function setupOverlay(container, player) {

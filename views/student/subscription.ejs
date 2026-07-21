@@ -47,47 +47,35 @@
   </div>
   <% } %>
 
-  <div style="background:var(--card);border-radius:var(--radius-lg);padding:20px 24px;margin-bottom:20px;box-shadow:var(--shadow);border:1px solid var(--border);border-right:4px solid var(--accent);">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
-      <i class="fas fa-barcode" style="color:var(--accent);font-size:18px;"></i>
-      <h3 style="font-size:15px;font-weight:700;margin:0;">تفعيل بكود شحن</h3>
-    </div>
-    <div id="redeemSection">
-      <div id="redeemMessage" style="display:none;padding:12px;border-radius:8px;margin-bottom:12px;text-align:center;font-size:13px;font-weight:600;"></div>
-      <div style="display:flex;gap:10px;">
-        <input type="text" id="redeemCode" class="form-input" placeholder="أدخل كود الشحن" style="flex:1;direction:rtl;text-align:center;font-family:monospace;font-size:16px;letter-spacing:2px;">
-        <button class="btn btn-primary" onclick="redeemCode()" id="redeemBtn" style="white-space:nowrap;"><i class="fas fa-check"></i> تفعيل</button>
-      </div>
-    </div>
+  <!-- Action Buttons Row -->
+  <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+    <button onclick="openChargePopup()" style="flex:1;min-width:130px;display:flex;align-items:center;justify-content:center;gap:6px;background:var(--accent-glow);border:1px solid var(--accent);border-radius:var(--radius);padding:10px 14px;cursor:pointer;transition:var(--transition);font-size:13px;font-weight:600;color:var(--text);font-family:inherit;">
+      <i class="fas fa-barcode" style="color:var(--accent);"></i>
+      تفعيل بكود شحن
+    </button>
+    <button onclick="openReferralPopup()" style="flex:1;min-width:130px;display:flex;align-items:center;justify-content:center;gap:6px;background:rgba(22,163,74,0.08);border:1px solid rgba(22,163,74,0.3);border-radius:var(--radius);padding:10px 14px;cursor:pointer;transition:var(--transition);font-size:13px;font-weight:600;color:var(--text);font-family:inherit;">
+      <i class="fas fa-user-friends" style="color:var(--success);"></i>
+      كود الدعوة — خصم <%= refDiscSetting %>%
+    </button>
   </div>
 
-  <!-- Referral Code Section -->
-  <div style="background:var(--card);border-radius:var(--radius-lg);padding:20px 24px;margin-bottom:20px;box-shadow:var(--shadow);border:1px solid var(--border);border-right:4px solid var(--success);">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
-      <i class="fas fa-user-friends" style="color:var(--success);font-size:18px;"></i>
-      <h3 style="font-size:15px;font-weight:700;margin:0;">كود الدعوة — خصم 25%</h3>
-    </div>
-    <div style="background:rgba(22,163,74,0.06);border-radius:8px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
-      <span style="font-size:13px;color:var(--text-light);">كودك للإحالة:</span>
-      <span style="font-family:monospace;font-weight:700;font-size:16px;letter-spacing:2px;direction:ltr;display:inline-block;"><%= user.referralCode || '---' %></span>
-      <% if (user.referralCode) { %>
-      <button class="btn btn-sm" onclick="navigator.clipboard.writeText('<%= user.referralCode %>');this.innerHTML='<i class=\\'fas fa-check\\'></i> تم';setTimeout(()=>this.innerHTML='<i class=\\'fas fa-copy\\'></i> نسخ',2000)" style="font-size:12px;padding:4px 12px;"><i class="fas fa-copy"></i> نسخ</button>
+  <!-- Referral Status (always visible) -->
+  <div style="background:var(--card);border-radius:var(--radius-lg);padding:16px 20px;margin-bottom:20px;box-shadow:var(--shadow);border:1px solid var(--border);">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <i class="fas fa-gift" style="color:var(--success);font-size:16px;"></i>
+        <span style="font-size:13px;color:var(--text-light);">كودك للإحالة:</span>
+        <span style="font-family:monospace;font-weight:700;font-size:16px;letter-spacing:2px;direction:ltr;"><%= user.referralCode || '---' %></span>
+        <% if (user.referralCode) { %>
+        <button class="btn btn-sm" onclick="navigator.clipboard.writeText('<%= user.referralCode %>');this.innerHTML='<i class=\\'fas fa-check\\'></i> تم';setTimeout(()=>this.innerHTML='<i class=\\'fas fa-copy\\'></i> نسخ',2000)" style="font-size:12px;padding:4px 10px;"><i class="fas fa-copy"></i> نسخ</button>
+        <% } %>
+      </div>
+      <% if (user.referralDiscount) { %>
+        <div style="display:flex;align-items:center;gap:6px;color:var(--success);font-weight:700;font-size:13px;">
+          <i class="fas fa-check-circle"></i> خصم <%= user.referralDiscount %>% مفعل
+        </div>
       <% } %>
     </div>
-    <% if (user.referralDiscount) { %>
-      <div style="background:rgba(22,163,74,0.1);border:1px solid rgba(22,163,74,0.2);border-radius:8px;padding:16px;text-align:center;">
-        <i class="fas fa-check-circle" style="color:var(--success);font-size:28px;display:block;margin-bottom:8px;"></i>
-        <div style="color:var(--success);font-weight:700;font-size:16px;">تم تطبيق خصم <%= user.referralDiscount %>% على جميع الخطط!</div>
-      </div>
-    <% } else { %>
-      <div id="referralSection">
-        <div id="referralMessage" style="display:none;padding:12px;border-radius:8px;margin-bottom:12px;text-align:center;font-size:13px;font-weight:600;"></div>
-        <div style="display:flex;gap:10px;">
-          <input type="text" id="referralCode" class="form-input" placeholder="أدخل كود دعوة صديق" style="flex:1;direction:rtl;text-align:center;font-family:monospace;font-size:16px;letter-spacing:2px;">
-          <button class="btn btn-sm" style="background:var(--success);color:#fff;white-space:nowrap;" onclick="applyReferral()" id="referralBtn"><i class="fas fa-percent"></i> تطبيق</button>
-        </div>
-      </div>
-    <% } %>
   </div>
 
   <div class="subscription-plans">
@@ -198,6 +186,42 @@
   </div>
 </div>
 
+<!-- Charge Code Popup -->
+<div class="modal-overlay" id="chargePopup">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-header">
+      <h3><i class="fas fa-barcode" style="color:var(--accent);"></i> تفعيل بكود شحن</h3>
+      <button class="modal-close" onclick="closeChargePopup()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--text-light);margin-bottom:16px;">أدخل كود الشحن الذي حصلت عليه من الأستاذ محمد عفيفي</p>
+      <div id="redeemMessage" style="display:none;padding:12px;border-radius:8px;margin-bottom:12px;text-align:center;font-size:13px;font-weight:600;"></div>
+      <div class="form-group">
+        <input type="text" id="redeemCode" class="form-input" placeholder="أدخل كود الشحن" style="direction:rtl;text-align:center;font-family:monospace;font-size:18px;letter-spacing:2px;">
+      </div>
+      <button class="btn btn-primary btn-lg" onclick="redeemCode()" id="redeemBtn" style="width:100%;"><i class="fas fa-check"></i> تفعيل</button>
+    </div>
+  </div>
+</div>
+
+<!-- Referral Code Popup -->
+<div class="modal-overlay" id="referralPopup">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-header">
+      <h3><i class="fas fa-user-friends" style="color:var(--success);"></i> استخدام كود دعوة</h3>
+      <button class="modal-close" onclick="closeReferralPopup()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--text-light);margin-bottom:16px;">أدخل كود دعوة صديق للحصول على خصم على جميع خطط الاشتراك</p>
+      <div id="referralMessage" style="display:none;padding:12px;border-radius:8px;margin-bottom:12px;text-align:center;font-size:13px;font-weight:600;"></div>
+      <div class="form-group">
+        <input type="text" id="referralCode" class="form-input" placeholder="أدخل كود دعوة صديق" style="direction:rtl;text-align:center;font-family:monospace;font-size:18px;letter-spacing:2px;">
+      </div>
+      <button class="btn btn-lg" style="width:100%;background:var(--success);color:#fff;border:none;border-radius:var(--radius);padding:14px;font-size:15px;font-weight:700;cursor:pointer;" onclick="applyReferral()" id="referralBtn"><i class="fas fa-percent"></i> تطبيق الخصم</button>
+    </div>
+  </div>
+</div>
+
 <style>
   .sub-features-wrap { overflow:hidden; max-height:0; transition:max-height 0.4s ease; }
   .sub-features-wrap.open { max-height:600px; }
@@ -264,6 +288,14 @@ function openSubPopup(idx, name, price) {
 function closeSubPopup() { document.getElementById('subPopup').classList.remove('show'); }
 document.getElementById('subPopup').addEventListener('click', function(e) { if (e.target === this) this.classList.remove('show'); });
 
+function openChargePopup() { document.getElementById('chargePopup').classList.add('show'); }
+function closeChargePopup() { document.getElementById('chargePopup').classList.remove('show'); }
+document.getElementById('chargePopup').addEventListener('click', function(e) { if (e.target === this) this.classList.remove('show'); });
+
+function openReferralPopup() { document.getElementById('referralPopup').classList.add('show'); }
+function closeReferralPopup() { document.getElementById('referralPopup').classList.remove('show'); }
+document.getElementById('referralPopup').addEventListener('click', function(e) { if (e.target === this) this.classList.remove('show'); });
+
 function redeemCode() {
   var code = document.getElementById('redeemCode').value.trim();
   var msg = document.getElementById('redeemMessage');
@@ -275,8 +307,7 @@ function redeemCode() {
   .then(function(r){return r.json()})
   .then(function(d){
     if(d.success){
-      msg.style.display='block'; msg.style.background='rgba(22,163,74,0.1)'; msg.style.color='var(--success)'; msg.innerHTML='<i class="fas fa-check-circle"></i> تم التفعيل بنجاح! اشتراكك نشط الآن.';
-      document.getElementById('redeemCode').value='';
+      document.getElementById('chargePopup').innerHTML = '<div style="padding:60px 24px;text-align:center;"><i class="fas fa-check-circle" style="font-size:56px;color:var(--success);display:block;margin-bottom:16px;"></i><h2 style="font-family:\'Aref Ruqaa\',serif;font-size:22px;font-weight:700;margin-bottom:8px;">✅ تم التفعيل بنجاح!</h2><p style="font-size:14px;color:var(--text-light);margin-bottom:20px;">اشتراكك نشط الآن. يمكنك مشاهدة جميع المحاضرات.</p><button class="btn btn-primary" onclick="location.reload()"><i class="fas fa-check"></i> حسناً</button></div>';
       setTimeout(function(){ location.reload(); }, 2000);
     } else {
       msg.style.display='block'; msg.style.background='rgba(220,38,38,0.1)'; msg.style.color='var(--danger)'; msg.textContent = d.error || 'الكود غير صالح';
@@ -325,14 +356,16 @@ function applyReferral() {
   .then(function(r){return r.json()})
   .then(function(d){
     if(d.success){
+      closeReferralPopup();
       location.reload();
     } else {
       msg.style.display='block'; msg.style.background='rgba(220,38,38,0.1)'; msg.style.color='var(--danger)'; msg.textContent = d.error || 'الكود غير صالح';
     }
-    btn.disabled=false; btn.innerHTML='<i class="fas fa-percent"></i> تطبيق';
+    btn.disabled=false; btn.innerHTML='<i class="fas fa-percent"></i> تطبيق الخصم';
   })
-  .catch(function(){ msg.style.display='block'; msg.style.background='rgba(220,38,38,0.1)'; msg.style.color='var(--danger)'; msg.textContent='حدث خطأ في الاتصال'; btn.disabled=false; btn.innerHTML='<i class="fas fa-percent"></i> تطبيق'; });
+  .catch(function(){ msg.style.display='block'; msg.style.background='rgba(220,38,38,0.1)'; msg.style.color='var(--danger)'; msg.textContent='حدث خطأ في الاتصال'; btn.disabled=false; btn.innerHTML='<i class="fas fa-percent"></i> تطبيق الخصم'; });
 }
 </script>
+<%- include("../partials/footer") %>
 </body>
 </html>

@@ -107,6 +107,7 @@ function restPost(path, data) {
   });
 }
 
+const fcmLog = require('./fcm-log');
 const localStore = require('./data-store');
 let useLocalFallback = !ready;
 const perf = require('./perf');
@@ -116,9 +117,9 @@ const perf = require('./perf');
 // Static collections are cached for 60s; `users` is cached for a SHORT 10s window
 // (stage 1) so the per-request middleware no longer hits Firebase on every request,
 // while auth/subscription changes stay fresh. Every write invalidates the key.
-const STATIC_TTL_MS = 60000;
+const STATIC_TTL_MS = 20000;
 const USER_TTL_MS = 10000;
-const CACHEABLE = new Set(['courses', 'settings', 'notes', 'questionBanks', 'reviews', 'announcements', 'users']);
+const CACHEABLE = new Set(['courses', 'notes', 'questionBanks', 'reviews', 'announcements', 'users', 'subRequests', 'maintenanceMode', 'themeConfig']);
 const _cache = new Map(); // key -> { value, expires }
 
 function cacheTtl(key) { return key === 'users' ? USER_TTL_MS : STATIC_TTL_MS; }
@@ -146,22 +147,23 @@ function normalizeSnapshot(val) {
     const keys2 = Object.keys(val);
     if (keys2.length > 0) {
       if (keys2.every(k => !isNaN(parseInt(k)))) {
-        return keys2.sort((a, b) => parseInt(a) - parseInt(b)).map(k => val[k]);
+        return keys2.sort((a, b) => parseInt(a) - parseInt(b)).map(k => val[k]).filter(Boolean);
       } else {
         const first = val[keys2[0]];
         if (first && typeof first === 'object' && first.id) {
-          return keys2.map(k => val[k]);
+          return keys2.map(k => val[k]).filter(Boolean);
         }
       }
     }
   }
+  if (Array.isArray(val)) return val.filter(Boolean);
   return val;
 }
 
-async function readData(key) {
+async function readData(key, noCache) {
   // Read-through cache for cacheable top-level collections (stage 2/6/13/14).
   // A cache hit performs ZERO Firebase reads.
-  if (CACHEABLE.has(key)) {
+  if (!noCache && CACHEABLE.has(key)) {
     const cached = cacheGet(key);
     if (cached !== undefined) return clone(cached);
   }
@@ -183,24 +185,26 @@ async function readData(key) {
     if (!readFromFirebase) perf.trackRead();
     val = await localStore.readData(key);
   }
-  if (val !== null && val !== undefined && CACHEABLE.has(key)) cacheSet(key, val);
+  if (val !== null && val !== undefined && !noCache && CACHEABLE.has(key)) cacheSet(key, val);
   return clone(val);
 }
 
 async function writeData(key, data) {
   // Write to local store first (always works)
   await localStore.writeData(key, data);
-  // Invalidate any cached copy so subsequent reads see the fresh write immediately.
-  cacheInvalidate(key);
-  // Also write to Firebase Admin SDK (persistent across instances)
+  // Write to Firebase Admin SDK (persistent across instances)
+  var firebaseOk = false;
   if (fbDb) {
     try {
       perf.trackWrite();
       await fbDb.ref(key).set(data);
+      firebaseOk = true;
     } catch (e) {
       console.error('Firebase Admin write error:', e.message);
     }
   }
+  // Always invalidate cache so next read fetches fresh data (from local store if Firebase failed)
+  cacheInvalidate(key);
   return data;
 }
 
@@ -317,18 +321,25 @@ async function sendFCM(userId, title, body, url) {
     if (!admin.messaging) { console.error('sendFCM: admin.messaging not available'); return false; }
         const message = {
           token: user.fcmToken,
-          data: { title: title, body: body, url: url || '/', click_action: 'FLUTTER_NOTIFICATION_CLICK' }
+          notification: { title: title, body: body },
+          data: { url: url || '/', click_action: 'FLUTTER_NOTIFICATION_CLICK' }
         };
-    await admin.messaging().send(message);
-    console.log('sendFCM: sent to', userId, title);
-    return true;
-  } catch (e) {
-    console.error('sendFCM error:', e.code || e.message, 'for user', userId);
-    if (e.code === 'messaging/invalid-registration-token' || e.code === 'messaging/registration-token-not-registered') {
-      const users = await readData('users');
-      const idx = users.findIndex(u => u.id === userId);
-      if (idx !== -1) { users[idx].fcmToken = ''; await writeData('users', users); }
+    try {
+      const response = await admin.messaging().send(message);
+      fcmLog.add({ userId, title, messageId: response || 'unknown', success: true, error: null });
+      return true;
+    } catch (e) {
+      console.error('sendFCM error:', e.code || e.message, 'for user', userId);
+      fcmLog.add({ userId, title, messageId: null, success: false, error: e.code || e.message });
+      if (e.code === 'messaging/invalid-registration-token' || e.code === 'messaging/registration-token-not-registered') {
+        const users = await readData('users');
+        const idx = users.findIndex(u => u.id === userId);
+        if (idx !== -1) { users[idx].fcmToken = ''; await writeData('users', users); }
+      }
+      return false;
     }
+  } catch (e) {
+    console.error('sendFCM outer error:', e.message);
     return false;
   }
 }
@@ -345,11 +356,14 @@ async function sendFCMToRole(role, title, body, url) {
       try {
         const message = {
           token: u.fcmToken,
-          data: { title: title, body: body, url: url || '/', click_action: 'FLUTTER_NOTIFICATION_CLICK' }
+          notification: { title: title, body: body },
+          data: { url: url || '/', click_action: 'FLUTTER_NOTIFICATION_CLICK' }
         };
-        await admin.messaging().send(message);
+        const resp = await admin.messaging().send(message);
+        fcmLog.add({ userId: u.id, title, messageId: resp || 'unknown', success: true, error: null });
       } catch (e) {
-        console.error('sendFCMToRole: error for', u.id, e.code || e.message);
+        console.error('sendFCMToRole error for', u.id, ':', e.code || e.message);
+        fcmLog.add({ userId: u.id, title, messageId: null, success: false, error: e.code || e.message });
         if (e.code === 'messaging/invalid-registration-token' || e.code === 'messaging/registration-token-not-registered') {
           toClear.push(u.id);
         }
@@ -374,7 +388,7 @@ async function sendFCMToRole(role, title, body, url) {
   }
 }
 
-module.exports = { db: fbDb, fbAuth, readData, writeData, updateData, transactionData, readUserById, pushData, fbRead, fbSet, fbPush, fbRemove, restGet, restPut, sendFCM, sendFCMToRole, admin, migrateSeedData };
+module.exports = { db: fbDb, fbAuth, readData, writeData, updateData, transactionData, readUserById, pushData, fbRead, fbSet, fbPush, fbRemove, restGet, restPut, sendFCM, sendFCMToRole, admin, migrateSeedData, cacheInvalidate };
 
 // Startup: ensure seed data exists in Firebase
 async function migrateSeedData() {

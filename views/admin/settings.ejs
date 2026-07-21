@@ -4,104 +4,168 @@
   <div class="page-header">
     <div>
       <h1>الإعدادات</h1>
-      <p>التحكم في إعدادات المنصة</p>
+      <p>التحكم في إعدادات المنصة (اضغط أي قسم للتوسعة)</p>
     </div>
   </div>
 
-  <div style="max-width:600px;">
-    <div class="form-card">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
-        <i class="fas fa-bullhorn" style="color:var(--accent);font-size:20px;"></i>
-        <h3 style="font-size:16px;font-weight:700;margin:0;">الإعلانات</h3>
+  <div class="settings-grid">
+    <!-- الإعلانات -->
+    <div class="form-card compact collapsible collapsed">
+      <button type="button" class="fc-head" onclick="toggleCard(this)">
+        <span><i class="fas fa-bullhorn"></i> الإعلانات</span>
+        <i class="fas fa-chevron-down fc-chev"></i>
+      </button>
+      <div class="fc-body">
+        <p class="fc-desc">التحكم في ظهور شريط الإعلانات في لوحة الطالب.</p>
+        <label class="fc-check"><input type="checkbox" id="announcementsEnabled" <%= announcementsEnabled ? 'checked' : '' %>> تفعيل الإعلانات</label>
+        <button class="btn btn-primary btn-sm" onclick="saveAnnouncementsToggle()" id="annSaveBtn"><i class="fas fa-save"></i> حفظ</button>
+        <div id="annSaveMsg" class="fc-msg"></div>
       </div>
-      <p style="font-size:13px;color:var(--text-light);margin-bottom:16px;">التحكم في ظهور شريط الإعلانات في لوحة الطالب.</p>
-      <label style="display:flex;align-items:center;gap:12px;cursor:pointer;font-size:14px;font-weight:600;">
-        <input type="checkbox" id="announcementsEnabled" <%= announcementsEnabled ? 'checked' : '' %> style="width:18px;height:18px;accent-color:var(--accent);">
-        تفعيل الإعلانات
-      </label>
-      <button class="btn btn-primary" onclick="saveAnnouncementsToggle()" style="margin-top:16px;" id="annSaveBtn"><i class="fas fa-save"></i> حفظ</button>
-      <div id="annSaveMsg" style="display:none;margin-top:12px;padding:12px;border-radius:8px;text-align:center;font-size:13px;font-weight:600;"></div>
     </div>
 
-    <div class="form-card" style="margin-top:20px;">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
-        <i class="fas fa-calendar-alt" style="color:var(--accent);font-size:20px;"></i>
-        <h3 style="font-size:16px;font-weight:700;margin:0;">الترم الدراسي الظاهر للطلاب</h3>
-      </div>
-      <p style="font-size:13px;color:var(--text-light);margin-bottom:16px;">اختر الترم الذي يظهر محتواه للطلاب حالياً. المحتوى سيتم تصفيته حسب هذا الاختيار.</p>
-      <div class="form-group">
-        <select id="currentSemester" class="form-input" style="font-size:15px;padding:12px;">
-          <option value="all" <%= currentSemester === 'all' ? 'selected' : '' %>>الترمين معاً</option>
-          <option value="first" <%= currentSemester === 'first' ? 'selected' : '' %>>الترم الأول</option>
-          <option value="second" <%= currentSemester === 'second' ? 'selected' : '' %>>الترم الثاني</option>
-        </select>
-      </div>
-      <button class="btn btn-primary" onclick="saveSettings()" id="saveBtn"><i class="fas fa-save"></i> حفظ الإعدادات</button>
-      <div id="saveMsg" style="display:none;margin-top:12px;padding:12px;border-radius:8px;text-align:center;font-size:13px;font-weight:600;"></div>
-    </div>
-
-    <div class="form-card" style="margin-top:20px;">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
-        <i class="fas fa-phone" style="color:var(--accent);font-size:20px;"></i>
-        <h3 style="font-size:16px;font-weight:700;margin:0;">بيانات الدفع</h3>
-      </div>
-      <div class="form-group"><label>رقم فودافون كاش</label><input id="vodafoneCash" class="form-input" value="<%= vodafoneCash %>" placeholder="01000000000"></div>
-      <div class="form-group"><label>حساب إنستا باي</label><input id="instaPay" class="form-input" value="<%= instaPay %>" placeholder="example@instapay"></div>
-      <button class="btn btn-primary" onclick="savePaymentSettings()"><i class="fas fa-save"></i> حفظ بيانات الدفع</button>
-    </div>
-
-    <!-- Zoom Account Linking -->
-    <div class="form-card" style="margin-top:20px;">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
-        <i class="fas fa-video" style="color:var(--accent);font-size:20px;"></i>
-        <h3 style="font-size:16px;font-weight:700;margin:0;">ربط حساب Zoom</h3>
-      </div>
-      <div id="zoomStatus" style="display:flex;flex-direction:column;gap:12px;">
-        <div style="display:flex;align-items:center;gap:8px;font-size:14px;">
-          <span id="zoomIndicator" style="width:12px;height:12px;border-radius:50%;background:#6b7280;display:inline-block;"></span>
-          <span id="zoomStatusText">جاري التحقق...</span>
+    <!-- الترم الدراسي -->
+    <div class="form-card compact collapsible collapsed">
+      <button type="button" class="fc-head" onclick="toggleCard(this)">
+        <span><i class="fas fa-calendar-alt"></i> الترم الدراسي</span>
+        <i class="fas fa-chevron-down fc-chev"></i>
+      </button>
+      <div class="fc-body">
+        <p class="fc-desc">الترم الذي يظهر محتواه للطلاب حالياً.</p>
+        <div class="form-group">
+          <select id="currentSemester" class="form-input">
+            <option value="all" <%= currentSemester === 'all' ? 'selected' : '' %>>الترمين معاً</option>
+            <option value="first" <%= currentSemester === 'first' ? 'selected' : '' %>>الترم الأول</option>
+            <option value="second" <%= currentSemester === 'second' ? 'selected' : '' %>>الترم الثاني</option>
+          </select>
         </div>
-        <div id="zoomProfile" style="display:none;font-size:13px;color:var(--text-light);">
-          <div id="zoomAvatarWrap" style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
-            <img id="zoomAvatar" src="" style="width:40px;height:40px;border-radius:50%;object-fit:cover;display:none;">
-            <div>
-              <div id="zoomUserName" style="font-weight:600;color:var(--text);"></div>
-              <div id="zoomUserEmail" style="font-size:12px;"></div>
-            </div>
+        <button class="btn btn-primary btn-sm" onclick="saveSettings()" id="saveBtn"><i class="fas fa-save"></i> حفظ</button>
+        <div id="saveMsg" class="fc-msg"></div>
+      </div>
+    </div>
+
+    <!-- خصم كود الدعوة -->
+    <div class="form-card compact collapsible collapsed">
+      <button type="button" class="fc-head" onclick="toggleCard(this)">
+        <span><i class="fas fa-percent"></i> خصم كود الدعوة</span>
+        <i class="fas fa-chevron-down fc-chev"></i>
+      </button>
+      <div class="fc-body">
+        <p class="fc-desc">نسبة الخصم عند استخدام كود دعوة صديق.</p>
+        <div class="form-group">
+          <label>نسبة الخصم (%)</label>
+          <input id="referralDiscount" type="number" class="form-input" value="<%= referralDiscount %>" min="0" max="100" style="width:110px;">
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="saveReferralDiscount()" id="refBtn"><i class="fas fa-save"></i> حفظ</button>
+        <div id="refMsg" class="fc-msg"></div>
+      </div>
+    </div>
+
+    <!-- بيانات الدفع -->
+    <div class="form-card compact collapsible collapsed">
+      <button type="button" class="fc-head" onclick="toggleCard(this)">
+        <span><i class="fas fa-phone"></i> بيانات الدفع</span>
+        <i class="fas fa-chevron-down fc-chev"></i>
+      </button>
+      <div class="fc-body">
+        <div class="form-group"><label>رقم فودافون كاش</label><input id="vodafoneCash" class="form-input" value="<%= vodafoneCash %>" placeholder="01000000000"></div>
+        <div class="form-group"><label>حساب إنستا باي</label><input id="instaPay" class="form-input" value="<%= instaPay %>" placeholder="example@instapay"></div>
+        <button class="btn btn-primary btn-sm" onclick="savePaymentSettings()"><i class="fas fa-save"></i> حفظ</button>
+      </div>
+    </div>
+
+    <!-- ربط Zoom -->
+    <div class="form-card compact collapsible collapsed">
+      <button type="button" class="fc-head" onclick="toggleCard(this)">
+        <span><i class="fas fa-video"></i> ربط حساب Zoom</span>
+        <i class="fas fa-chevron-down fc-chev"></i>
+      </button>
+      <div class="fc-body">
+        <div id="zoomStatus" style="display:flex;flex-direction:column;gap:10px;">
+          <div style="display:flex;align-items:center;gap:8px;font-size:13px;">
+            <span id="zoomIndicator" style="width:10px;height:10px;border-radius:50%;background:#6b7280;display:inline-block;flex-shrink:0;"></span>
+            <span id="zoomStatusText">جاري التحقق...</span>
           </div>
-          <div style="font-size:11px;color:var(--text-muted);">آخر اتصال: <span id="zoomConnectedAt"></span></div>
-        </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <a id="zoomConnectBtn" href="/auth/zoom" class="btn btn-primary" style="display:inline-flex;align-items:center;gap:6px;">
-            <i class="fas fa-link"></i> ربط حساب Zoom
-          </a>
-          <button id="zoomDisconnectBtn" style="display:none;" class="btn btn-danger" onclick="disconnectZoom()">
-            <i class="fas fa-unlink"></i> إلغاء الربط
-          </button>
+          <div id="zoomProfile" style="display:none;font-size:12px;color:var(--text-light);">
+            <div id="zoomAvatarWrap" style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+              <img id="zoomAvatar" src="" style="width:34px;height:34px;border-radius:50%;object-fit:cover;display:none;">
+              <div>
+                <div id="zoomUserName" style="font-weight:600;color:var(--text);font-size:13px;"></div>
+                <div id="zoomUserEmail" style="font-size:11px;"></div>
+              </div>
+            </div>
+            <div style="font-size:10px;color:var(--text-muted);">آخر اتصال: <span id="zoomConnectedAt"></span></div>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <a id="zoomConnectBtn" href="/auth/zoom" class="btn btn-primary btn-sm" style="display:inline-flex;align-items:center;gap:6px;">
+              <i class="fas fa-link"></i> ربط
+            </a>
+            <button id="zoomDisconnectBtn" style="display:none;" class="btn btn-danger btn-sm" onclick="disconnectZoom()">
+              <i class="fas fa-unlink"></i> إلغاء الربط
+            </button>
+            <a id="zoomReauthBtn" href="/auth/zoom/reauthorize" style="display:none;" class="btn-warning btn-sm">
+              <i class="fas fa-sync"></i> إعادة الربط
+            </a>
+          </div>
         </div>
       </div>
     </div>
 
-    <div class="form-card" style="margin-top:20px;">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
-        <i class="fas fa-address-book" style="color:var(--accent);font-size:20px;"></i>
-        <h3 style="font-size:16px;font-weight:700;margin:0;">بيانات التواصل (الفوتر)</h3>
+    <!-- بيانات التواصل -->
+    <div class="form-card compact collapsible collapsed">
+      <button type="button" class="fc-head" onclick="toggleCard(this)">
+        <span><i class="fas fa-address-book"></i> بيانات التواصل</span>
+        <i class="fas fa-chevron-down fc-chev"></i>
+      </button>
+      <div class="fc-body">
+        <p class="fc-desc">تظهر في الفوتر أسفل الموقع.</p>
+        <div class="form-group"><label>رقم الهاتف</label><input id="contactPhone" class="form-input" value="<%= contactPhone %>" placeholder="01000000000"></div>
+        <div class="form-group"><label>البريد الإلكتروني</label><input id="contactEmail" class="form-input" value="<%= contactEmail %>" placeholder="info@example.com"></div>
+        <div class="form-group"><label>العنوان</label><input id="contactAddress" class="form-input" value="<%= contactAddress %>" placeholder="القاهرة، مصر"></div>
+        <div class="form-group"><label>واتساب</label><input id="contactWhatsapp" class="form-input" value="<%= contactWhatsapp %>" placeholder="01000000000"></div>
+        <button class="btn btn-primary btn-sm" onclick="saveContactSettings()"><i class="fas fa-save"></i> حفظ</button>
       </div>
-      <p style="font-size:13px;color:var(--text-light);margin-bottom:16px;">تظهر هذه البيانات في الفوتر أسفل الموقع بشكل أيقونات أفقية.</p>
-      <div class="form-group"><label>رقم الهاتف</label><input id="contactPhone" class="form-input" value="<%= contactPhone %>" placeholder="01000000000"></div>
-      <div class="form-group"><label>البريد الإلكتروني</label><input id="contactEmail" class="form-input" value="<%= contactEmail %>" placeholder="info@example.com"></div>
-      <div class="form-group"><label>العنوان</label><input id="contactAddress" class="form-input" value="<%= contactAddress %>" placeholder="القاهرة، مصر"></div>
-      <div class="form-group"><label>واتساب (الرقم المحلي فقط، يُضاف +20 تلقائياً)</label><input id="contactWhatsapp" class="form-input" value="<%= contactWhatsapp %>" placeholder="01000000000"></div>
-      <button class="btn btn-primary" onclick="saveContactSettings()"><i class="fas fa-save"></i> حفظ بيانات التواصل</button>
+    </div>
+
+    <!-- الثيم -->
+    <div class="form-card compact collapsible collapsed">
+      <button type="button" class="fc-head" onclick="toggleCard(this)">
+        <span><i class="fas fa-palette"></i> ألوان المنصة وشكل الأزرار</span>
+        <i class="fas fa-chevron-down fc-chev"></i>
+      </button>
+      <div class="fc-body">
+        <p class="fc-desc">اللون الأساسي والشكل (مربعة / نصف دائرية / دائرية) يطبّق فوراً.</p>
+        <div class="form-group">
+          <label>اللون الأساسي</label>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input type="color" id="themeAccent" value="<%= themeAccent %>" oninput="previewTheme()" style="width:42px;height:34px;border:1px solid var(--border);border-radius:8px;background:none;cursor:pointer;padding:2px;">
+            <input type="text" id="themeAccentHex" value="<%= themeAccent %>" oninput="syncThemeHex()" class="form-input" style="direction:ltr;max-width:120px;font-family:monospace;" placeholder="#F59E0B">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>شكل الأزرار</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <label class="fc-check"><input type="radio" name="btnShape" value="square" <%= themeBtnShape === 'square' ? 'checked' : '' %> onchange="previewTheme()"> مربعة</label>
+            <label class="fc-check"><input type="radio" name="btnShape" value="rounded" <%= themeBtnShape === 'rounded' ? 'checked' : '' %> onchange="previewTheme()"> نصف دائرية</label>
+            <label class="fc-check"><input type="radio" name="btnShape" value="circular" <%= themeBtnShape === 'circular' ? 'checked' : '' %> onchange="previewTheme()"> دائرية</label>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="saveTheme()" id="themeSaveBtn"><i class="fas fa-save"></i> حفظ الثيم</button>
+        <div id="themeMsg" class="fc-msg"></div>
+      </div>
     </div>
   </div>
 </main>
 
 <script>
+function toggleCard(headEl) {
+  var card = headEl.closest('.form-card');
+  if (card) card.classList.toggle('collapsed');
+}
+
 function saveAnnouncementsToggle() {
   var btn = document.getElementById('annSaveBtn');
   var msg = document.getElementById('annSaveMsg');
-  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحفظ...';
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ...';
   msg.style.display = 'none';
   fetch('/api/admin/settings', {
     method: 'POST',
@@ -120,10 +184,33 @@ function saveAnnouncementsToggle() {
   });
 }
 
+function saveReferralDiscount() {
+  var btn = document.getElementById('refBtn');
+  var msg = document.getElementById('refMsg');
+  var val = document.getElementById('referralDiscount').value;
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ...';
+  msg.style.display = 'none';
+  fetch('/api/admin/settings', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ referralDiscount: parseInt(val) || 0 })
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.success) {
+      msg.style.display = 'block'; msg.style.background = 'rgba(22,163,74,0.1)'; msg.style.color = 'var(--success)'; msg.innerHTML = '<i class="fas fa-check-circle"></i> تم حفظ النسبة';
+    } else {
+      msg.style.display = 'block'; msg.style.background = 'rgba(220,38,38,0.1)'; msg.style.color = 'var(--danger)'; msg.textContent = d.error || 'حدث خطأ';
+    }
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> حفظ';
+  }).catch(function() {
+    msg.style.display = 'block'; msg.style.background = 'rgba(220,38,38,0.1)'; msg.style.color = 'var(--danger)'; msg.textContent = 'حدث خطأ في الاتصال';
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> حفظ';
+  });
+}
+
 function saveSettings() {
   var btn = document.getElementById('saveBtn');
   var msg = document.getElementById('saveMsg');
-  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحفظ...';
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ...';
   msg.style.display = 'none';
   fetch('/api/admin/settings', {
     method: 'POST',
@@ -131,20 +218,20 @@ function saveSettings() {
     body: JSON.stringify({ currentSemester: document.getElementById('currentSemester').value })
   }).then(function(r) { return r.json(); }).then(function(d) {
     if (d.success) {
-      msg.style.display = 'block'; msg.style.background = 'rgba(22,163,74,0.1)'; msg.style.color = 'var(--success)'; msg.innerHTML = '<i class="fas fa-check-circle"></i> تم حفظ الإعدادات';
+      msg.style.display = 'block'; msg.style.background = 'rgba(22,163,74,0.1)'; msg.style.color = 'var(--success)'; msg.innerHTML = '<i class="fas fa-check-circle"></i> تم الحفظ';
     } else {
       msg.style.display = 'block'; msg.style.background = 'rgba(220,38,38,0.1)'; msg.style.color = 'var(--danger)'; msg.textContent = d.error || 'حدث خطأ';
     }
-    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> حفظ الإعدادات';
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> حفظ';
   }).catch(function() {
     msg.style.display = 'block'; msg.style.background = 'rgba(220,38,38,0.1)'; msg.style.color = 'var(--danger)'; msg.textContent = 'حدث خطأ في الاتصال';
-    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> حفظ الإعدادات';
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> حفظ';
   });
 }
 
 function savePaymentSettings() {
   var btn = event.target;
-  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحفظ...';
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ...';
   fetch('/api/admin/settings', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -153,21 +240,18 @@ function savePaymentSettings() {
       instaPay: document.getElementById('instaPay').value
     })
   }).then(function(r) { return r.json(); }).then(function(d) {
-    if (d.success) {
-      alert('تم حفظ بيانات الدفع');
-    } else {
-      alert(d.error || 'حدث خطأ');
-    }
-    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> حفظ بيانات الدفع';
+    if (d.success) { alert('تم حفظ بيانات الدفع'); }
+    else { alert(d.error || 'حدث خطأ'); }
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> حفظ';
   }).catch(function() {
     alert('حدث خطأ في الاتصال');
-    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> حفظ بيانات الدفع';
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> حفظ';
   });
 }
 
 function saveContactSettings() {
   var btn = event.target;
-  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحفظ...';
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ...';
   fetch('/api/admin/settings', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -180,10 +264,10 @@ function saveContactSettings() {
   }).then(function(r) { return r.json(); }).then(function(d) {
     if (d.success) { alert('تم حفظ بيانات التواصل'); }
     else { alert(d.error || 'حدث خطأ'); }
-    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> حفظ بيانات التواصل';
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> حفظ';
   }).catch(function() {
     alert('حدث خطأ في الاتصال');
-    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> حفظ بيانات التواصل';
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> حفظ';
   });
 }
 
@@ -198,6 +282,7 @@ function saveContactSettings() {
         var profile = document.getElementById('zoomProfile');
         var connectBtn = document.getElementById('zoomConnectBtn');
         var disconnectBtn = document.getElementById('zoomDisconnectBtn');
+        var reauthBtn = document.getElementById('zoomReauthBtn');
 
         if (!status.configured) {
           indicator.style.background = '#6b7280';
@@ -205,6 +290,7 @@ function saveContactSettings() {
           profile.style.display = 'none';
           connectBtn.style.display = 'none';
           disconnectBtn.style.display = 'none';
+          reauthBtn.style.display = 'none';
           return;
         }
 
@@ -221,18 +307,21 @@ function saveContactSettings() {
           document.getElementById('zoomConnectedAt').textContent = status.connectedAt ? new Date(status.connectedAt).toLocaleString('ar-EG') : '-';
           connectBtn.style.display = 'none';
           disconnectBtn.style.display = 'inline-flex';
+          reauthBtn.style.display = 'inline-flex';
         } else if (status.tokenExpired) {
           indicator.style.background = '#f59e0b';
           statusText.textContent = '🟡 منتهي الصلاحية — أعد الربط';
           profile.style.display = 'none';
           connectBtn.style.display = 'inline-flex';
           disconnectBtn.style.display = 'none';
+          reauthBtn.style.display = 'none';
         } else {
           indicator.style.background = '#6b7280';
           statusText.textContent = '⚪ غير متصل';
           profile.style.display = 'none';
           connectBtn.style.display = 'inline-flex';
           disconnectBtn.style.display = 'none';
+          reauthBtn.style.display = 'none';
         }
       })
       .catch(function() {
@@ -241,7 +330,6 @@ function saveContactSettings() {
   }
 
   checkZoomStatus();
-  // Check periodically
   setInterval(checkZoomStatus, 30000);
 })();
 
@@ -256,22 +344,109 @@ function disconnectZoom() {
     .catch(function() { alert('خطأ في الاتصال'); });
 }
 
+// ===================== Platform theme live preview + save =====================
+function hexToRgbJs(hex){hex=String(hex).replace('#','').trim();if(hex.length===3)hex=hex.split('').map(function(c){return c+c;}).join('');if(hex.length!==6)return null;return{r:parseInt(hex.slice(0,2),16),g:parseInt(hex.slice(2,4),16),b:parseInt(hex.slice(4,6),16)};}
+function rgbToHexJs(c){var h=function(n){var s=Math.max(0,Math.min(255,Math.round(n))).toString(16);return s.length===1?'0'+s:s;};return'#'+h(c.r)+h(c.g)+h(c.b);}
+function mixRgbJs(a,b,t){return{r:a.r+(b.r-a.r)*t,g:a.g+(b.g-a.g)*t,b:a.b+(b.b-a.b)*t};}
+function buildThemeCssJs(accent,shape){
+  var rgb=hexToRgbJs(accent)||{r:245,g:158,b:11};
+  var light=mixRgbJs(rgb,{r:255,g:255,b:255},0.35);
+  var lighter=mixRgbJs(rgb,{r:255,g:255,b:255},0.6);
+  var hover=mixRgbJs(rgb,{r:0,g:0,b:0},0.15);
+  var radius=shape==='square'?'0px':(shape==='circular'?'999px':'12px');
+  return ':root,[data-theme="light"],[data-theme="dark"]{'+
+    '--primary:'+accent+';--primary-light:'+rgbToHexJs(light)+';--primary-lighter:'+rgbToHexJs(lighter)+';'+
+    '--accent:'+accent+';--accent-light:'+rgbToHexJs(light)+';--accent-hover:'+rgbToHexJs(hover)+';'+
+    '--accent-glow:rgba('+rgb.r+','+rgb.g+','+rgb.b+',0.18);'+
+    '--gold-gradient:linear-gradient(135deg,'+accent+' 0%,'+rgbToHexJs(hover)+' 100%);'+
+    '--gold-gradient-text:linear-gradient(90deg,'+accent+','+rgbToHexJs(hover)+');'+
+    '--shadow-accent:0 8px 25px rgba('+rgb.r+','+rgb.g+','+rgb.b+',0.25);'+
+    '--course-c1:'+accent+';'+
+    '--course-c2:'+rgbToHexJs(mixRgbJs(rgb,{r:109,g:74,b:255},0.55))+';'+
+    '--course-c3:'+rgbToHexJs(mixRgbJs(rgb,{r:13,g:148,b:136},0.55))+';'+
+    '--course-c4:'+rgbToHexJs(mixRgbJs(rgb,{r:184,g:134,b:11},0.5))+';'+
+    '--btn-radius:'+radius+';}'+
+    '.btn,.btn-lg,.btn-sm,.btn-outline,.btn-primary,.btn-danger,.action-btn{border-radius:var(--btn-radius,14px)!important;}';
+}
+function currentThemeAccent(){return document.getElementById('themeAccent').value;}
+function currentBtnShape(){var els=document.getElementsByName('btnShape');for(var i=0;i<els.length;i++){if(els[i].checked)return els[i].value;}return 'rounded';}
+function previewTheme(){
+  var hex=currentThemeAccent();
+  document.getElementById('themeAccentHex').value=hex;
+  var styleEl=document.getElementById('theme-override');
+  if(!styleEl){styleEl=document.createElement('style');styleEl.id='theme-override';document.head.appendChild(styleEl);}
+  styleEl.textContent=buildThemeCssJs(hex,currentBtnShape());
+}
+function syncThemeHex(){
+  var v=document.getElementById('themeAccentHex').value.trim();
+  if(v&&v[0]!=='#')v='#'+v;
+  if(/^#[0-9a-fA-F]{3}$/.test(v)||/^#[0-9a-fA-F]{6}$/.test(v)){
+    document.getElementById('themeAccent').value=v.length===4?(function(h){h=h.replace('#','');return '#'+h[0]+h[0]+h[1]+h[1]+h[2]+h[2];})(v):v;
+    previewTheme();
+  }
+}
+function saveTheme(){
+  var btn=document.getElementById('themeSaveBtn');
+  var msg=document.getElementById('themeMsg');
+  var accent=currentThemeAccent();
+  var shape=currentBtnShape();
+  btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> ...';
+  msg.style.display='none';
+  fetch('/api/admin/theme',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accent:accent,btnShape:shape})})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d.success){previewTheme();msg.style.display='block';msg.style.background='rgba(22,163,74,0.1)';msg.style.color='var(--success)';msg.innerHTML='<i class="fas fa-check-circle"></i> تم حفظ الثيم وتطبيقه على المنصة';}
+      else{msg.style.display='block';msg.style.background='rgba(220,38,38,0.1)';msg.style.color='var(--danger)';msg.textContent=d.error||'حدث خطأ';}
+      btn.disabled=false;btn.innerHTML='<i class="fas fa-save"></i> حفظ الثيم';
+    })
+    .catch(function(){msg.style.display='block';msg.style.background='rgba(220,38,38,0.1)';msg.style.color='var(--danger)';msg.textContent='حدث خطأ في الاتصال';btn.disabled=false;btn.innerHTML='<i class="fas fa-save"></i> حفظ الثيم';});
+}
+previewTheme();
+
 // Show success message if redirected from OAuth callback
 (function() {
   var params = new URLSearchParams(window.location.search);
   if (params.get('zoom') === 'connected') {
     var msg = document.createElement('div');
-    msg.style.cssText = 'background:rgba(22,163,74,0.1);color:var(--success);padding:12px;border-radius:8px;margin-bottom:16px;font-size:13px;font-weight:600;text-align:center;';
+    msg.style.cssText = 'background:rgba(22,163,74,0.1);color:var(--success);padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:13px;font-weight:600;text-align:center;';
     msg.innerHTML = '<i class="fas fa-check-circle"></i> تم ربط حساب Zoom بنجاح';
-    document.querySelector('.form-card').parentElement.insertBefore(msg, document.querySelector('.form-card'));
+    var grid = document.querySelector('.settings-grid');
+    if (grid) grid.parentNode.insertBefore(msg, grid);
   }
 })();
 </script>
 
 <style>
-.form-card { background:var(--card); border-radius:var(--radius-lg); padding:24px; box-shadow:var(--shadow); border:1px solid var(--border); }
-.form-card label { display:block; font-size:13px; font-weight:600; margin-bottom:6px; color:var(--text); }
-.form-card .form-group { margin-bottom:16px; }
+.settings-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px; align-items:start; }
+.form-card.compact { padding:14px 16px; border-radius:var(--radius); box-shadow:var(--shadow-sm); animation:cardIn .42s cubic-bezier(.22,1,.36,1) both; }
+@keyframes cardIn { from { opacity:0; transform:translateY(12px) scale(.98); } to { opacity:1; transform:translateY(0) scale(1); } }
+.form-card.compact:nth-child(1) { animation-delay:.04s; }
+.form-card.compact:nth-child(2) { animation-delay:.08s; }
+.form-card.compact:nth-child(3) { animation-delay:.12s; }
+.form-card.compact:nth-child(4) { animation-delay:.16s; }
+.form-card.compact:nth-child(5) { animation-delay:.20s; }
+.form-card.compact:nth-child(6) { animation-delay:.24s; }
+.form-card.compact:nth-child(7) { animation-delay:.28s; }
+.form-card.compact .fc-head { display:flex; align-items:center; justify-content:space-between; width:100%; background:none; border:none; cursor:pointer; padding:2px 0; font-size:14px; font-weight:700; color:var(--text); font-family:inherit; }
+.form-card.compact .fc-head > span { display:flex; align-items:center; gap:8px; }
+.form-card.compact .fc-head > span > i { color:var(--accent); font-size:15px; }
+.fc-chev { color:var(--text-muted); font-size:12px; transition:transform .25s ease; }
+.form-card.compact:not(.collapsed) .fc-chev { transform:rotate(180deg); }
+.form-card.compact .fc-body { overflow:hidden; max-height:560px; opacity:1; transform:translateY(0); transition:max-height .34s ease, opacity .28s ease, transform .28s ease, padding-top .34s ease; }
+.form-card.compact.collapsed .fc-body { max-height:0; opacity:0; transform:translateY(-6px); padding-top:0; }
+.fc-body { padding-top:10px; }
+.fc-desc { font-size:12px; color:var(--text-light); margin:0 0 10px; line-height:1.5; }
+.fc-check { display:flex; align-items:center; gap:6px; font-size:13px; font-weight:600; cursor:pointer; margin:0 0 10px; }
+.fc-check input { width:15px; height:15px; accent-color:var(--accent); }
+.form-card.compact .form-group { margin-bottom:10px; }
+.form-card.compact .form-group label { display:block; font-size:12px; font-weight:600; margin-bottom:4px; color:var(--text); }
+.form-card.compact .form-input { padding:8px 10px; font-size:13px; }
+.form-card.compact .btn { font-size:13px; padding:8px 16px; }
+.fc-msg { display:none; margin-top:8px; padding:8px 10px; border-radius:6px; font-size:12px; font-weight:600; text-align:center; }
+.btn-warning { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border:none; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; background:#f59e0b; color:#fff; }
+.btn-warning:hover { background:#d97706; }
+.btn-sm { padding:8px 16px; font-size:13px; }
 </style>
+<%- include("../partials/footer") %>
 </body>
 </html>

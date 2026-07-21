@@ -75,10 +75,7 @@
             var body = payload.data?.body || payload.notification?.body || '';
             var url = payload.data?.url || '/';
             showToast('🔔 ' + title + (body ? ': ' + body : ''), '');
-            // Also show a real OS notification while the page is open (foreground)
-            if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-              navigator.serviceWorker.controller.postMessage({ type: 'SHOW_NOTIFICATION', title: title, body: body, url: url });
-            } else if ('Notification' in window && Notification.permission === 'granted') {
+            if ('Notification' in window && Notification.permission === 'granted') {
               try { new Notification('🔔 ' + title, { body: body }); } catch (e) {}
             }
           });
@@ -113,11 +110,13 @@
             }
           });
           // Re-register the token automatically if Firebase rotates it.
-          messaging.onTokenRefresh(function() {
-            messaging.getToken({ vapidKey: vapidKey }).then(function(refreshedToken) {
-              if (refreshedToken) fetch('/api/fcm/register', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({fcmToken: refreshedToken}) });
-            }).catch(function(e) { console.error('FCM onTokenRefresh error:', e); });
-          });
+          if (typeof messaging.onTokenRefresh === 'function') {
+            messaging.onTokenRefresh(function() {
+              messaging.getToken({ vapidKey: vapidKey }).then(function(refreshedToken) {
+                if (refreshedToken) fetch('/api/fcm/register', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({fcmToken: refreshedToken}) });
+              }).catch(function(e) { console.error('FCM onTokenRefresh error:', e); });
+            });
+          }
         } catch(e) { console.error('FCM init error:', e); }
       }
     })();

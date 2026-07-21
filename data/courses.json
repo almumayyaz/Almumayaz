@@ -6,6 +6,8 @@
     "gradient": "linear-gradient(135deg, #A07200 0%, #D4A017 50%, #F6C453 100%)",
     "icon": "fa-book-open",
     "id": "1",
+    "active": true,
+    "guestVisible": true,
     "lessons": [
       {
         "description": "شرح المبتدأ والخبر وأنواعهما وعلامات إعرابهما مع أمثلة متنوعة.",
@@ -36,7 +38,7 @@
         "guestVisible": false,
         "id": "102",
         "isFree": true,
-        "order": 0,
+        "order": 1,
         "sectionId": "",
         "title": "كان وأخواتها",
         "videos": [
@@ -52,7 +54,7 @@
         "guestVisible": false,
         "id": "103",
         "isFree": false,
-        "order": 0,
+        "order": 2,
         "sectionId": "",
         "title": "إن وأخواتها",
         "videos": [
@@ -65,13 +67,17 @@
       {
         "description": "شرح الفاعل ونائب الفاعل مع التطبيق على آيات قرآنية وأمثلة.",
         "duration": "50:20",
+        "guestVisible": false,
         "id": "104",
+        "isFree": false,
+        "order": 3,
         "pdfFiles": [
           {
             "title": "ملف",
             "url": "/files/nahw-lesson4.pdf"
           }
         ],
+        "sectionId": "",
         "title": "الفاعل ونائب الفاعل",
         "videos": [
           {
@@ -83,13 +89,17 @@
       {
         "description": "شرح المفعول به والمفعول المطلق مع أمثلة وتدريبات.",
         "duration": "41:10",
+        "guestVisible": false,
         "id": "105",
+        "isFree": false,
+        "order": 4,
         "pdfFiles": [
           {
             "title": "ملف",
             "url": "/files/nahw-lesson5.pdf"
           }
         ],
+        "sectionId": "",
         "title": "المفعول به والمفعول المطلق",
         "videos": [
           {
@@ -101,13 +111,17 @@
       {
         "description": "شرح رائع للحال والتمييز الوحدة الرابعة الصف الثالث الثانوي.",
         "duration": "36:45",
+        "guestVisible": false,
         "id": "106",
+        "isFree": false,
+        "order": 5,
         "pdfFiles": [
           {
             "title": "ملف",
             "url": "/files/nahw-lesson6.pdf"
           }
         ],
+        "sectionId": "",
         "title": "الحال والتمييز",
         "videos": [
           {
@@ -119,13 +133,17 @@
       {
         "description": "الوحدة الرابعة نحو الصف الثالث الثانوي الجزء الأول.",
         "duration": "40:00",
+        "guestVisible": false,
         "id": "107",
+        "isFree": false,
+        "order": 6,
         "pdfFiles": [
           {
             "title": "ملف",
             "url": "/files/nahw-lesson7.pdf"
           }
         ],
+        "sectionId": "",
         "title": "الوحدة الرابعة نحو ج1",
         "videos": [
           {
@@ -137,13 +155,17 @@
       {
         "description": "الوحدة الرابعة نحو الصف الثالث الثانوي الجزء الثاني.",
         "duration": "40:00",
+        "guestVisible": false,
         "id": "108",
+        "isFree": false,
+        "order": 7,
         "pdfFiles": [
           {
             "title": "ملف",
             "url": "/files/nahw-lesson8.pdf"
           }
         ],
+        "sectionId": "",
         "title": "الوحدة الرابعة نحو ج2",
         "videos": [
           {
@@ -155,13 +177,17 @@
       {
         "description": "تكملة شرح التوابع في النحو.",
         "duration": "35:00",
+        "guestVisible": false,
         "id": "109",
+        "isFree": false,
+        "order": 8,
         "pdfFiles": [
           {
             "title": "ملف",
             "url": "/files/nahw-lesson9.pdf"
           }
         ],
+        "sectionId": "",
         "title": "التوابع",
         "videos": [
           {
@@ -293,17 +319,23 @@
     "gradient": "linear-gradient(135deg, #4A2D9A 0%, #6D4AFF 50%, #8B6FFF 100%)",
     "icon": "fa-feather",
     "id": "2",
+    "active": true,
+    "guestVisible": true,
     "lessons": [
       {
         "description": "شرح التشبيه وأركانه وأنواعه مع أمثلة من القرآن والشعر.",
         "duration": "40:00",
+        "guestVisible": false,
         "id": "201",
+        "isFree": true,
+        "order": 0,
         "pdfFiles": [
           {
             "title": "ملف",
             "url": "/files/balaaghah-lesson1.pdf"
           }
         ],
+        "sectionId": "",
         "title": "التشبيه",
         "videos": [
           {
@@ -315,13 +347,17 @@
       {
         "description": "شرح الاستعارة التصريحية والمكنية مع التطبيقات.",
         "duration": "35:45",
+        "guestVisible": false,
         "id": "202",
+        "isFree": false,
+        "order": 1,
         "pdfFiles": [
           {
             "title": "ملف",
             "url": "/files/balaaghah-lesson2.pdf"
           }
         ],
+        "sectionId": "",
         "title": "الاستعارة",
         "videos": [
           {
@@ -333,13 +369,17 @@
       {
         "description": "شرح الكناية وأنواعها وأغراضها البلاغية.",
         "duration": "32:20",
+        "guestVisible": false,
         "id": "203",
+        "isFree": false,
+        "order": 2,
         "pdfFiles": [
           {
             "title": "ملف",
             "url": "/files/balaaghah-lesson3.pdf"
           }
         ],
+        "sectionId": "",
         "title": "الكناية",
         "videos": [
           {
@@ -351,13 +391,17 @@
       {
         "description": "الفرق بين الطباق والمقابلة مع أمثلة من القرآن.",
         "duration": "28:50",
+        "guestVisible": false,
         "id": "204",
+        "isFree": false,
+        "order": 3,
         "pdfFiles": [
           {
             "title": "ملف",
             "url": "/files/balaaghah-lesson4.pdf"
           }
         ],
+        "sectionId": "",
         "title": "الطباق والمقابلة",
         "videos": [
           {
@@ -369,13 +413,17 @@
       {
         "description": "مراجعة شاملة للبلاغة ليلة الامتحان - قصة وبلاغة.",
         "duration": "34:10",
+        "guestVisible": false,
         "id": "205",
+        "isFree": false,
+        "order": 4,
         "pdfFiles": [
           {
             "title": "ملف",
             "url": "/files/balaaghah-lesson5.pdf"
           }
         ],
+        "sectionId": "",
         "title": "مراجعة البلاغة",
         "videos": [
           {
@@ -462,11 +510,16 @@
     "gradient": "linear-gradient(135deg, #7A4E1A 0%, #B8860B 50%, #D4A017 100%)",
     "icon": "fa-pen-fancy",
     "id": "3",
+    "active": true,
+    "guestVisible": true,
     "lessons": [
       {
         "description": "خصائص الأدب في العصر الجاهلي وأشهر الشعراء.",
         "duration": "48:10",
+        "guestVisible": false,
         "id": "301",
+        "isFree": true,
+        "order": 0,
         "pdfFiles": [
           {
             "title": "ملف",
@@ -484,7 +537,11 @@
       {
         "description": "تطور الأدب في صدر الإسلام والعصر الأموي.",
         "duration": "42:30",
+        "guestVisible": false,
         "id": "302",
+        "isFree": false,
+        "order": 1,
+        "sectionId": "",
         "pdfFiles": [
           {
             "title": "ملف",
@@ -502,13 +559,17 @@
       {
         "description": "ازدهار الأدب في العصر العباسي وأبرز الشعراء.",
         "duration": "55:00",
+        "guestVisible": false,
         "id": "303",
+        "isFree": false,
+        "order": 2,
         "pdfFiles": [
           {
             "title": "ملف",
             "url": "/files/adab-lesson3.pdf"
           }
         ],
+        "sectionId": "",
         "title": "العصر العباسي",
         "videos": [
           {
@@ -520,13 +581,17 @@
       {
         "description": "اتجاهات الأدب في العصر الحديث وأعلامه.",
         "duration": "44:20",
+        "guestVisible": false,
         "id": "304",
+        "isFree": false,
+        "order": 3,
         "pdfFiles": [
           {
             "title": "ملف",
             "url": "/files/adab-lesson4.pdf"
           }
         ],
+        "sectionId": "",
         "title": "العصر الحديث",
         "videos": [
           {
@@ -538,13 +603,17 @@
       {
         "description": "خصائص المدرسة الكلاسيكية وأهم شعرائها.",
         "duration": "37:40",
+        "guestVisible": false,
         "id": "305",
+        "isFree": false,
+        "order": 4,
         "pdfFiles": [
           {
             "title": "ملف",
             "url": "/files/adab-lesson5.pdf"
           }
         ],
+        "sectionId": "",
         "title": "المدرسة الكلاسيكية",
         "videos": [
           {
@@ -556,13 +625,17 @@
       {
         "description": "مدرسة المهجر في الأدب العربي للصف الثالث الثانوي الجزء الأول.",
         "duration": "39:15",
+        "guestVisible": false,
         "id": "306",
+        "isFree": false,
+        "order": 5,
         "pdfFiles": [
           {
             "title": "ملف",
             "url": "/files/adab-lesson6.pdf"
           }
         ],
+        "sectionId": "",
         "title": "مدرسة المهجر ج1",
         "videos": [
           {
@@ -574,13 +647,17 @@
       {
         "description": "مدرسة المهجر في الأدب العربي للصف الثالث الثانوي الجزء الثاني.",
         "duration": "35:00",
+        "guestVisible": false,
         "id": "307",
+        "isFree": false,
+        "order": 6,
         "pdfFiles": [
           {
             "title": "ملف",
             "url": "/files/adab-lesson7.pdf"
           }
         ],
+        "sectionId": "",
         "title": "مدرسة المهجر ج2",
         "videos": [
           {
@@ -697,17 +774,23 @@
     "gradient": "linear-gradient(135deg, #0A5C6A 0%, #0D9488 50%, #14B8A6 100%)",
     "icon": "fa-quote-right",
     "id": "4",
+    "active": true,
+    "guestVisible": true,
     "lessons": [
       {
         "description": "شرح وتحليل نص غربة وحنين وحفظ الأبيات.",
         "duration": "36:40",
+        "guestVisible": false,
         "id": "401",
+        "isFree": true,
+        "order": 0,
         "pdfFiles": [
           {
             "title": "ملف",
             "url": "/files/nusoos-lesson1.pdf"
           }
         ],
+        "sectionId": "",
         "title": "نص: غربة وحنين",
         "videos": [
           {
@@ -719,13 +802,17 @@
       {
         "description": "شرح وتحليل نص من قصيدة الكولونيل.",
         "duration": "40:15",
+        "guestVisible": false,
         "id": "402",
+        "isFree": false,
+        "order": 1,
         "pdfFiles": [
           {
             "title": "ملف",
             "url": "/files/nusoos-lesson2.pdf"
           }
         ],
+        "sectionId": "",
         "title": "نص: من قصيدة الكولونيل",
         "videos": [
           {
@@ -737,13 +824,17 @@
       {
         "description": "شرح وتحليل نص المساء مع المعاني والأفكار.",
         "duration": "34:50",
+        "guestVisible": false,
         "id": "403",
+        "isFree": false,
+        "order": 2,
         "pdfFiles": [
           {
             "title": "ملف",
             "url": "/files/nusoos-lesson3.pdf"
           }
         ],
+        "sectionId": "",
         "title": "نص: المساء",
         "videos": [
           {
@@ -755,13 +846,17 @@
       {
         "description": "شرح وتحليل نص رثاء مع الصور البلاغية.",
         "duration": "38:30",
+        "guestVisible": false,
         "id": "404",
+        "isFree": false,
+        "order": 3,
         "pdfFiles": [
           {
             "title": "ملف",
             "url": "/files/nusoos-lesson4.pdf"
           }
         ],
+        "sectionId": "",
         "title": "نص: رثاء",
         "videos": [
           {
@@ -773,13 +868,17 @@
       {
         "description": "مراجعة شاملة لجميع النصوص المقررة.",
         "duration": "55:20",
+        "guestVisible": false,
         "id": "405",
+        "isFree": false,
+        "order": 4,
         "pdfFiles": [
           {
             "title": "ملف",
             "url": "/files/nusoos-lesson5.pdf"
           }
         ],
+        "sectionId": "",
         "title": "مراجعة النصوص",
         "videos": [
           {
@@ -791,13 +890,17 @@
       {
         "description": "أفضل طريقة مبسطة لشرح المسرحية كاملة الصف الثالث الثانوي.",
         "duration": "45:00",
+        "guestVisible": false,
         "id": "406",
+        "isFree": false,
+        "order": 5,
         "pdfFiles": [
           {
             "title": "ملف",
             "url": "/files/nusoos-lesson6.pdf"
           }
         ],
+        "sectionId": "",
         "title": "شرح المسرحية",
         "videos": [
           {
@@ -911,6 +1014,8 @@
     "gradient": "linear-gradient(135deg, #A07200 0%, #D4A017 50%, #F6C453 100%)",
     "icon": "fa-book",
     "id": "1783652697899",
+    "active": true,
+    "guestVisible": true,
     "lessons": [
       {
         "description": "",
@@ -920,8 +1025,7 @@
         "isFree": true,
         "order": 0,
         "sectionId": "",
-        "title": "الدرس الاول",
-        "unitId": ""
+        "title": "الدرس الأول"
       }
     ],
     "quiz": {
@@ -951,6 +1055,8 @@
     "gradient": "linear-gradient(135deg, #A07200 0%, #D4A017 50%, #F6C453 100%)",
     "icon": "fa-book-open",
     "id": "1783898121091",
+    "active": true,
+    "guestVisible": true,
     "lessons": [
       {
         "description": "وصف الدرس ومحتوياته",
@@ -960,7 +1066,7 @@
         "isFree": false,
         "order": 0,
         "sectionId": "",
-        "title": "الدرس الاول",
+        "title": "الدرس الأول",
         "videos": [
           {
             "title": "فيديو",
@@ -974,7 +1080,7 @@
         "guestVisible": false,
         "id": "1783899100950",
         "isFree": false,
-        "order": 0,
+        "order": 1,
         "sectionId": "",
         "title": "الدرس الثاني"
       }

@@ -3,6 +3,86 @@ const crypto = require('crypto');
 const { readData, writeData } = require('./firebase-admin');
 
 /* ------------------------------------------------------------------ */
+/*  Zoom App Credentials — stored in Firebase, mirrored to process.env*/
+/*  no redeploy needed when credentials change                        */
+/* ------------------------------------------------------------------ */
+
+/* ------------------------------------------------------------------ */
+/*  Credentials resolution: Firebase → process.env → fallback         */
+/*  Cached in memory for 60s to avoid hitting Firebase every request  */
+/* ------------------------------------------------------------------ */
+var _credsCache = null;
+var _credsCacheAt = 0;
+
+async function resolveCreds() {
+  // Try Firebase first
+  if (Date.now() - _credsCacheAt > 60000) { _credsCache = null; }
+  if (!_credsCache) {
+    try {
+      var fb = await readData('zoomAppCredentials');
+      if (fb && fb.clientId && fb.clientSecret) {
+        _credsCache = {
+          clientId: fb.clientId,
+          clientSecret: fb.clientSecret,
+          redirectUri: fb.redirectUri || '',
+          sdkKey: fb.sdkKey || '',
+          sdkSecret: fb.sdkSecret || ''
+        };
+        _credsCacheAt = Date.now();
+        return _credsCache;
+      }
+    } catch (e) { console.error('resolveCreds Firebase error:', e.message); }
+  }
+  if (_credsCache) return _credsCache;
+  // Fallback to process.env
+  var cid = process.env.ZOOM_CLIENT_ID || '';
+  var csec = process.env.ZOOM_CLIENT_SECRET || '';
+  if (cid && csec) return {
+    clientId: cid,
+    clientSecret: csec,
+    redirectUri: process.env.ZOOM_REDIRECT_URI || '',
+    sdkKey: process.env.ZOOM_SDK_KEY || '',
+    sdkSecret: process.env.ZOOM_SDK_SECRET || ''
+  };
+  return null;
+}
+
+function invalidateCredsCache() { _credsCache = null; _credsCacheAt = 0; }
+
+async function getStoredCredentials() { return resolveCreds(); }
+
+async function loadCredentialsIntoEnv() {
+  // Read from Firebase if available → set process.env
+  try {
+    var fb = await readData('zoomAppCredentials');
+    if (fb && fb.clientId && fb.clientSecret) {
+      process.env.ZOOM_CLIENT_ID = fb.clientId;
+      process.env.ZOOM_CLIENT_SECRET = fb.clientSecret;
+      process.env.ZOOM_REDIRECT_URI = fb.redirectUri || process.env.ZOOM_REDIRECT_URI || '';
+      return;
+    }
+  } catch(e) {}
+  // Firebase empty → just use Vercel env vars as-is (don't migrate automatically)
+  // Migration happens when user saves via the form (saveCredentials)
+}
+
+async function saveCredentials(clientId, clientSecret, redirectUri, sdkKey, sdkSecret) {
+  await writeData('zoomAppCredentials', {
+    clientId: clientId || '',
+    clientSecret: clientSecret || '',
+    redirectUri: redirectUri || '',
+    sdkKey: sdkKey || '',
+    sdkSecret: sdkSecret || ''
+  });
+  // Mirror to process.env immediately so no restart needed
+  process.env.ZOOM_CLIENT_ID = clientId || process.env.ZOOM_CLIENT_ID || '';
+  process.env.ZOOM_CLIENT_SECRET = clientSecret || process.env.ZOOM_CLIENT_SECRET || '';
+  process.env.ZOOM_REDIRECT_URI = redirectUri || process.env.ZOOM_REDIRECT_URI || '';
+  process.env.ZOOM_SDK_KEY = sdkKey || process.env.ZOOM_SDK_KEY || '';
+  process.env.ZOOM_SDK_SECRET = sdkSecret || process.env.ZOOM_SDK_SECRET || '';
+}
+
+/* ------------------------------------------------------------------ */
 /*  Encryption — tokens encrypted at rest, key is server-only         */
 /* ------------------------------------------------------------------ */
 var _key = null;
@@ -37,22 +117,27 @@ function decrypt(blob) {
 
 /* ------------------------------------------------------------------ */
 /*  Persistence — stored encrypted in Firebase RTDB (server-read-only)*/
+/*  Per-teacher: tokens stored under zoomCredentials/<userId>         */
 /* ------------------------------------------------------------------ */
-var TOKEN_KEY = 'zoomCredentials';
+var TOKEN_PREFIX = 'zoomCredentials';
 
-async function saveTokens(tokens) {
-  var encrypted = encrypt(tokens);
-  await writeData(TOKEN_KEY, encrypted);
+function tokenKey(userId) {
+  return TOKEN_PREFIX + '/' + (userId || 'global');
 }
 
-async function loadTokens() {
-  var blob = await readData(TOKEN_KEY);
+async function saveTokens(userId, tokens) {
+  var encrypted = encrypt(tokens);
+  await writeData(tokenKey(userId), encrypted);
+}
+
+async function loadTokens(userId) {
+  var blob = await readData(tokenKey(userId));
   if (!blob || !blob.data) return null;
   return decrypt(blob);
 }
 
-async function clearTokens() {
-  await writeData(TOKEN_KEY, null);
+async function clearTokens(userId) {
+  await writeData(tokenKey(userId), null);
 }
 
 /* ------------------------------------------------------------------ */
@@ -92,23 +177,25 @@ function buildBasicAuth() {
 /* ------------------------------------------------------------------ */
 /*  OAuth URLs                                                        */
 /* ------------------------------------------------------------------ */
-function getAuthorizeUrl(state) {
-  var redirectUri = process.env.ZOOM_REDIRECT_URI || '';
+function getAuthorizeUrl(state, redirectUri) {
   var clientId = process.env.ZOOM_CLIENT_ID || '';
+  var finalRedirect = redirectUri || process.env.ZOOM_REDIRECT_URI || '';
+  // Per Zoom docs, the General App authorization URL does NOT send a `scope=` parameter.
+  // Scopes are configured on the Zoom Marketplace app (granular scopes) and must NOT be
+  // passed here — sending legacy/classic scopes in the URL causes "Invalid scope".
   return 'https://zoom.us/oauth/authorize?response_type=code&client_id=' +
     encodeURIComponent(clientId) +
-    '&redirect_uri=' + encodeURIComponent(redirectUri) +
-    '&state=' + encodeURIComponent(state || '') +
-    '&scope=meeting:write%20meeting:read%20user:read';
+    '&redirect_uri=' + encodeURIComponent(finalRedirect) +
+    '&state=' + encodeURIComponent(state || '');
 }
 
 /* ------------------------------------------------------------------ */
 /*  Exchange authorization code for tokens                             */
 /* ------------------------------------------------------------------ */
-async function exchangeCode(code) {
-  var redirectUri = process.env.ZOOM_REDIRECT_URI || '';
+async function exchangeCode(code, redirectUri) {
+  var finalRedirect = (redirectUri || process.env.ZOOM_REDIRECT_URI || '').trim();
   var body = 'grant_type=authorization_code&code=' + encodeURIComponent(code) +
-    '&redirect_uri=' + encodeURIComponent(redirectUri);
+    '&redirect_uri=' + encodeURIComponent(finalRedirect);
   var res = await httpsRequest({
     hostname: 'zoom.us',
     path: '/oauth/token',
@@ -155,8 +242,8 @@ async function refreshAccessToken(refreshToken) {
 /* ------------------------------------------------------------------ */
 /*  Get a valid access token (auto-refresh if expired)                 */
 /* ------------------------------------------------------------------ */
-async function getValidAccessToken() {
-  var tokens = await loadTokens();
+async function getValidAccessToken(userId) {
+  var tokens = await loadTokens(userId);
   if (!tokens) return null;
   // If access token is within 5 minutes of expiry, refresh it
   var expiresAt = tokens.expiresAt || 0;
@@ -169,7 +256,7 @@ async function getValidAccessToken() {
       fresh.userEmail = tokens.userEmail;
       fresh.userAvatar = tokens.userAvatar;
       fresh.connectedAt = tokens.connectedAt;
-      await saveTokens(fresh);
+      await saveTokens(userId, fresh);
       return fresh.accessToken;
     } catch (e) {
       console.error('Zoom token refresh failed:', e.message);
@@ -201,8 +288,9 @@ async function getUserProfile(accessToken) {
 /* ------------------------------------------------------------------ */
 /*  Complete OAuth callback flow: code → tokens → profile → save      */
 /* ------------------------------------------------------------------ */
-async function completeOAuth(code) {
-  var tokenData = await exchangeCode(code);
+async function completeOAuth(userId, code, redirectUri) {
+  var tokenData = await exchangeCode(code, redirectUri);
+  console.error('ZOOM DEBUG granted scope:', tokenData.scope);
   var profile = await getUserProfile(tokenData.accessToken);
   var tokens = {
     accessToken: tokenData.accessToken,
@@ -215,17 +303,17 @@ async function completeOAuth(code) {
     userAvatar: profile.avatar,
     connectedAt: new Date().toISOString()
   };
-  await saveTokens(tokens);
+  await saveTokens(userId, tokens);
   return tokens;
 }
 
 /* ------------------------------------------------------------------ */
 /*  Check connection status                                           */
 /* ------------------------------------------------------------------ */
-async function getStatus() {
-  var tokens = await loadTokens();
+async function getStatus(userId) {
+  var tokens = await loadTokens(userId);
   if (!tokens) return { connected: false };
-  var accessToken = await getValidAccessToken();
+  var accessToken = await getValidAccessToken(userId);
   return {
     connected: !!accessToken,
     userId: tokens.userId || '',
@@ -240,8 +328,8 @@ async function getStatus() {
 /* ------------------------------------------------------------------ */
 /*  Disconnect: revoke tokens (if possible) and clear storage          */
 /* ------------------------------------------------------------------ */
-async function disconnect() {
-  var tokens = await loadTokens();
+async function disconnect(userId) {
+  var tokens = await loadTokens(userId);
   if (tokens && tokens.accessToken) {
     // Attempt token revocation (best-effort)
     try {
@@ -258,14 +346,14 @@ async function disconnect() {
       }, body);
     } catch (e) { /* best-effort revoke */ }
   }
-  await clearTokens();
+  await clearTokens(userId);
 }
 
 /* ------------------------------------------------------------------ */
 /*  Create meeting using teacher's Zoom account                        */
 /* ------------------------------------------------------------------ */
-async function createMeeting(opts) {
-  var accessToken = await getValidAccessToken();
+async function createMeeting(userId, opts) {
+  var accessToken = await getValidAccessToken(userId);
   if (!accessToken) throw new Error('يجب ربط حساب Zoom أولاً');
   var zoomBody = {
     topic: opts.title || 'حصة مباشرة',
@@ -314,8 +402,8 @@ async function createMeeting(opts) {
 /* ------------------------------------------------------------------ */
 /*  End meeting using teacher's Zoom account                           */
 /* ------------------------------------------------------------------ */
-async function endMeeting(meetingId) {
-  var accessToken = await getValidAccessToken();
+async function endMeeting(userId, meetingId) {
+  var accessToken = await getValidAccessToken(userId);
   if (!accessToken) throw new Error('يجب ربط حساب Zoom أولاً');
   var res = await httpsRequest({
     hostname: 'api.zoom.us',
@@ -334,17 +422,18 @@ async function endMeeting(meetingId) {
 /*  Uses OAuth app Client ID + Client Secret — no separate SDK creds  */
 /*  Format: standard JWT (HS256) with sdkKey, mn, role, iat, exp     */
 /* ------------------------------------------------------------------ */
-function generateSignature(meetingNumber, role) {
-  var clientId = process.env.ZOOM_CLIENT_ID || '';
-  var clientSecret = process.env.ZOOM_CLIENT_SECRET || '';
-  if (!clientId || !clientSecret) {
+function generateSignature(meetingNumber, role, sdkKey, sdkSecret) {
+  if (!sdkKey) sdkKey = process.env.ZOOM_SDK_KEY || '';
+  if (!sdkSecret) sdkSecret = process.env.ZOOM_SDK_SECRET || '';
+  if (!sdkKey || !sdkSecret) {
     return 'MOCK_JWT_FOR_' + meetingNumber + '_ROLE_' + role;
   }
   var iat = Math.round(Date.now() / 1000) - 30;
   var exp = iat + 7200; // 2 hours
   var header = { alg: 'HS256', typ: 'JWT' };
   var payload = {
-    sdkKey: clientId,
+    appKey: sdkKey,
+    sdkKey: sdkKey,
     mn: String(meetingNumber),
     role: role,
     iat: iat,
@@ -356,7 +445,7 @@ function generateSignature(meetingNumber, role) {
   };
   var headerB64 = b64(header);
   var payloadB64 = b64(payload);
-  var signature = crypto.createHmac('sha256', clientSecret)
+  var signature = crypto.createHmac('sha256', sdkSecret)
     .update(headerB64 + '.' + payloadB64)
     .digest('base64')
     .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
@@ -366,8 +455,8 @@ function generateSignature(meetingNumber, role) {
 /* ------------------------------------------------------------------ */
 /*  Get meeting details using teacher's tokens                         */
 /* ------------------------------------------------------------------ */
-async function getMeeting(meetingId) {
-  var accessToken = await getValidAccessToken();
+async function getMeeting(userId, meetingId) {
+  var accessToken = await getValidAccessToken(userId);
   if (!accessToken) throw new Error('يجب ربط حساب Zoom أولاً');
   var res = await httpsRequest({
     hostname: 'api.zoom.us',
@@ -386,6 +475,19 @@ function isConfigured() {
   return !!(process.env.ZOOM_CLIENT_ID && process.env.ZOOM_CLIENT_SECRET && process.env.ZOOM_REDIRECT_URI);
 }
 
+/* ------------------------------------------------------------------ */
+/*  Async helper: resolve creds from Firebase then generate signature  */
+/* ------------------------------------------------------------------ */
+async function generateSignatureAsync(meetingNumber, role) {
+  var creds = await resolveCreds();
+  var sdkKey = creds ? creds.sdkKey : (process.env.ZOOM_SDK_KEY || '');
+  var sdkSecret = creds ? creds.sdkSecret : (process.env.ZOOM_SDK_SECRET || '');
+  // Fallback to OAuth Client ID/Secret if SDK creds not set
+  if (!sdkKey) sdkKey = creds ? creds.clientId : (process.env.ZOOM_CLIENT_ID || '');
+  if (!sdkSecret) sdkSecret = creds ? creds.clientSecret : (process.env.ZOOM_CLIENT_SECRET || '');
+  return generateSignature(meetingNumber, role, sdkKey, sdkSecret);
+}
+
 module.exports = {
   isConfigured,
   getAuthorizeUrl,
@@ -398,7 +500,11 @@ module.exports = {
   endMeeting,
   getMeeting,
   generateSignature,
+  generateSignatureAsync,
   loadTokens,
   saveTokens,
-  clearTokens
+  clearTokens,
+  loadCredentialsIntoEnv,
+  saveCredentials,
+  getStoredCredentials
 };

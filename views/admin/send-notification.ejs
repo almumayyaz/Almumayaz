@@ -170,6 +170,7 @@
 </style>
 
 <script>
+function escHtml(t) { return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
 function toggleTargetValue(prefix) {
   var t = document.getElementById(prefix + 'Target').value;
   var g = document.getElementById(prefix + 'TargetValueGroup');
@@ -216,13 +217,13 @@ function sendPush() {
         result.style.background = 'rgba(22,163,74,0.1)';
         result.style.color = 'var(--success)';
         result.style.border = '1px solid rgba(22,163,74,0.2)';
-        result.innerHTML = '<i class="fas fa-check-circle"></i> تم إرسال الإشعار بنجاح إلى ' + (d.sentCount || d.recipientCount || 0) + ' طالب';
+        result.textContent = '✅ تم إرسال الإشعار بنجاح إلى ' + (d.sentCount || d.recipientCount || 0) + ' طالب';
       } else {
         result.style.display = 'block';
         result.style.background = 'rgba(239,68,68,0.1)';
         result.style.color = 'var(--danger)';
         result.style.border = '1px solid rgba(239,68,68,0.2)';
-        result.innerHTML = '<i class="fas fa-exclamation-circle"></i> ' + (d.error || 'فشل الإرسال');
+        result.textContent = '⚠️ ' + (d.error || 'فشل الإرسال');
       }
       btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> إرسال الإشعار';
     })
@@ -310,7 +311,7 @@ function showSchResult(success, msg) {
   r.style.background = success ? 'rgba(22,163,74,0.1)' : 'rgba(239,68,68,0.1)';
   r.style.color = success ? 'var(--success)' : 'var(--danger)';
   r.style.border = success ? '1px solid rgba(22,163,74,0.2)' : '1px solid rgba(239,68,68,0.2)';
-  r.innerHTML = '<i class="fas fa-' + (success ? 'check-circle' : 'exclamation-circle') + '"></i> ' + msg;
+  r.innerHTML = '<i class="fas fa-' + (success ? 'check-circle' : 'exclamation-circle') + '"></i> ' + escHtml(msg);
 }
 
 function refreshScheduled() {
@@ -329,24 +330,24 @@ function refreshScheduled() {
         var dateStr = dt ? dt.toLocaleDateString('ar-EG') : '-';
         var timeStr = dt ? dt.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : '-';
         var createdAt = n.createdAt ? new Date(n.createdAt).toLocaleDateString('ar-EG') : '-';
-        var targetLabel = n.target || 'all';
-        var statusClass = 'badge-' + (n.status || 'pending').toLowerCase();
-        var statusLabel = n.status === 'Pending' ? 'بانتظار الإرسال' : n.status === 'Sent' ? 'تم الإرسال' : n.status === 'Failed' ? 'فشل' : n.status === 'Cancelled' ? 'ملغي' : n.status === 'Sending' ? 'جاري الإرسال' : n.status;
+        var targetLabel = escHtml(n.targetName || n.target || 'all');
+        var statusClass = 'badge-' + escHtml((n.status || 'pending').toLowerCase());
+        var statusLabel = n.status === 'Pending' ? 'بانتظار الإرسال' : n.status === 'Sent' ? 'تم الإرسال' : n.status === 'Failed' ? 'فشل' : n.status === 'Cancelled' ? 'ملغي' : n.status === 'Sending' ? 'جاري الإرسال' : escHtml(n.status || '');
         var actions = '';
         if (n.status === 'Pending') {
-          actions = '<button class="action-btn" style="background:rgba(59,130,246,0.15);color:#3b82f6;" onclick="editScheduled(\'' + n.id + '\')"><i class="fas fa-edit"></i></button> ' +
-                    '<button class="action-btn" style="background:rgba(22,163,74,0.15);color:#16a34a;" onclick="sendNow(\'' + n.id + '\')"><i class="fas fa-paper-plane"></i></button> ' +
-                    '<button class="action-btn" style="background:rgba(239,68,68,0.15);color:#ef4444;" onclick="cancelScheduled(\'' + n.id + '\')"><i class="fas fa-ban"></i></button> ' +
-                    '<button class="action-btn" style="background:rgba(156,163,175,0.15);color:#9ca3af;" onclick="deleteScheduled(\'' + n.id + '\')"><i class="fas fa-trash"></i></button>';
+          actions = '<button class="action-btn" style="background:rgba(59,130,246,0.15);color:#3b82f6;" onclick="editScheduled(\'' + escHtml(n.id) + '\')"><i class="fas fa-edit"></i></button> ' +
+                    '<button class="action-btn" style="background:rgba(22,163,74,0.15);color:#16a34a;" onclick="sendNow(\'' + escHtml(n.id) + '\')"><i class="fas fa-paper-plane"></i></button> ' +
+                    '<button class="action-btn" style="background:rgba(239,68,68,0.15);color:#ef4444;" onclick="cancelScheduled(\'' + escHtml(n.id) + '\')"><i class="fas fa-ban"></i></button> ' +
+                    '<button class="action-btn" style="background:rgba(156,163,175,0.15);color:#9ca3af;" onclick="deleteScheduled(\'' + escHtml(n.id) + '\')"><i class="fas fa-trash"></i></button>';
         } else if (n.status === 'Cancelled') {
-          actions = '<button class="action-btn" style="background:rgba(156,163,175,0.15);color:#9ca3af;" onclick="deleteScheduled(\'' + n.id + '\')"><i class="fas fa-trash"></i></button>';
+          actions = '<button class="action-btn" style="background:rgba(156,163,175,0.15);color:#9ca3af;" onclick="deleteScheduled(\'' + escHtml(n.id) + '\')"><i class="fas fa-trash"></i></button>';
         } else {
           actions = '<span style="color:var(--text-muted);font-size:11px;">—</span>';
         }
         var bodyShort = n.body && n.body.length > 40 ? n.body.slice(0, 40) + '...' : (n.body || '');
         return '<tr>' +
-          '<td style="font-weight:600;">' + (n.title || '-') + '</td>' +
-          '<td style="color:var(--text-muted);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + (n.body || '') + '">' + bodyShort + '</td>' +
+          '<td style="font-weight:600;">' + escHtml(n.title || '-') + '</td>' +
+          '<td style="color:var(--text-muted);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escHtml(n.body || '') + '">' + escHtml(bodyShort) + '</td>' +
           '<td>' + dateStr + '</td>' +
           '<td>' + timeStr + '</td>' +
           '<td>' + targetLabel + '</td>' +
@@ -448,5 +449,6 @@ function deleteScheduled(id) {
 // Init: load table on page load
 refreshScheduled();
 </script>
+<%- include("../partials/footer") %>
 </body>
 </html>

@@ -86,16 +86,6 @@
     </div>
     <% } %>
 
-    <!-- Progress Tracking -->
-    <div style="margin-bottom:20px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-        <span style="font-size:13px;font-weight:600;">التقدم</span>
-        <span style="font-size:13px;color:var(--text-light);" id="progressPct">0%</span>
-      </div>
-      <div style="width:100%;height:8px;background:var(--bg);border-radius:4px;overflow:hidden;">
-        <div id="progressBar" style="width:0%;height:100%;background:var(--gold-gradient);border-radius:4px;transition:width 0.5s ease;"></div>
-      </div>
-    </div>
   </div>
 
   <div style="margin-top:20px;display:flex;flex-direction:column;gap:12px;">
@@ -132,6 +122,7 @@
 var courseId = '<%= course.id %>';
 var lessonId = '<%= lesson.id %>';
 var isGuest = <%= isGuest ? 'true' : 'false' %>;
+var lessonHasQuiz = <%= (lesson.quiz && lesson.quiz.enabled) ? 'true' : 'false' %>;
 </script>
 <script src="/js/lesson.js"></script>
 
@@ -147,5 +138,6 @@ var isGuest = <%= isGuest ? 'true' : 'false' %>;
   }
 </style>
 
+<%- include("../partials/footer") %>
 </body>
 </html>

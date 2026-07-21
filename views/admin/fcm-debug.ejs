@@ -1,0 +1,294 @@
+<%- include('../partials/header', { title: title, bodyClass: 'admin-body' }) %>
+<%- include('../partials/admin-sidebar') %>
+<style>
+.fcm-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+.fcm-card{background:var(--card);border-radius:12px;padding:20px;border:1px solid var(--border);box-shadow:var(--shadow)}
+.fcm-card h3{font-size:14px;margin:0 0 12px;display:flex;align-items:center;gap:8px;color:var(--primary)}
+.fcm-card .row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px}
+.fcm-card .row:last-child{border-bottom:none}
+.fcm-card .label{color:var(--text-light)}
+.fcm-card .value{font-weight:600;direction:ltr;text-align:left;word-break:break-all}
+.badge-success{background:rgba(46,204,113,.15);color:#2ecc71;padding:2px 10px;border-radius:6px;font-size:12px;font-weight:700}
+.badge-error{background:rgba(231,76,60,.15);color:#e74c3c;padding:2px 10px;border-radius:6px;font-size:12px;font-weight:700}
+.badge-warning{background:rgba(241,196,15,.15);color:#f1c40f;padding:2px 10px;border-radius:6px;font-size:12px;font-weight:700}
+.badge-neutral{background:rgba(149,165,166,.15);color:#95a5a6;padding:2px 10px;border-radius:6px;font-size:12px;font-weight:700}
+.fcm-table{width:100%;border-collapse:collapse;font-size:12px}
+.fcm-table th{text-align:right;padding:8px 10px;border-bottom:2px solid var(--border);color:var(--text-light);font-weight:700}
+.fcm-table td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+.status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-left:6px}
+.fcm-test-btn{background:var(--gold-gradient);border:none;color:#fff;padding:12px 32px;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;transition:opacity .2s}
+.fcm-test-btn:hover{opacity:.85}
+.fcm-test-btn:disabled{opacity:.5;cursor:not-allowed}
+.fcm-result{background:var(--bg);border-radius:10px;padding:16px;margin-top:12px;font-family:monospace;font-size:12px;direction:ltr;text-align:left;white-space:pre-wrap;word-break:break-all;max-height:300px;overflow:auto;border:1px solid var(--border)}
+.fcm-token-box{font-family:monospace;font-size:11px;direction:ltr;text-align:left;word-break:break-all;background:var(--bg);padding:8px 12px;border-radius:8px;border:1px solid var(--border);margin-top:4px}
+@media(max-width:768px){.fcm-grid{grid-template-columns:1fr}}
+</style>
+<main class="admin-content">
+  <div class="page-header">
+    <div>
+      <h1><i class="fas fa-stethoscope" style="color:var(--accent);"></i> تشخيص الإشعارات (FCM Debug)</h1>
+      <p>تشخيص شامل لحالة Firebase Cloud Messaging في المنصة</p>
+    </div>
+  </div>
+
+  <!-- Status refresh timer -->
+  <div style="display:flex;gap:16px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
+    <button class="fcm-test-btn" onclick="location.reload()"><i class="fas fa-sync-alt"></i> تحديث الصفحة</button>
+    <span id="swStatusBadge" style="font-size:13px;font-weight:600"><i class="fas fa-spinner fa-spin"></i> جاري تحميل حالة Service Worker...</span>
+  </div>
+
+  <!-- Row 1: Browser status + Server status -->
+  <div class="fcm-grid">
+    <div class="fcm-card">
+      <h3><i class="fas fa-globe" style="color:var(--accent)"></i> حالة المتصفح</h3>
+      <div class="row"><span class="label">Notification.permission</span><span class="value" id="notifPermission">-</span></div>
+      <div class="row"><span class="label">PushManager متاح؟</span><span class="value" id="pushManager">-</span></div>
+      <div class="row"><span class="label">Service Worker مسجل؟</span><span class="value" id="swRegistered">-</span></div>
+      <div class="row"><span class="label">Service Worker Activated؟</span><span class="value" id="swActivated">-</span></div>
+      <div class="row"><span class="label">مسار الـ SW</span><span class="value" id="swUrl">-</span></div>
+      <div class="row"><span class="label">Registration Scope</span><span class="value" id="swScope">-</span></div>
+      <div class="row"><span class="label">Firebase متاح؟</span><span class="value" id="fbAvailable">-</span></div>
+      <div class="row"><span class="label">نوع Firebase SDK</span><span class="value"><span class="badge-neutral">Compat v11.0.1</span></span></div>
+    </div>
+    <div class="fcm-card">
+      <h3><i class="fas fa-server" style="color:var(--accent)"></i> حالة الخادم</h3>
+      <div class="row"><span class="label">Firebase Admin initialized</span><span class="value" id="fbAdminInit">-</span></div>
+      <div class="row"><span class="label">Project ID</span><span class="value" id="projectId">-</span></div>
+      <div class="row"><span class="label">Messaging Sender ID</span><span class="value"><%= firebaseConfig.messagingSenderId || 'غير معرف' %></span></div>
+      <div class="row"><span class="label">VAPID Key</span><span class="value" style="font-size:11px;font-family:monospace"><%= vapidPreview || 'غير معرف' %></span></div>
+      <div class="row"><span class="label">عدد المستخدمين بـ Token</span><span class="value" id="totalTokens">-</span></div>
+      <div class="row"><span class="label">Admin Token مسجل؟</span><span class="value" id="adminHasToken">-</span></div>
+      <div class="row"><span class="label">آخر تسجيل Token</span><span class="value" id="tokenSavedAt">-</span></div>
+      <div class="row"><span class="label">طول Token</span><span class="value" id="tokenLen">-</span></div>
+      <div class="row"><span class="label">SW Controller</span><span class="value" id="swController">-</span></div>
+      <div class="row"><span class="label">Push Subscription</span><span class="value" id="pushSubscription">-</span></div>
+      <div class="row"><span class="label">PushManager موجود؟</span><span class="value" id="pushManagerStatus">-</span></div>
+    </div>
+  </div>
+
+  <!-- Row 2: Token details -->
+  <div class="fcm-grid">
+    <div class="fcm-card" style="grid-column:1/-1">
+      <h3><i class="fas fa-key" style="color:var(--accent)"></i> تفاصيل FCM Token</h3>
+      <div class="row"><span class="label">Token المتصفح</span><span class="value" id="browserToken" style="font-size:11px;font-family:monospace">-</span></div>
+      <div class="row"><span class="label">Token الخادم</span><span class="value" style="font-size:11px;font-family:monospace"><%= adminFcmToken ? adminFcmToken.slice(0, 15) + '...' + adminFcmToken.slice(-20) : 'غير مسجل' %></span></div>
+      <div class="row"><span class="label">مطابقة Token</span><span class="value" id="tokenMatch">-</span></div>
+      <div class="row"><span class="label">getToken()</span><span class="value" id="getTokenResult">-</span></div>
+    </div>
+  </div>
+
+  <!-- Test button -->
+  <div class="fcm-card" style="margin-bottom:20px">
+    <h3><i class="fas fa-vial" style="color:var(--accent)"></i> اختبار إرسال إشعار FCM</h3>
+    <p style="font-size:13px;color:var(--text-light);margin:0 0 12px">يرسل إشعار اختبار إلى جهازك الحالي باستخدام الـ Token المسجل</p>
+    <button id="testBtn" class="fcm-test-btn" onclick="testFCM()"><i class="fas fa-paper-plane"></i> إرسال إشعار اختبار</button>
+    <div id="testResult" class="fcm-result" style="display:none"></div>
+  </div>
+
+  <!-- Logs -->
+  <div class="fcm-card" style="margin-bottom:20px">
+    <h3><i class="fas fa-history" style="color:var(--accent)"></i> آخر عمليات إرسال FCM</h3>
+    <div style="overflow-x:auto">
+      <table class="fcm-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>الوقت</th>
+            <th>المستخدم</th>
+            <th>العنوان</th>
+            <th>النتيجة</th>
+            <th>Message ID</th>
+            <th>الخطأ</th>
+          </tr>
+        </thead>
+        <tbody id="logsBody">
+          <tr><td colspan="7" style="text-align:center;color:var(--text-light);padding:20px"><i class="fas fa-spinner fa-spin"></i> جاري التحميل...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- All tokens -->
+  <div class="fcm-card" style="margin-bottom:20px">
+    <h3><i class="fas fa-users" style="color:var(--accent)"></i> جميع المستخدمين المسجلين لديهم Token</h3>
+    <div style="overflow-x:auto">
+      <table class="fcm-table">
+        <thead>
+          <tr><th>المستخدم</th><th>الدور</th><th>Token (مختصر)</th><th>آخر تسجيل</th></tr>
+        </thead>
+        <tbody id="tokensBody">
+          <tr><td colspan="4" style="text-align:center;color:var(--text-light);padding:20px"><i class="fas fa-spinner fa-spin"></i> جاري التحميل...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<script>
+function escHtml(t) { return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
+// Load server data
+fetch('/api/fcm/debug').then(r=>r.json()).then(function(d){
+  // Firebase Admin status
+  document.getElementById('fbAdminInit').innerHTML = d.firebaseAdmin.initialized ? '<span class="badge-success">✅ initialized</span>' : '<span class="badge-error">❌ غير initialized</span>';
+  document.getElementById('projectId').textContent = d.firebaseAdmin.projectId || 'غير معروف';
+
+  // Admin token
+  document.getElementById('adminHasToken').innerHTML = d.admin.hasToken ? '<span class="badge-success">✅ موجود</span>' : '<span class="badge-error">❌ غير مسجل</span>';
+  document.getElementById('tokenSavedAt').textContent = d.admin.tokenSavedAt ? new Date(d.admin.tokenSavedAt).toLocaleString('ar-EG') : '-';
+  document.getElementById('tokenLen').textContent = d.admin.tokenLength;
+  document.getElementById('totalTokens').textContent = d.totalUsersWithToken;
+
+  // Logs
+  var logsBody = document.getElementById('logsBody');
+  if (d.logs && d.logs.length) {
+    logsBody.innerHTML = d.logs.map(function(l, i){
+      var cls = l.success ? 'badge-success' : 'badge-error';
+      return '<tr><td>' + (i+1) + '</td><td>' + new Date(l.timestamp).toLocaleString('ar-EG') + '</td><td>' + escHtml(l.userId || '-') + '</td><td>' + escHtml(l.title || '-') + '</td><td><span class="' + cls + '">' + (l.success ? '✅ نجاح' : '❌ فشل') + '</span></td><td style="font-size:11px;font-family:monospace">' + escHtml(l.messageId || '-') + '</td><td style="color:' + (l.error ? '#e74c3c' : '#2ecc71') + '">' + escHtml(l.error || '-') + '</td></tr>';
+    }).join('');
+  } else {
+    logsBody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-light);padding:20px">لا توجد عمليات إرسال بعد</td></tr>';
+  }
+
+  // All tokens
+  var tokensBody = document.getElementById('tokensBody');
+  if (d.allTokens && d.allTokens.length) {
+    tokensBody.innerHTML = d.allTokens.map(function(u){
+      return '<tr><td>' + escHtml(u.name || u.id) + '</td><td>' + escHtml(u.role || '-') + '</td><td style="font-size:11px;font-family:monospace">' + escHtml(u.tokenPreview) + '</td><td>' + (u.tokenSavedAt ? new Date(u.tokenSavedAt).toLocaleString('ar-EG') : '-') + '</td></tr>';
+    }).join('');
+  } else {
+    tokensBody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-light);padding:20px">لا يوجد مستخدمون بـ Token</td></tr>';
+  }
+}).catch(function(e){
+  console.error('FCM debug fetch error:', e);
+});
+
+// Collect browser-side info
+(function(){
+  // Notification permission
+  document.getElementById('notifPermission').innerHTML = Notification && Notification.permission === 'granted' ? '<span class="badge-success">✅ ' + Notification.permission + '</span>' : (Notification && Notification.permission === 'denied' ? '<span class="badge-error">❌ ' + Notification.permission + '</span>' : '<span class="badge-warning">⚠️ ' + (Notification ? Notification.permission : 'غير متاح') + '</span>');
+
+  // PushManager
+  document.getElementById('pushManager').innerHTML = 'PushManager' in window ? '<span class="badge-success">✅ متاح</span>' : '<span class="badge-error">❌ غير متاح</span>';
+  document.getElementById('pushManagerStatus').innerHTML = 'PushManager' in window ? '<span class="badge-success">✅ متاح</span>' : '<span class="badge-error">❌ غير متاح</span>';
+
+  // Firebase
+  var fbAvail = document.getElementById('fbAvailable');
+  if (typeof firebase !== 'undefined') {
+    fbAvail.innerHTML = '<span class="badge-success">✅ متاح</span>';
+  } else {
+    fbAvail.innerHTML = '<span class="badge-error">❌ غير متاح</span>';
+  }
+
+  // Service Worker status (refreshed every 2 seconds)
+  // SW Controller
+  document.getElementById('swController').textContent = navigator.serviceWorker.controller ? navigator.serviceWorker.controller.scriptURL : 'لا يوجد Controller';
+
+  // Push subscription
+  if ('PushManager' in window && navigator.serviceWorker) {
+    navigator.serviceWorker.ready.then(function(reg) {
+      return reg.pushManager.getSubscription();
+    }).then(function(sub) {
+      if (sub) {
+        document.getElementById('pushSubscription').innerHTML = '<span class="badge-success">✅ موجود</span>';
+        console.log("Push subscription:", JSON.stringify(sub));
+      } else {
+        document.getElementById('pushSubscription').innerHTML = '<span class="badge-warning">⚠️ لا يوجد Subscription</span>';
+        console.log("No push subscription found");
+      }
+    }).catch(function(e) {
+      document.getElementById('pushSubscription').innerHTML = '<span class="badge-error">❌ خطأ: ' + escHtml(e.message) + '</span>';
+    });
+  }
+
+  function refreshSW() {
+    var badge = document.getElementById('swStatusBadge');
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then(function(reg){
+        document.getElementById('swRegistered').innerHTML = '<span class="badge-success">✅ مسجل</span>';
+        document.getElementById('swUrl').textContent = reg.active ? reg.active.scriptURL : 'غير معروف';
+        document.getElementById('swScope').textContent = reg.scope || '-';
+        if (reg.active && reg.active.state === 'activated') {
+          document.getElementById('swActivated').innerHTML = '<span class="badge-success">✅ Activated</span>';
+          badge.innerHTML = '<span class="badge-success"><i class="fas fa-check-circle"></i> SW Activated: ' + reg.active.scriptURL.split('/').pop() + '</span>';
+        } else {
+          document.getElementById('swActivated').innerHTML = '<span class="badge-warning">⚠️ ' + (reg.active ? reg.active.state : 'لا يوجد SW نشط') + '</span>';
+          badge.innerHTML = '<span class="badge-warning"><i class="fas fa-clock"></i> SW: ' + (reg.active ? reg.active.state : 'غير نشط') + '</span>';
+        }
+      }).catch(function(){
+        document.getElementById('swRegistered').innerHTML = '<span class="badge-error">❌ غير مسجل</span>';
+        document.getElementById('swActivated').innerHTML = '<span class="badge-error">❌ خطأ</span>';
+        badge.innerHTML = '<span class="badge-error"><i class="fas fa-times-circle"></i> SW غير متاح</span>';
+      });
+    } else {
+      document.getElementById('swRegistered').innerHTML = '<span class="badge-error">❌ SW غير مدعوم</span>';
+      badge.innerHTML = '<span class="badge-error"><i class="fas fa-times-circle"></i> SW غير مدعوم</span>';
+    }
+  }
+  refreshSW();
+  setInterval(refreshSW, 2000);
+
+  // Get FCM token from browser
+  if (typeof firebase !== 'undefined' && firebase.messaging) {
+    var vapidKey = '<%= vapidKey %>';
+    if (vapidKey && navigator.serviceWorker) {
+      navigator.serviceWorker.ready.then(function(reg){
+        var messaging = firebase.messaging();
+        return messaging.getToken({ serviceWorkerRegistration: reg, vapidKey: vapidKey });
+      }).then(function(token){
+        if (token) {
+          var hidden = token.slice(0, 15) + '...' + token.slice(-20);
+          document.getElementById('browserToken').textContent = hidden;
+          document.getElementById('getTokenResult').innerHTML = '<span class="badge-success">✅ تم بنجاح (طول: ' + token.length + ')</span>';
+
+          // Compare with server
+          fetch('/api/fcm/verify', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({fcmToken: token}) })
+            .then(function(r){ return r.json(); })
+            .then(function(v){
+              document.getElementById('tokenMatch').innerHTML = v.matches ? '<span class="badge-success">✅ متطابق</span>' : '<span class="badge-error">❌ غير متطابق (Browser: ' + v.browserLen + ', DB: ' + v.storedLen + ')</span>';
+            });
+        } else {
+          document.getElementById('getTokenResult').innerHTML = '<span class="badge-error">❌ لم يتم الحصول على Token</span>';
+        }
+      }).catch(function(e){
+        document.getElementById('getTokenResult').innerHTML = '<span class="badge-error">❌ ' + escHtml(e.code || e.message) + '</span>';
+      });
+    } else {
+      document.getElementById('getTokenResult').innerHTML = '<span class="badge-warning">⚠️ VAPID key غير موجود</span>';
+    }
+  } else {
+    document.getElementById('getTokenResult').innerHTML = '<span class="badge-error">❌ Firebase غير متاح</span>';
+  }
+})();
+
+// Test FCM
+function testFCM() {
+  var btn = document.getElementById('testBtn');
+  var resultDiv = document.getElementById('testResult');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الإرسال...';
+  resultDiv.style.display = 'block';
+  resultDiv.textContent = '⏳ جاري إرسال الإشعار...';
+
+  fetch('/api/fcm/test', { method:'POST' })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (d.success) {
+        resultDiv.textContent = '✅ تم إرسال الإشعار بنجاح\n\nMessage ID: ' + d.messageId + '\n\n⏱️ ' + new Date().toLocaleString('ar-EG') + '\n\nانتظر ظهور الإشعار على جهازك';
+        resultDiv.style.borderColor = '#2ecc71';
+      } else {
+        resultDiv.textContent = '❌ فشل إرسال الإشعار\n\nError Code: ' + (d.errorCode || '-') + '\nError Message: ' + (d.error || '-') + '\n\n⏱️ ' + new Date().toLocaleString('ar-EG');
+        resultDiv.style.borderColor = '#e74c3c';
+      }
+    })
+    .catch(function(e){
+      resultDiv.textContent = '❌ خطأ في الاتصال بالخادم: ' + e.message;
+    })
+    .finally(function(){
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-paper-plane"></i> إرسال إشعار اختبار';
+    });
+}
+</script>
+<%- include('../partials/footer') %>
+</body>
+</html>

@@ -29,160 +29,176 @@
       <div style="font-weight:700;font-size:14px;">اشتراك مطلوب</div>
       <div style="font-size:13px;opacity:0.9;">اشترك الآن للوصول إلى جميع المحاضرات والمذكرات</div>
     </div>
-    <a href="/student/subscription" class="btn" style="background:#fff;color:var(--danger);font-weight:700;padding:8px 20px;border-radius:var(--radius-sm);">اشترك الآن</a>
+    <a href="/student/subscription" class="btn" style="background: var(--card);color:var(--danger);font-weight:700;padding:8px 20px;border-radius:var(--radius-sm);">اشترك الآن</a>
   </div>
   <% } %>
 
-  <% if ((course.lessons||[]).length > 0) { %>
-      <%
-        var hasSections = course.sections && course.sections.length > 0;
-        var sortedLessons = (course.lessons || []).slice().sort(function(a,b){ return (a.order||0) - (b.order||0); });
-        function lessonBadge(lesson, canAccess, idx) {
-          var ls = lessonStatuses ? lessonStatuses.find(function(s) { return s.lessonId === lesson.id; }) : null;
-          var isUnlocked = ls ? ls.isUnlocked : canAccess;
-          var isCompleted = ls ? ls.isCompleted : false;
-          var isWatching = ls ? ls.isWatching : false;
-          var badge = '';
-          if (lesson.isFree) badge += '<span class="tree-free-badge">&#160;مجاني&#160;</span>';
-          if (isGuest && lesson.guestVisible) badge += '<span class="tree-free-badge" style="background:rgba(99,102,241,0.1);color:var(--accent);">&#160;تجريبي&#160;</span>';
-          if (!canAccess && !isUnlocked) badge += '<i class="fas fa-lock" style="color:var(--text-muted);font-size:10px;margin-right:4px;"></i>';
-          if (canAccess && !isUnlocked && !isGuest) badge += '<span style="font-size:10px;color:#d97706;margin-right:4px;"><i class="fas fa-lock"></i> أكمل السابق</span>';
-          return badge;
-        }
-        function lessonIcon(lesson, idx) {
-          var ls = lessonStatuses ? lessonStatuses.find(function(s) { return s.lessonId === lesson.id; }) : null;
-          if (ls && ls.isCompleted) return '<i class="fas fa-check-circle" style="color:var(--success);font-size:14px;"></i>';
-          return (idx + 1);
-        }
-        function lessonAttrs(lesson, canAccess) {
-          var ls = lessonStatuses ? lessonStatuses.find(function(s) { return s.lessonId === lesson.id; }) : null;
-          var isUnlocked = ls ? ls.isUnlocked : canAccess;
-          if (canAccess && isUnlocked) return 'href="/student/lesson/' + course.id + '/' + lesson.id + '"';
-          if (!canAccess && isGuest) return 'href="#" onclick="alert(\'هذا الدرس تجريبي للضيوف فقط. سجل للوصول الكامل.\');return false;"';
-          return 'href="#" onclick="alert(\'يجب إكمال الدرس السابق أولاً\');return false;"';
-        }
-        function lessonLockedClass(lesson, canAccess) {
-          var ls = lessonStatuses ? lessonStatuses.find(function(s) { return s.lessonId === lesson.id; }) : null;
-          var isUnlocked = ls ? ls.isUnlocked : canAccess;
-          var isCompleted = ls ? ls.isCompleted : false;
-          var cls = '';
-          if (!canAccess) cls += ' locked';
-          if (!isUnlocked && !isGuest) cls += ' sequential-locked';
-          if (isCompleted) cls += ' completed';
-          return cls;
-        }
-      %>
-      <div style="display:flex;align-items:center;margin-bottom:16px;">
-        <span style="font-size:13px;color:var(--text-light);"><%= (course.lessons||[]).length %> درس</span>
-      </div>
+  <%
+    var sortedLessons = (course.lessons || []).slice().sort(function(a,b){ return (a.order||0) - (b.order||0); });
+    var hasSections = course.sections && course.sections.length > 0;
 
-      <% if (hasSections) { %>
-          <div class="tree-view" style="--cc:<%= course.color || '#A07200' %>;">
-          <% var sectionIds = (course.sections || []).map(function(s) { return s.id; }); %>
-          <% var unsectioned = sortedLessons.filter(function(l) { return !l.sectionId || sectionIds.indexOf(l.sectionId) === -1; }); %>
-          <% course.sections.forEach(function(section) { %>
-            <% var sectionLessons = sortedLessons.filter(function(l) { return l.sectionId === section.id; }); %>
-            <% if (sectionLessons.length === 0) return; %>
-            <div class="tree-section">
-              <div class="tree-section-header" onclick="this.parentElement.classList.toggle('expanded')">
-                <div class="tree-section-icon"><i class="fas fa-folder"></i></div>
-                <div class="tree-section-info">
-                  <h4><%= section.name %></h4>
-                  <span class="tree-section-count"><%= sectionLessons.length %> درس</span>
-                </div>
-                <i class="fas fa-chevron-left tree-arrow"></i>
-              </div>
-              <div class="tree-section-children">
-                <%- sectionLessons.map(function(lesson, idx) {
-                  var canAccess = isSubscribed || lesson.isFree || (isGuest && lesson.guestVisible);
-                  return '<a ' + lessonAttrs(lesson, canAccess) + ' class="tree-lesson-item' + lessonLockedClass(lesson, canAccess) + '"><span class="tree-lesson-num">' + lessonIcon(lesson, idx) + '</span><span class="tree-lesson-title">' + lesson.title + '</span>' + lessonBadge(lesson, canAccess, idx) + '<span class="tree-lesson-duration"><i class="fas fa-clock"></i> ' + lesson.duration + '</span></a>';
-                }).join('\n') %>
-              </div>
-            </div>
-          <% }) %>
-          <% if (unsectioned.length > 0) { %>
-            <div class="tree-section">
-              <div class="tree-section-header" onclick="this.parentElement.classList.toggle('expanded')">
-                <div class="tree-section-icon"><i class="fas fa-folder"></i></div>
-                <div class="tree-section-info">
-                  <h4>عام</h4>
-                  <span class="tree-section-count"><%= unsectioned.length %> درس</span>
-                </div>
-                <i class="fas fa-chevron-left tree-arrow"></i>
-              </div>
-              <div class="tree-section-children">
-                <%- unsectioned.map(function(lesson, idx) {
-                  var canAccess = isSubscribed || lesson.isFree || (isGuest && lesson.guestVisible);
-                  return '<a ' + lessonAttrs(lesson, canAccess) + ' class="tree-lesson-item' + lessonLockedClass(lesson, canAccess) + '"><span class="tree-lesson-num">' + lessonIcon(lesson, idx) + '</span><span class="tree-lesson-title">' + lesson.title + '</span>' + lessonBadge(lesson, canAccess, idx) + '<span class="tree-lesson-duration"><i class="fas fa-clock"></i> ' + lesson.duration + '</span></a>';
-                }).join('\n') %>
-              </div>
-            </div>
-          <% } %>
+    /* ---- helpers ---- */
+    function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+    function getLs(lesson){ return lessonStatuses ? lessonStatuses.find(function(s){return s.lessonId===lesson.id;}) : null; }
+    function canAccess(lesson){ return isSubscribed || lesson.isFree || (isGuest && lesson.guestVisible); }
+    function isUnlocked(lesson){ var ls=getLs(lesson); return ls ? ls.isUnlocked : canAccess(lesson); }
+    function isCompleted(lesson){ var ls=getLs(lesson); return ls ? ls.isCompleted : false; }
+    function isWatching(lesson){ var ls=getLs(lesson); return ls ? ls.isWatching : false; }
+
+    /* ---- group lessons into units ---- */
+    var units = [];
+    if (hasSections) {
+      (course.sections || []).forEach(function(sec){
+        var sLessons = sortedLessons.filter(function(l){ return l.sectionId === sec.id; });
+        if (sLessons.length > 0) units.push({ id:sec.id, name:sec.name, lessons:sLessons });
+      });
+      var unsectioned = sortedLessons.filter(function(l){ return !l.sectionId || !(course.sections||[]).some(function(s){return s.id===l.sectionId;}); });
+      if (unsectioned.length > 0) units.push({ id:'__general', name:'عام', lessons:unsectioned });
+    } else {
+      /* Check if lessons have sectionId values even without defined sections */
+      var sectionGroups = {};
+      var hasAnySectionId = false;
+      sortedLessons.forEach(function(l){
+        if (l.sectionId) { hasAnySectionId = true; }
+      });
+      if (hasAnySectionId) {
+        sortedLessons.forEach(function(l){
+          var key = l.sectionId || '__main';
+          if (!sectionGroups[key]) sectionGroups[key] = [];
+          sectionGroups[key].push(l);
+        });
+        Object.keys(sectionGroups).forEach(function(key){
+          var name = key === '__main' ? 'عام' : key;
+          units.push({ id:key, name:name, lessons:sectionGroups[key] });
+        });
+      } else {
+        units.push({ id:'__all', name:course.title, lessons:sortedLessons });
+      }
+    }
+
+    /* ---- find current lesson (first unlocked + not completed) ---- */
+    var currentLessonId = null;
+    for (var ci=0; ci<sortedLessons.length; ci++){
+      if (isUnlocked(sortedLessons[ci]) && !isCompleted(sortedLessons[ci])){ currentLessonId = sortedLessons[ci].id; break; }
+    }
+    var currentUnitId = null;
+    if (currentLessonId) {
+      units.forEach(function(u){
+        if (u.lessons.some(function(l){return l.id===currentLessonId;})) currentUnitId = u.id;
+      });
+    }
+  %>
+
+  <% if (sortedLessons.length > 0) { %>
+  <div class="cu-units" style="--cc:<%= course.color || 'var(--accent)' %>;" data-course-id="<%= course.id %>" data-current-unit="<%= currentUnitId || '' %>" data-current-lesson="<%= currentLessonId || '' %>">
+    <% units.forEach(function(unit, uIdx){
+      var done = unit.lessons.filter(isCompleted).length;
+      var total = unit.lessons.length;
+      var allDone = done === total && total > 0;
+      var pct = total > 0 ? Math.round((done/total)*100) : 0;
+    %>
+    <div class="cu-unit" id="unit-<%= unit.id %>" data-unit-id="<%= unit.id %>">
+      <!-- Unit Header -->
+      <button class="cu-unit-header" aria-expanded="false" aria-controls="unit-body-<%= unit.id %>" tabindex="0"
+              onclick="cuToggleUnit('<%= unit.id %>')">
+        <div class="cu-unit-left">
+          <div class="cu-unit-icon <%= allDone ? 'cu-unit-icon--done' : '' %>">
+            <% if (allDone) { %><i class="fas fa-check"></i><% } else { %><i class="fas fa-book-open"></i><% } %>
+          </div>
+          <div class="cu-unit-info">
+            <h3 class="cu-unit-title"><%= unit.name %></h3>
+            <span class="cu-unit-meta"><%= done %> / <%= total %> درس</span>
+          </div>
         </div>
-      <% } else { %>
-        <%
-          var groups = {};
-          sortedLessons.forEach(function(l) {
-            var key = l.sectionId || 'main';
-            if (!groups[key]) groups[key] = [];
-            groups[key].push(l);
-          });
-          var groupKeys = Object.keys(groups);
-        %>
-        <% if (groupKeys.length === 1 && groupKeys[0] === 'main') { %>
-          <!-- Flat list -->
-          <div class="lessons-list" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;--cc:<%= course.color || '#A07200' %>;">
-            <% sortedLessons.forEach(function(lesson, idx) {
-              var canAccess = isSubscribed || lesson.isFree || (isGuest && lesson.guestVisible);
-              var ls = lessonStatuses ? lessonStatuses.find(function(s) { return s.lessonId === lesson.id; }) : null;
-              var isUnlocked = ls ? ls.isUnlocked : canAccess;
-              var isCompleted = ls ? ls.isCompleted : false;
-              var isWatching = ls ? ls.isWatching : false;
-              var href = canAccess && isUnlocked ? '/student/lesson/' + course.id + '/' + lesson.id : '#';
-            %>
-            <a href="<%= href %>" class="lesson-item" style="flex-direction:column;align-items:stretch;gap:10px;padding:14px 16px;position:relative;opacity:<%= (!canAccess || (!isUnlocked && !isGuest)) ? 0.6 : 1 %>;" <%= (!canAccess && isGuest) ? 'onclick="alert(\'هذا الدرس تجريبي للضيوف فقط. سجل للوصول الكامل.\');return false;"' : '' %> <%= (!isUnlocked && !isGuest) ? 'onclick="alert(\'يجب إكمال الدرس السابق أولاً\');return false;"' : '' %>>
-              <div style="display:flex;align-items:center;gap:12px;">
-                <div style="width:32px;height:32px;background:var(--bg);border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--primary);font-size:12px;font-weight:700;flex-shrink:0;">
-                  <%- isCompleted ? '<i class="fas fa-check-circle" style="color:var(--success);font-size:16px;"></i>' : (isWatching ? '<i class="fas fa-play-circle" style="color:var(--accent);font-size:16px;"></i>' : (idx + 1)) %>
-                </div>
-                <div class="lesson-info" style="flex:1;">
-                  <h3 style="font-size:14px;font-weight:600;margin-bottom:2px;font-family:'Cairo',sans-serif;"><%= lesson.title %></h3>
-                  <p style="font-size:11px;margin:0;"><i class="fas fa-clock" style="color:var(--accent);font-size:10px;"></i> <%= lesson.duration %></p>
-                </div>
-                <% if (lesson.isFree) { %><span style="background:rgba(5,150,105,0.1);color:var(--success);font-size:10px;padding:2px 6px;border-radius:3px;font-weight:600;">مجاني</span><% } %>
-                <% if (isGuest && lesson.guestVisible) { %><span style="background:rgba(99,102,241,0.1);color:var(--accent);font-size:10px;padding:2px 6px;border-radius:3px;font-weight:600;">تجريبي</span><% } %>
-                <% if (!isUnlocked && !isGuest && canAccess) { %><span style="background:rgba(217,119,6,0.1);color:#d97706;font-size:10px;padding:2px 6px;border-radius:3px;font-weight:600;"><i class="fas fa-lock"></i> أكمل السابق</span><% } %>
-              </div>
-              <% if (canAccess && isUnlocked) { %><span class="watch-btn" style="align-self:flex-start;font-size:11px;padding:3px 10px;">مشاهدة</span><% } else { %><span style="align-self:flex-start;font-size:11px;color:var(--text-muted);"><i class="fas fa-lock"></i> مقفول</span><% } %>
-            </a>
-            <% }) %>
+        <div class="cu-unit-right">
+          <div class="cu-unit-progress">
+            <div class="cu-progress-bar">
+              <div class="cu-progress-fill" style="width:<%= pct %>%"></div>
+            </div>
+            <span class="cu-progress-text"><%= pct %>%</span>
           </div>
-        <% } else { %>
-        <div class="tree-view" style="--cc:<%= course.color || '#A07200' %>;">
-            <% groupKeys.forEach(function(key) {
-              var lessons = groups[key];
-              var sectionName = key === 'main' ? 'عام' : ((course.sections||[]).find(function(s){return s.id===key;})||{}).name || key;
-            %>
-            <div class="tree-section">
-              <div class="tree-section-header" onclick="this.parentElement.classList.toggle('expanded')">
-                <div class="tree-section-icon"><i class="fas fa-folder"></i></div>
-                <div class="tree-section-info">
-                  <h4><%= sectionName %></h4>
-                  <span class="tree-section-count"><%= lessons.length %> درس</span>
-                </div>
-                <i class="fas fa-chevron-left tree-arrow"></i>
-              </div>
-              <div class="tree-section-children">
-                <%- lessons.map(function(lesson, idx) {
-                  var canAccess = isSubscribed || lesson.isFree || (isGuest && lesson.guestVisible);
-                  return '<a ' + lessonAttrs(lesson, canAccess) + ' class="tree-lesson-item' + lessonLockedClass(lesson, canAccess) + '"><span class="tree-lesson-num">' + lessonIcon(lesson, idx) + '</span><span class="tree-lesson-title">' + lesson.title + '</span>' + lessonBadge(lesson, canAccess, idx) + '<span class="tree-lesson-duration"><i class="fas fa-clock"></i> ' + lesson.duration + '</span></a>';
-                }).join('\n') %>
+          <div class="cu-unit-arrow">
+            <i class="fas fa-chevron-down"></i>
+          </div>
+        </div>
+      </button>
+
+      <!-- Unit Body (Timeline) -->
+      <div class="cu-unit-body" id="unit-body-<%= unit.id %>" role="region" aria-label="دروس الوحدة">
+        <div class="cu-unit-body-inner">
+        <div class="cu-timeline">
+          <% unit.lessons.forEach(function(lesson, lIdx){
+            var acc = canAccess(lesson);
+            var ul = isUnlocked(lesson);
+            var comp = isCompleted(lesson);
+            var watch = isWatching(lesson);
+            var isCurrent = lesson.id === currentLessonId;
+            var state = comp ? 'completed' : (isCurrent ? 'current' : (ul ? 'available' : 'locked'));
+            var href = (acc && ul) ? '/student/lesson/' + course.id + '/' + lesson.id : '#';
+            var ls = getLs(lesson);
+            var meta = [];
+            if (lesson.duration) meta.push('<i class="fas fa-clock"></i> ' + esc(lesson.duration));
+            if (lesson.videos && lesson.videos.length > 1) meta.push('<i class="fas fa-video"></i> ' + lesson.videos.length + ' فيديوهات');
+            if (lesson.pdfFiles && lesson.pdfFiles.length > 0) meta.push('<i class="fas fa-file-pdf"></i> PDF');
+            if (lesson.hasQuiz) meta.push('<i class="fas fa-pen"></i> اختبار');
+            var badges = [];
+            if (lesson.isFree) badges.push('<span class="cu-badge cu-badge--free">مجاني</span>');
+            if (isGuest && lesson.guestVisible) badges.push('<span class="cu-badge cu-badge--demo">تجريبي</span>');
+          %>
+          <div class="cu-lesson cu-lesson--<%= state %>" data-lesson-id="<%= lesson.id %>">
+            <div class="cu-lesson-node">
+              <div class="cu-node-ring <%= state === 'current' ? 'cu-node-pulse' : '' %>">
+                <% if (comp) { %>
+                  <i class="fas fa-check"></i>
+                <% } else if (state === 'current') { %>
+                  <i class="fas fa-play"></i>
+                <% } else if (state === 'locked') { %>
+                  <i class="fas fa-lock"></i>
+                <% } else { %>
+                  <span class="cu-node-num"><%= lIdx + 1 %></span>
+                <% } %>
               </div>
             </div>
-            <% }) %>
+            <div class="cu-lesson-line"></div>
+            <a href="<%= href %>"
+               class="cu-lesson-card <%= state %>"
+               <%= (acc && ul) ? '' : 'onclick="cuLockedClick(event)"' %>
+               aria-label="<%= esc(lesson.title) %>"
+               aria-disabled="<%= state === 'locked' ? 'true' : 'false' %>"
+               tabindex="<%= state === 'locked' ? '-1' : '0' %>">
+              <div class="cu-lesson-top">
+                <h4 class="cu-lesson-title"><%= lesson.title %></h4>
+                <% if (badges.length > 0) { %><div class="cu-lesson-badges"><%- badges.join('') %></div><% } %>
+              </div>
+              <% if (meta.length > 0) { %>
+              <div class="cu-lesson-meta"><%- meta.join('<span class="cu-meta-dot"></span>') %></div>
+              <% } %>
+              <% if (state === 'completed') { %>
+                <div class="cu-lesson-status"><i class="fas fa-check-circle"></i> مكتمل</div>
+              <% } else if (state === 'current') { %>
+                <div class="cu-lesson-status cu-lesson-status--current"><i class="fas fa-play-circle"></i> ابدأ الدرس</div>
+              <% } else if (state === 'locked') { %>
+                <div class="cu-lesson-status cu-lesson-status--locked"><i class="fas fa-lock"></i> أكمل الدرس السابق</div>
+              <% } else if (!acc && isGuest) { %>
+                <div class="cu-lesson-status cu-lesson-status--locked"><i class="fas fa-lock"></i> اشتراك مطلوب</div>
+              <% } %>
+            </a>
           </div>
-        <% } %>
-      <% } %>
+          <% }) %>
+          <!-- End cap -->
+          <div class="cu-lesson cu-lesson--end">
+            <div class="cu-lesson-node">
+              <div class="cu-node-ring cu-node-end">
+                <% if (allDone) { %><i class="fas fa-trophy"></i><% } else { %><i class="fas fa-flag"></i><% } %>
+              </div>
+            </div>
+          </div>
+        </div>
+        </div>
+      </div>
+    </div>
+    <% }) %>
+  </div>
   <% } else { %>
     <div style="text-align:center;padding:60px 20px;background:var(--glass-bg);border-radius:var(--radius-xl);border:1px solid var(--border);">
       <i class="fas fa-book-open" style="font-size:48px;color:var(--border);display:block;margin-bottom:16px;"></i>
@@ -203,9 +219,236 @@
       </div>
       <i class="fas fa-chevron-left" style="margin-right:auto;font-size:14px;opacity:0.6;"></i>
     </a>
-
   </div>
   <% } %>
 </main>
+
+<style>
+/* ===== Course Units + Timeline ===== */
+.cu-units{display:flex;flex-direction:column;gap:16px;margin-top:8px;}
+
+/* -- Unit Card -- */
+.cu-unit{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;transition:box-shadow .3s ease, border-color .3s ease;}
+.cu-unit:hover{box-shadow:var(--shadow-md);}
+.cu-unit-header{
+  width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:18px 20px;background:none;border:none;cursor:pointer;
+  font-family:inherit;color:inherit;text-align:right;direction:rtl;
+  transition:background .2s ease;
+}
+.cu-unit-header:hover{background:var(--bg);}
+.cu-unit-header:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;border-radius:var(--radius-lg);}
+
+.cu-unit-left{display:flex;align-items:center;gap:14px;min-width:0;flex:1;}
+.cu-unit-icon{
+  width:42px;height:42px;border-radius:12px;
+  background:var(--accent-glow);color:var(--accent);
+  display:flex;align-items:center;justify-content:center;
+  font-size:16px;flex-shrink:0;transition:background .3s, color .3s;
+}
+.cu-unit-icon--done{background:rgba(22,163,74,0.12);color:var(--success);}
+.cu-unit-info{min-width:0;}
+.cu-unit-title{font-size:15px;font-weight:700;margin:0;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.cu-unit-meta{font-size:12px;color:var(--text-light);}
+
+.cu-unit-right{display:flex;align-items:center;gap:16px;flex-shrink:0;}
+.cu-unit-progress{display:flex;align-items:center;gap:8px;min-width:80px;}
+.cu-progress-bar{width:60px;height:5px;background:var(--border);border-radius:10px;overflow:hidden;}
+.cu-progress-fill{height:100%;background:var(--accent);border-radius:10px;transition:width .5s cubic-bezier(.4,0,.2,1);}
+.cu-progress-text{font-size:11px;font-weight:600;color:var(--text-light);white-space:nowrap;}
+.cu-unit-arrow{
+  width:28px;height:28px;border-radius:8px;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--text-light);font-size:13px;
+  transition:transform .3s cubic-bezier(.4,0,.2,1), background .2s;
+}
+.cu-unit-header:hover .cu-unit-arrow{background:var(--accent-glow);color:var(--accent);}
+.cu-unit.expanded .cu-unit-arrow{transform:rotate(180deg);}
+
+/* -- Unit Body (accordion) -- */
+.cu-unit-body{
+  max-height:0;overflow:hidden;
+  transition:max-height .4s cubic-bezier(.4,0,.2,1), opacity .3s ease;
+  opacity:0;
+}
+.cu-unit.expanded .cu-unit-body{max-height:5000px;opacity:1;}
+.cu-unit-body-inner{padding:0 20px 20px;}
+
+/* -- Timeline -- */
+.cu-timeline{position:relative;padding:8px 0 8px 0;direction:rtl;}
+.cu-lesson{display:flex;align-items:flex-start;position:relative;min-height:64px;}
+.cu-lesson--end{min-height:auto;}
+
+/* Node (circle on the line) */
+.cu-lesson-node{position:relative;z-index:2;display:flex;align-items:flex-start;justify-content:center;width:36px;flex-shrink:0;padding-top:14px;}
+.cu-node-ring{
+  width:32px;height:32px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px;font-weight:700;
+  transition:transform .2s, box-shadow .3s;
+}
+.cu-node-num{font-size:12px;}
+
+/* Vertical line */
+.cu-lesson-line{
+  position:absolute;right:17px;top:46px;bottom:0;width:2px;
+  background:var(--border);z-index:1;
+}
+.cu-lesson:last-child .cu-lesson-line{display:none;}
+.cu-lesson--end .cu-lesson-line{display:none;}
+
+/* Card (content) */
+.cu-lesson-card{
+  flex:1;display:flex;flex-direction:column;gap:6px;
+  padding:14px 16px;margin:4px 0 4px 0;
+  border-radius:var(--radius);text-decoration:none;color:var(--text);
+  border:1px solid var(--border);
+  background:var(--card);
+  transition:transform .2s, box-shadow .25s, border-color .25s, background .25s;
+}
+.cu-lesson-card:hover{transform:translateX(-4px);box-shadow:var(--shadow-md);}
+
+/* States — Completed */
+.cu-lesson--completed .cu-node-ring{background:var(--success);color:#fff;}
+.cu-lesson--completed .cu-lesson-line{background:var(--success);}
+.cu-lesson--completed .cu-lesson-card{border-color:rgba(22,163,74,0.25);}
+.cu-lesson--completed .cu-lesson-card:hover{border-color:var(--success);}
+
+/* States — Current (most important) */
+.cu-lesson--current .cu-node-ring{background:var(--accent);color:#fff;box-shadow:0 0 0 4px var(--accent-glow), 0 0 16px var(--accent-glow);transform:scale(1.15);}
+.cu-lesson--current .cu-node-pulse{animation:cu-pulse 2s ease-in-out infinite;}
+@keyframes cu-pulse{0%,100%{box-shadow:0 0 0 4px var(--accent-glow), 0 0 16px var(--accent-glow);}50%{box-shadow:0 0 0 8px rgba(245,158,11,0.08), 0 0 24px rgba(245,158,11,0.12);}}
+.cu-lesson--current .cu-lesson-card{border-color:var(--accent);border-width:2px;box-shadow:var(--shadow-md);background:linear-gradient(135deg, var(--accent-glow), var(--card));}
+.cu-lesson--current .cu-lesson-card:hover{box-shadow:var(--shadow-lg);transform:translateX(-4px);}
+
+/* States — Available */
+.cu-lesson--available .cu-node-ring{background:var(--card);color:var(--accent);border:2px solid var(--accent);}
+.cu-lesson--available .cu-lesson-card:hover{border-color:var(--accent);}
+
+/* States — Locked */
+.cu-lesson--locked .cu-node-ring{background:var(--border);color:var(--text-muted);font-size:12px;}
+.cu-lesson--locked .cu-lesson-line{background:var(--border);}
+.cu-lesson--locked .cu-lesson-card{opacity:0.55;pointer-events:none;cursor:not-allowed;}
+.cu-lesson--locked .cu-lesson-card:hover{transform:none;box-shadow:none;}
+
+/* End cap */
+.cu-node-end{background:var(--accent-glow);color:var(--accent);font-size:14px;}
+.cu-lesson--completed .cu-node-end{background:rgba(22,163,74,0.12);color:var(--success);}
+
+/* Lesson content */
+.cu-lesson-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.cu-lesson-title{font-size:14px;font-weight:600;margin:0;color:var(--text);flex:1;min-width:0;}
+.cu-lesson-badges{display:flex;gap:4px;flex-shrink:0;}
+.cu-badge{font-size:10px;padding:2px 8px;border-radius:4px;font-weight:700;white-space:nowrap;}
+.cu-badge--free{background:rgba(22,163,74,0.1);color:var(--success);}
+.cu-badge--demo{background:rgba(99,102,241,0.1);color:var(--accent);}
+
+.cu-lesson-meta{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-light);flex-wrap:wrap;}
+.cu-meta-dot{width:3px;height:3px;border-radius:50%;background:var(--text-muted);opacity:.5;}
+
+.cu-lesson-status{font-size:11px;font-weight:600;display:flex;align-items:center;gap:4px;margin-top:2px;}
+.cu-lesson-status--current{color:var(--accent);}
+.cu-lesson-status--locked{color:var(--text-muted);}
+
+/* ===== Responsive ===== */
+@media(max-width:600px){
+  .cu-unit-header{padding:14px 14px;gap:10px;}
+  .cu-unit-icon{width:36px;height:36px;font-size:14px;border-radius:10px;}
+  .cu-unit-title{font-size:14px;}
+  .cu-unit-progress{display:none;}
+  .cu-lesson-card{padding:12px 12px;}
+  .cu-lesson-title{font-size:13px;}
+  .cu-node-ring{width:28px;height:28px;font-size:11px;}
+  .cu-lesson-node{width:32px;padding-top:12px;}
+  .cu-lesson-line{right:15px;top:40px;}
+  .cu-unit-body-inner{padding:0 14px 14px;}
+  .cu-lesson{min-height:56px;}
+}
+@media(min-width:768px){
+  .cu-lesson-card{padding:16px 20px;}
+  .cu-lesson-title{font-size:15px;}
+}
+@media(prefers-reduced-motion:reduce){
+  .cu-unit-body{transition:none;}
+  .cu-unit-arrow{transition:none;}
+  .cu-node-pulse{animation:none;}
+  .cu-lesson-card{transition:none;}
+  .cu-progress-fill{transition:none;}
+}
+</style>
+
+<script>
+(function(){
+  var STORAGE_KEY = 'cu-expanded-';
+  var container = document.querySelector('.cu-units');
+  if (!container) return;
+  var courseId = container.dataset.courseId;
+  var currentUnitId = container.dataset.currentUnit;
+  var currentLessonId = container.dataset.currentLesson;
+
+  /* -- Expand / Collapse -- */
+  window.cuToggleUnit = function(unitId){
+    var unit = document.getElementById('unit-' + unitId);
+    if (!unit) return;
+    var expanded = unit.classList.contains('expanded');
+    unit.classList.toggle('expanded');
+    var btn = unit.querySelector('.cu-unit-header');
+    if (btn) btn.setAttribute('aria-expanded', !expanded);
+    /* save to localStorage */
+    try {
+      var key = STORAGE_KEY + courseId;
+      var saved = JSON.parse(localStorage.getItem(key) || '[]');
+      if (!expanded) { if (saved.indexOf(unitId)===-1) saved.push(unitId); }
+      else { saved = saved.filter(function(id){return id!==unitId;}); }
+      localStorage.setItem(key, JSON.stringify(saved));
+    } catch(e){}
+  };
+
+  window.cuLockedClick = function(e){
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  /* -- Restore saved state or auto-expand current -- */
+  var expandedSet = [];
+  try {
+    var raw = localStorage.getItem(STORAGE_KEY + courseId);
+    if (raw) {
+      var parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) expandedSet = parsed;
+    }
+  } catch(e){}
+
+  if (expandedSet.length === 0 && currentUnitId) {
+    expandedSet = [currentUnitId];
+  }
+
+  expandedSet.forEach(function(uid){
+    var unit = document.getElementById('unit-' + uid);
+    if (unit) {
+      unit.classList.add('expanded');
+      var btn = unit.querySelector('.cu-unit-header');
+      if (btn) btn.setAttribute('aria-expanded', 'true');
+    }
+  });
+
+  /* -- Scroll to current lesson -- */
+  setTimeout(function(){
+    if (!currentLessonId) return;
+    var el = document.querySelector('[data-lesson-id="' + currentLessonId + '"]');
+    if (el) {
+      el.scrollIntoView({ behavior:'smooth', block:'center' });
+    }
+  }, 500);
+
+  /* -- Keyboard support -- */
+  document.querySelectorAll('.cu-unit-header').forEach(function(btn){
+    btn.addEventListener('keydown', function(e){
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); btn.click(); }
+    });
+  });
+})();
+</script>
+<%- include("../partials/footer") %>
 </body>
 </html>

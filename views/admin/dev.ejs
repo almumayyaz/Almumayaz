@@ -1,0 +1,280 @@
+<%- include('../partials/header', { title: title, bodyClass: 'admin-body' }) %>
+<%- include('../partials/admin-sidebar') %>
+<main class="admin-content">
+  <div class="page-header">
+    <div>
+      <h1><i class="fas fa-terminal"></i> لوحة المطور</h1>
+      <p>إعدادات Zoom وتحكم الكرون (Cron) داخل المنصة</p>
+    </div>
+  </div>
+
+  <!-- ========== قسم إعدادات Zoom ========== -->
+  <div class="dev-card">
+    <div class="dev-card-head">
+      <h3><i class="fab fa-zoom"></i> إعدادات Zoom</h3>
+      <span id="zoomStatusBadge" class="dev-badge dev-badge-pending"><i class="fas fa-spinner fa-spin"></i> جاري الفحص...</span>
+    </div>
+    <div class="dev-grid">
+      <div class="dev-info">
+        <div class="dev-info-row"><span>معرّف العميل (Client ID):</span> <code id="zoomClientId">—</code></div>
+        <div class="dev-info-row"><span>تخزين في Firebase:</span> <code id="zoomFirebase">—</code></div>
+        <div class="dev-info-row"><span>SDK Key/Secret:</span> <code id="zoomSdk">—</code></div>
+        <div class="dev-info-row"><span>رابط التحويل:</span> <code id="zoomRuri" style="direction:ltr;">—</code></div>
+      </div>
+      <form id="zoomForm" class="dev-form">
+        <div class="form-group">
+          <label>Client ID</label>
+          <input id="zoomClientIdInput" name="clientId" class="form-input" placeholder="Zoom Client ID">
+        </div>
+        <div class="form-group">
+          <label>Client Secret</label>
+          <input id="zoomClientSecretInput" name="clientSecret" class="form-input" placeholder="اتركه كما هو إن لم ترد تغييره">
+        </div>
+        <div class="form-group">
+          <label>Redirect URI</label>
+          <input id="zoomRuriInput" name="redirectUri" class="form-input" style="direction:ltr;" placeholder="https://almumayaz.online/auth/zoom/callback">
+        </div>
+        <div class="form-group">
+          <label>SDK Key <small style="color:var(--text-muted);">(اختياري)</small></label>
+          <input id="zoomSdkKeyInput" name="sdkKey" class="form-input" placeholder="اتركه فارغاً لاستخدام Client ID">
+        </div>
+        <div class="form-group">
+          <label>SDK Secret <small style="color:var(--text-muted);">(اختياري)</small></label>
+          <input id="zoomSdkSecretInput" name="sdkSecret" class="form-input" placeholder="اتركه فارغاً لاستخدام Client Secret">
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button type="submit" class="btn btn-primary" style="flex:1;"><i class="fas fa-save"></i> حفظ الإعدادات</button>
+          <a href="/auth/zoom/reauthorize" class="btn btn-outline"><i class="fas fa-sync-alt"></i> إعادة الربط</a>
+          <a href="/admin/zoom-app/reset" class="btn btn-outline" onclick="return confirm('إعادة التعيين إلى الإعدادات الأصلية؟');"><i class="fas fa-undo"></i> تعيين</a>
+          <a href="/api/zoom/debug" target="_blank" class="btn btn-outline"><i class="fas fa-stethoscope"></i> تشخيص</a>
+        </div>
+      </form>
+    </div>
+    <div id="zoomMsg" style="display:none;margin-top:12px;padding:10px;border-radius:8px;font-weight:600;"></div>
+  </div>
+
+  <!-- ========== قسم تحكم الكرون ========== -->
+  <div class="dev-card">
+    <div class="dev-card-head">
+      <h3><i class="fas fa-clock"></i> تحكم الكرون (Cron)</h3>
+      <span id="cronStatusBadge" class="dev-badge dev-badge-pending"><i class="fas fa-spinner fa-spin"></i> جاري الفحص...</span>
+    </div>
+    <div class="dev-grid">
+      <div class="dev-info">
+        <div class="dev-info-row"><span>الفحص التلقائي:</span> <code id="cronInterval">كل — ثانية</code></div>
+        <div class="dev-info-row"><span>آخر تشغيل:</span> <code id="cronLastRun">—</code></div>
+        <div class="dev-info-row"><span>تم إرسالها آخر مرة:</span> <code id="cronProcessed">—</code></div>
+        <div class="dev-info-row"><span>حالة الـ Secret:</span> <code id="cronSecret">—</code></div>
+      </div>
+      <div class="dev-form">
+        <div class="form-group">
+          <label>رابط الكرون (مع السر)</label>
+          <input id="cronUrl" class="form-input" style="direction:ltr;" readonly>
+          <button type="button" class="btn btn-outline" style="margin-top:6px;" onclick="copyCronUrl()"><i class="fas fa-copy"></i> نسخ الرابط</button>
+        </div>
+        <div class="form-group">
+          <label>تحديث CRON_SECRET</label>
+          <div style="display:flex;gap:8px;">
+            <input id="cronSecretInput" class="form-input" style="direction:ltr;" placeholder="أدخل السر الجديد">
+            <button type="button" class="btn btn-primary" onclick="saveCronSecret()"><i class="fas fa-key"></i> حفظ</button>
+          </div>
+        </div>
+        <button type="button" class="btn btn-primary" style="width:100%;" onclick="runCronNow()"><i class="fas fa-play"></i> تشغيل الفحص الآن</button>
+      </div>
+    </div>
+    <div id="cronMsg" style="display:none;margin-top:12px;padding:10px;border-radius:8px;font-weight:600;"></div>
+  </div>
+
+  <!-- ========== قسم وضع الصيانة ========== -->
+  <div class="dev-card">
+    <div class="dev-card-head">
+      <h3><i class="fas fa-power-off"></i> تشغيل المنصة / وضع الصيانة</h3>
+      <span id="mmStatusBadge" class="dev-badge dev-badge-pending"><i class="fas fa-spinner fa-spin"></i> جاري الفحص...</span>
+    </div>
+    <div class="dev-form">
+      <div class="form-group">
+        <label>رسالة الصيانة (تظهر للطلاب)</label>
+        <textarea id="mmMessage" class="form-input" rows="3" placeholder="نعتذر، المنصة قيد الصيانة حالياً..."></textarea>
+      </div>
+      <label class="dev-toggle">
+        <span>وضع الصيانة (إيقاف المنصة للطلاب)</span>
+        <span class="switch"><input type="checkbox" id="mmToggle" onchange="setMaintenance(this.checked)"><span class="slider"></span></span>
+      </label>
+      <p style="font-size:12px;color:var(--text-muted);margin:4px 0 0;">ملاحظة: أثناء الصيانة يستطيع المدير (أنت) تصفّح المنصة والتحكم بالكامل، بينما يرى الطلاب شاشة صيانة.</p>
+    </div>
+    <div id="mmMsg" style="display:none;margin-top:12px;padding:10px;border-radius:8px;font-weight:600;"></div>
+  </div>
+
+  <!-- ========== قسم إرسال إشعار للمدرس ========== -->
+  <div class="dev-card">
+    <div class="dev-card-head">
+      <h3><i class="fas fa-chalkboard-teacher"></i> إرسال إشعار للمدرس</h3>
+    </div>
+    <div class="dev-form">
+      <div class="form-group">
+        <label>العنوان</label>
+        <input id="ntTitle" class="form-input" placeholder="عنوان الإشعار">
+      </div>
+      <div class="form-group">
+        <label>النص</label>
+        <textarea id="ntBody" class="form-input" rows="3" placeholder="نص الإشعار"></textarea>
+      </div>
+      <div class="form-group">
+        <label>الرابط عند النقر (اختياري)</label>
+        <input id="ntUrl" class="form-input" style="direction:ltr;" placeholder="/admin" value="/admin">
+      </div>
+      <button type="button" class="btn btn-primary" style="width:100%;" onclick="notifyTeacher()"><i class="fas fa-paper-plane"></i> إرسال إشعار للمدرس</button>
+    </div>
+    <div id="ntMsg" style="display:none;margin-top:12px;padding:10px;border-radius:8px;font-weight:600;"></div>
+  </div>
+</main>
+
+<style>
+.dev-card { background:var(--card);border-radius:var(--radius-lg);padding:24px;box-shadow:var(--shadow);border:1px solid var(--border);margin-bottom:20px; }
+.dev-card-head { display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:8px; }
+.dev-card-head h3 { font-size:16px;font-weight:700;margin:0; }
+.dev-grid { display:grid;grid-template-columns:1fr 1fr;gap:24px; }
+@media (max-width:768px){ .dev-grid { grid-template-columns:1fr; } }
+.dev-info { background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px; }
+.dev-info-row { display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px dashed var(--border);font-size:13px; }
+.dev-info-row:last-child { border-bottom:none; }
+.dev-info-row span { color:var(--text-muted); }
+.dev-info-row code { font-family:monospace;font-size:12px;color:var(--accent);word-break:break-all;text-align:left; }
+.dev-form { display:flex;flex-direction:column;gap:12px; }
+.dev-badge { display:inline-block;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:700; }
+.dev-badge-ok { background:rgba(22,163,74,0.15);color:#16a34a; }
+.dev-badge-pending { background:rgba(251,191,36,0.15);color:#f59e0b; }
+.dev-badge-err { background:rgba(239,68,68,0.15);color:#ef4444; }
+.dev-toggle { display:flex; align-items:center; justify-content:space-between; gap:12px; background:var(--bg); border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; cursor:pointer; font-size:14px; font-weight:600; }
+.switch { position:relative; width:52px; height:28px; flex-shrink:0; }
+.switch input { opacity:0; width:0; height:0; }
+.slider { position:absolute; inset:0; background:#cbd5e1; border-radius:999px; transition:.3s; cursor:pointer; }
+.slider::before { content:""; position:absolute; height:22px; width:22px; right:3px; top:3px; background: var(--card); border-radius:50%; transition:.3s; box-shadow:0 2px 4px rgba(0,0,0,0.25); }
+.switch input:checked + .slider { background:var(--accent); }
+.switch input:checked + .slider::before { transform:translateX(-24px); }
+</style>
+
+<script>
+function escHtml(t){return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');}
+function setMsg(id, ok, msg){var r=document.getElementById(id);r.style.display='block';r.style.background=ok?'rgba(22,163,74,0.1)':'rgba(239,68,68,0.1)';r.style.color=ok?'var(--success)':'var(--danger)';r.style.border='1px solid '+(ok?'rgba(22,163,74,0.2)':'rgba(239,68,68,0.2)');r.textContent=(ok?'✅ ':'⚠️ ')+msg;}
+
+function loadStatus(){
+  fetch('/api/dev/status').then(function(r){return r.json();}).then(function(s){
+    // Zoom
+    var z=s.zoom||{};
+    document.getElementById('zoomClientId').textContent=z.clientIdPrefix||'غير مضبوط';
+    document.getElementById('zoomFirebase').textContent=z.hasFirebaseCreds?'مُخزّن في Firebase':'من متغيرات البيئة';
+    document.getElementById('zoomSdk').textContent=z.hasSdk?'موجود':'غير مضبوط (يُستخدم Client ID)';
+    document.getElementById('zoomRuri').textContent=z.redirectUri||'—';
+    var zb=document.getElementById('zoomStatusBadge');
+    if(z.configured){zb.className='dev-badge dev-badge-ok';zb.innerHTML='<i class="fas fa-check-circle"></i> مضبوط';}
+    else{zb.className='dev-badge dev-badge-err';zb.innerHTML='<i class="fas fa-times-circle"></i> غير مضبوط';}
+    // Cron
+    var c=s.cron||{};
+    document.getElementById('cronInterval').textContent='كل '+(c.intervalSeconds||'?')+' ثانية';
+    var lr=c.lastRun;
+    document.getElementById('cronLastRun').textContent=lr&&lr.at?new Date(lr.at).toLocaleString('ar-EG'):'لم يُشغّل بعد';
+    document.getElementById('cronProcessed').textContent=lr?((lr.processed||0)+' إشعار'+(lr.error?' (خطأ: '+escHtml(lr.error)+')':'')):'—';
+    document.getElementById('cronSecret').textContent=c.secretSet?'مضبوط ✅':'غير مضبوط ⚠️';
+    if(c.cronUrl)document.getElementById('cronUrl').value=c.cronUrl;
+    var cb=document.getElementById('cronStatusBadge');
+    if(lr&&!lr.error){cb.className='dev-badge dev-badge-ok';cb.innerHTML='<i class="fas fa-heartbeat"></i> يعمل';}
+    else if(lr&&lr.error){cb.className='dev-badge dev-badge-err';cb.innerHTML='<i class="fas fa-exclamation-circle"></i> خطأ';}
+    else{cb.className='dev-badge dev-badge-pending';cb.innerHTML='<i class="fas fa-clock"></i> بانتظار أول تشغيل';}
+    // Maintenance
+    var mm=s.maintenance||{};
+    document.getElementById('mmMessage').value=mm.message||'';
+    var mb=document.getElementById('mmStatusBadge');
+    if(mm.enabled){mb.className='dev-badge dev-badge-err';mb.innerHTML='<i class="fas fa-power-off"></i> المنصة متوقفة (صيانة)';}
+    else{mb.className='dev-badge dev-badge-ok';mb.innerHTML='<i class="fas fa-check-circle"></i> المنصة تعمل';}
+    var mmToggle=document.getElementById('mmToggle'); if(mmToggle) mmToggle.checked=!!mm.enabled;
+  }).catch(function(){
+    var fail=function(id){var el=document.getElementById(id);if(el){el.className='dev-badge dev-badge-err';el.innerHTML='<i class="fas fa-times-circle"></i> فشل التحميل';}};
+    fail('zoomStatusBadge'); fail('cronStatusBadge'); fail('mmStatusBadge');
+  });
+}
+
+// Call loadStatus first so the panel never stays stuck on "loading" even if a later script line errors.
+loadStatus();
+
+function setMaintenance(enabled){
+  var msg=document.getElementById('mmMessage').value.trim();
+  fetch('/api/dev/maintenance',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:enabled,message:msg})})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d.success){setMsg('mmMsg',true,enabled?'تم تفعيل وضع الصيانة وإيقاف المنصة للطلاب':'تم تشغيل المنصة وعودة العمل');loadStatus();}
+      else{setMsg('mmMsg',false,d.error||'فشل الحفظ');}
+    })
+    .catch(function(){setMsg('mmMsg',false,'فشل الاتصال بالخادم');});
+}
+
+function notifyTeacher(){
+  var title=document.getElementById('ntTitle').value.trim();
+  var body=document.getElementById('ntBody').value.trim();
+  var url=document.getElementById('ntUrl').value.trim()||'/admin';
+  if(!title||!body){setMsg('ntMsg',false,'يرجى إدخال العنوان والنص');return;}
+  fetch('/api/dev/notify-teacher',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:title,body:body,url:url})})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d.success){setMsg('ntMsg',true,'تم إرسال الإشعار للمدرس ('+ (d.sent||0) +' جهاز)');document.getElementById('ntTitle').value='';document.getElementById('ntBody').value='';}
+      else{setMsg('ntMsg',false,d.error||'فشل الإرسال');}
+    })
+    .catch(function(){setMsg('ntMsg',false,'فشل الاتصال بالخادم');});
+}
+
+document.getElementById('zoomForm').addEventListener('submit',function(e){
+  e.preventDefault();
+  var cid=document.getElementById('zoomClientIdInput').value.trim();
+  var csec=document.getElementById('zoomClientSecretInput').value.trim();
+  var ruri=document.getElementById('zoomRuriInput').value.trim();
+  var sk=document.getElementById('zoomSdkKeyInput').value.trim();
+  var ssec=document.getElementById('zoomSdkSecretInput').value.trim();
+  if(!cid){setMsg('zoomMsg',false,'يرجى إدخال Client ID');return;}
+  if(!csec){setMsg('zoomMsg',false,'يرجى إدخال Client Secret');return;}
+  fetch('/admin/zoom-app',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clientId:cid,clientSecret:csec,redirectUri:ruri,sdkKey:sk,sdkSecret:ssec})})
+    .then(function(r){return r.status;})
+    .then(function(st){
+      if(st>=200&&st<300){setMsg('zoomMsg',true,'تم حفظ إعدادات Zoom بنجاح في Firebase');loadStatus();}
+      else{setMsg('zoomMsg',false,'فشل الحفظ (كود '+st+')');}
+    })
+    .catch(function(){setMsg('zoomMsg',false,'فشل الاتصال بالخادم');});
+});
+
+function copyCronUrl(){
+  var u=document.getElementById('cronUrl').value;
+  if(!u)return;
+  navigator.clipboard.writeText(u).then(function(){setMsg('cronMsg',true,'تم نسخ رابط الكرون');}).catch(function(){setMsg('cronMsg',false,'تعذّر النسخ');});
+}
+
+function saveCronSecret(){
+  var s=document.getElementById('cronSecretInput').value.trim();
+  if(!s){setMsg('cronMsg',false,'يرجى إدخال السر');return;}
+  fetch('/api/admin/set-cron-secret?secret='+encodeURIComponent(s)).then(function(r){
+    if(r.ok){setMsg('cronMsg',true,'تم حفظ CRON_SECRET في Firebase');document.getElementById('cronSecretInput').value='';loadStatus();}
+    else{setMsg('cronMsg',false,'فشل حفظ السر');}
+  }).catch(function(){setMsg('cronMsg',false,'فشل الاتصال بالخادم');});
+}
+
+function runCronNow(){
+  setMsg('cronMsg',true,'جاري تشغيل الفحص...');
+  fetch('/api/admin/notifications/check-scheduled').then(function(r){return r.json();}).then(function(d){
+    setMsg('cronMsg',true,'تم الفحص: '+(d.processed||0)+' إشعار مجدول تم إرساله'+(d.error?(' (خطأ: '+escHtml(d.error)+')'):''));
+    loadStatus();
+  }).catch(function(){setMsg('cronMsg',false,'فشل الاتصال بالخادم');});
+}
+
+// prefill zoom form from server-rendered values
+(function(){
+  document.getElementById('zoomClientIdInput').value='<%= clientIdFull %>'||'';
+  document.getElementById('zoomClientSecretInput').value='<%= clientSecretFull %>'||'';
+  document.getElementById('zoomRuriInput').value='<%= redirectUri %>'||'';
+  document.getElementById('zoomSdkKeyInput').value='<%= sdkKeyFull %>'||'';
+  document.getElementById('zoomSdkSecretInput').value='<%= sdkSecretFull %>'||'';
+})();
+
+loadStatus();
+setInterval(loadStatus, 15000);
+</script>
+<%- include("../partials/footer") %>
+</body>
+</html>

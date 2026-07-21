@@ -23,6 +23,7 @@
 </main>
 
 <script>
+function escHtml(t) { return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
 (function(){
   var listDiv = document.getElementById('chatListItems');
   var chatData = [];
@@ -53,14 +54,14 @@
     items.forEach(function(c) {
       var isUnread = c.unread > 0;
       html += '<a href="/admin/chat/' + encodeURIComponent(c.studentId) + '" style="display:flex;align-items:center;gap:14px;padding:14px 20px;border-bottom:1px solid var(--border);text-decoration:none;color:var(--text);transition:var(--transition);' + (isUnread ? 'background:rgba(26,115,232,0.04);' : '') + '" onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\'' + (isUnread ? 'rgba(26,115,232,0.04)' : 'transparent') + '\'">' +
-        '<div style="width:44px;height:44px;border-radius:50%;background:var(--gold-gradient);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:17px;flex-shrink:0;">' + c.initial + '</div>' +
+        '<div style="width:44px;height:44px;border-radius:50%;background:var(--gold-gradient);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:17px;flex-shrink:0;">' + escHtml(c.initial) + '</div>' +
         '<div style="flex:1;min-width:0;">' +
           '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">' +
-            '<span style="font-weight:' + (isUnread ? '700' : '600') + ';font-size:14px;">' + c.name + '</span>' +
+            '<span style="font-weight:' + (isUnread ? '700' : '600') + ';font-size:14px;">' + escHtml(c.name) + '</span>' +
             '<span style="font-size:11px;color:var(--text-muted);">' + formatTime(c.lastTime) + '</span>' +
           '</div>' +
           '<div style="display:flex;justify-content:space-between;align-items:center;">' +
-            '<span style="font-size:13px;color:var(--text-light);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;">' + (c.lastText || 'بدون رسائل') + '</span>' +
+            '<span style="font-size:13px;color:var(--text-light);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;">' + escHtml(c.lastText || 'بدون رسائل') + '</span>' +
             (isUnread ? '<span style="background:var(--accent);color:#fff;border-radius:50%;min-width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;padding:0 6px;border-radius:10px;">' + c.unread + '</span>' : '') +
           '</div>' +
         '</div>' +
@@ -81,5 +82,6 @@
   window.filterChats = function(val) { currentFilter = val.trim(); renderChats(); };
 })();
 </script>
+<%- include("../partials/footer") %>
 </body>
 </html>

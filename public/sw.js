@@ -1,15 +1,3 @@
-importScripts('https://www.gstatic.com/firebasejs/11.0.1/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/11.0.1/firebase-messaging-compat.js');
-
-firebase.initializeApp({
-  apiKey: 'AIzaSyDxUgfCxM3QReAWn-7nvS-WpPvdGVpBXZc',
-  authDomain: 'mostafa-farghaly-1.firebaseapp.com',
-  projectId: 'mostafa-farghaly-1',
-  storageBucket: 'mostafa-farghaly-1.firebasestorage.app',
-  messagingSenderId: '67570982000',
-  appId: '1:67570982000:web:8436cf227de225076328b5'
-});
-
 var CACHE = 'lughati-v7';
 
 self.addEventListener('install', function(e) {
@@ -24,46 +12,28 @@ self.addEventListener('activate', function(e) {
   );
 });
 
-// Firebase onBackgroundMessage (official SDK — handles parsing + reliability)
-try {
-  var messaging = firebase.messaging();
-  messaging.onBackgroundMessage(function(payload) {
-    var data = (payload && payload.data) || {};
-    var title = data.title || data.notificationTitle || 'المُميز';
-    var body = data.body || data.notificationBody || '';
-    var url = data.url || '/';
-    self.registration.showNotification(title, {
-      body: body, icon: '/icon.png', badge: '/icon.png',
-      data: { url: url }, vibrate: [200, 100, 200],
-      requireInteraction: true, tag: 'lughati-notif'
-    });
-  });
-} catch (e) { console.error('onBackgroundMessage error:', e); }
-
-// Raw push fallback (in case onBackgroundMessage misses anything)
 self.addEventListener('push', function(event) {
   var title = 'المُميز', body = '', clickUrl = '/';
   try {
     if (event.data) {
-      var payload = event.data.json();
-      var d = payload && payload.data ? payload.data : payload;
-      title = d.title || d.notificationTitle || 'المُميز';
-      body = d.body || d.notificationBody || '';
+      var raw = event.data.json();
+      if (raw.notification) { title = raw.notification.title || 'المُميز'; body = raw.notification.body || ''; }
+      var d = raw.data || {};
       clickUrl = d.url || '/';
+      if (!raw.notification) { title = d.title || title; body = d.body || body; }
     }
-  } catch (e) {}
+  } catch (e) { console.error('SW push parse error:', e); }
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body: body, icon: '/icon.png', badge: '/icon.png',
-      data: { url: clickUrl }, vibrate: [200, 100, 200],
-      requireInteraction: true, tag: 'lughati-notif'
-    })
+    (async () => {
+      try { await self.registration.showNotification(title, { body: body, icon: '/icon-192.png', badge: '/icon-192.png', data: { url: clickUrl }, tag: 'lughati-notif', requireInteraction: true }); }
+      catch (e) { console.error('showNotification error:', e); }
+    })()
   );
 });
 
 self.addEventListener('notificationclick', function(event) {
   event.notification.close();
-  var url = event.notification.data ? event.notification.data.url : '/';
+  var url = (event.notification.data && event.notification.data.url) ? event.notification.data.url : '/';
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
       for (var i = 0; i < clientList.length; i++) {
@@ -78,7 +48,7 @@ self.addEventListener('message', function(event) {
   var data = event.data || {};
   if (data.type === 'SHOW_NOTIFICATION') {
     self.registration.showNotification(data.title || 'المُميز', {
-      body: data.body || '', icon: '/icon.png', badge: '/icon.png',
+      body: data.body || '', icon: '/icon-192.png', badge: '/icon-192.png',
       data: { url: data.url || '/' }, tag: 'lughati-notif', requireInteraction: false
     });
   }

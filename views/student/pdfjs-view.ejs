@@ -19,6 +19,7 @@
       <button id="pdf-zoom-out" class="pdf-btn" title="تصغير"><i class="fas fa-search-minus"></i></button>
       <span id="pdf-zoom-label" style="font-size:11px;color:#e8eaed;min-width:34px;text-align:center;">100%</span>
       <button id="pdf-zoom-in" class="pdf-btn" title="تكبير"><i class="fas fa-search-plus"></i></button>
+      <button id="pdf-zoom-reset" class="pdf-btn" title="استعادة الحجم"><i class="fas fa-expand"></i></button>
       <span style="width:1px;height:16px;background:#5f6368;display:inline-block;"></span>
       <button id="pdf-search-toggle" class="pdf-btn" title="بحث"><i class="fas fa-search"></i></button>
     </div>
@@ -53,7 +54,7 @@
 #pdf-page-input[type=text]{-moz-appearance:textfield;}
 #pdf-viewport{scroll-behavior:auto;}
 #pdf-pages{--pw:800px;display:flex;flex-direction:column;align-items:center;gap:12px;padding:14px 0 40px;min-height:100%;width:100%;box-sizing:border-box;}
-.pdf-page{position:relative;width:var(--pw);max-width:100%;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.35);flex:0 0 auto;overflow:hidden;contain:layout paint;}
+.pdf-page{position:relative;width:var(--pw);max-width:100%;background: var(--card);box-shadow:0 1px 6px rgba(0,0,0,.35);flex:0 0 auto;overflow:hidden;contain:layout paint;}
 .pdf-page-canvas{display:block;width:100%;height:100%;}
 .pdf-page-badge{position:absolute;top:6px;left:6px;z-index:3;background:rgba(32,33,36,.72);color:#e8eaed;font-size:10px;line-height:1;padding:3px 6px;border-radius:10px;opacity:0;transition:opacity .15s;pointer-events:none;}
 .pdf-page:hover .pdf-page-badge{opacity:1;}

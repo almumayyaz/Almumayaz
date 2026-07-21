@@ -1,11 +1,11 @@
 node_modules
 .env
+.env*
 *.log
 .DS_Store
 .vercel
 service-account.json
+data/
 nul
 NUL
-.env*
-
-.env*
+*.tgz

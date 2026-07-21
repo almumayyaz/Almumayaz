@@ -57,12 +57,15 @@
   <% } %>
 
   <!-- Fullscreen Zoom Embed Overlay (hidden by default) -->
-  <div id="zoomOverlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:99999;background:#fff;flex-direction:column;">
+  <div id="zoomOverlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:99999;background: var(--card);flex-direction:column;">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 16px;background:#1a1a2e;color:#fff;font-size:14px;font-weight:600;flex-shrink:0;">
       <span><%= session.title %></span>
-      <button onclick="closeZoomEmbed()" style="background:none;border:1px solid rgba(255,255,255,0.3);color:#fff;padding:4px 12px;border-radius:6px;cursor:pointer;font-size:13px;">خروج</button>
     </div>
     <iframe id="zoomFrame" style="flex:1;width:100%;border:none;" allow="camera;microphone;display-capture;autoplay;clipboard-read;clipboard-write" allowfullscreen></iframe>
+    <!-- Exit button: bottom-right floating icon -->
+    <button onclick="closeZoomEmbed()" title="خروج من المحاضرة" style="position:fixed;bottom:20px;right:20px;z-index:100000;width:54px;height:54px;border-radius:50%;background:#dc2626;color:#fff;border:none;cursor:pointer;font-size:20px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,0,0,0.35);">
+      <i class="fas fa-sign-out-alt"></i>
+    </button>
   </div>
 
   <!-- Attendance status -->

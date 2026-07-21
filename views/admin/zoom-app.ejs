@@ -1,0 +1,64 @@
+<%- include('../partials/header', { title: title, bodyClass: 'student-body' }) %>
+<%- include('../partials/admin-sidebar') %>
+<main class="main-content">
+  <div class="page-header">
+    <a href="/admin" style="color:var(--text-muted);font-size:13px;margin-bottom:8px;display:inline-flex;align-items:center;gap:4px;">
+      <i class="fas fa-arrow-right"></i> العودة للوحة التحكم
+    </a>
+    <h1 style="font-size:20px;"><i class="fas fa-video" style="color:var(--accent);"></i> إعدادات تطبيق Zoom</h1>
+  </div>
+
+  <div style="background:var(--card);border-radius:var(--radius-lg);padding:24px 28px;border:1px solid var(--border);max-width:640px;">
+    <% if (saved) { %><div style="background:rgba(22,163,74,0.1);color:var(--success);padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:13px;font-weight:600;"><i class="fas fa-check-circle"></i> تم حفظ بيانات التطبيق في Vercel. قل لي "نشر" عشان أعيد نشر الموقع بالتغييرات الجديدة.</div><% } %>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">أدخل بيانات تطبيق Zoom الجديد (General App). يتم حفظها في متغيرات بيئة Vercel ويتم إعادة النشر تلقائياً.</p>
+
+    <form method="POST" action="/admin/zoom-app">
+      <div style="margin-bottom:16px;">
+        <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">Client ID</label>
+        <input type="text" name="clientId" value="<%= clientIdFull %>" placeholder="مثال: oYQXQYlnRVGCLjVdujSVg" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;" required>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">Client Secret</label>
+        <input type="text" name="clientSecret" value="<%= clientSecretFull %>" placeholder="الـ Client Secret الخاص بالتطبيق" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;" required>
+      </div>
+
+      <div style="margin-bottom:20px;">
+        <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">Redirect URI</label>
+        <input type="text" name="redirectUri" value="<%= redirectUri %>" placeholder="https://almumayaz.online/auth/zoom/callback" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;">
+      </div>
+
+      <div style="margin:20px 0 8px;padding:12px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:8px;font-size:12px;color:var(--text-muted);">
+        <strong style="color:var(--accent);">بيانات Meeting SDK</strong> — من قسم "Meeting SDK" في Zoom Marketplace (مختلفة عن OAuth)<br>
+        استخدمها لتوليد السيجنيتشر عند دخول الطالب للحصة
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">SDK Key</label>
+        <input type="text" name="sdkKey" value="<%= sdkKeyFull %>" placeholder="SDK Key من قسم Meeting SDK" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;">
+      </div>
+
+      <div style="margin-bottom:20px;">
+        <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">SDK Secret</label>
+        <input type="text" name="sdkSecret" value="<%= sdkSecretFull %>" placeholder="SDK Secret من قسم Meeting SDK" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;">
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="display:inline-flex;align-items:center;gap:8px;font-size:15px;padding:10px 28px;">
+        <i class="fas fa-save"></i> حفظ بيانات التطبيق
+      </button>
+    </form>
+
+    <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border);font-size:12px;color:var(--text-muted);">
+      الحالي Client ID: <code><%= clientId || 'غير مضبوط' %></code><br>
+      Redirect URI: <code><%= redirectUri || 'غير مضبوط' %></code><br>
+      SDK Key: <code><%= sdkKeyFull ? sdkKeyFull.substring(0,6)+'…' : 'غير مضبوط' %></code>
+    </div>
+
+    <form method="POST" action="/admin/zoom-app/reset" style="margin-top:16px;" onsubmit="return confirm('هل أنت متأكد من إعادة تعيين بيانات Zoom إلى الإعدادات الأصلية؟')">
+      <button type="submit" class="btn" style="background:#6b7280;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">
+        <i class="fas fa-undo"></i> إعادة تعيين إلى الإعدادات الأصلية
+      </button>
+    </form>
+  </div>
+</main>
+<%- include('../partials/footer') %>

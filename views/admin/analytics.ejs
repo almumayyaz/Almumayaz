@@ -49,11 +49,12 @@
 </main>
 
 <script>
+function escHtml(t) { return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
 (async function() {
   // Load overview from v2 engine
   var resp = await fetch('/api/admin/analytics/v2/overview');
   var v2 = await resp.json();
-  if (!resp.ok || v2.error) { document.getElementById('overviewCards').innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:#dc2626;">خطأ: ' + (v2.error || 'فشل تحميل البيانات') + '</div>'; return; }
+  if (!resp.ok || v2.error) { document.getElementById('overviewCards').textContent = 'خطأ: ' + (v2.error || 'فشل تحميل البيانات'); return; }
   var ov = v2;
   var cards = [
     { label: 'إجمالي الطلاب', value: ov.totalStudents, icon: 'fa-users', color: '#3b82f6' },
@@ -82,7 +83,7 @@
     var watchDisplay = watchMin >= 60 ? Math.round(watchMin/60) + 'س' : watchMin + 'د';
     studentsHtml += '<tr style="border-bottom:1px solid var(--border);">' +
       '<td style="padding:6px 4px;color:var(--text-muted);text-align:center;">' + (i+1) + '</td>' +
-      '<td style="padding:6px 4px;"><a href="/admin/student-progress?sid=' + (s.uid || '') + '" style="color:var(--accent);text-decoration:none;font-weight:600;">' + (s.name || '—') + '</a></td>' +
+      '<td style="padding:6px 4px;"><a href="/admin/student-progress?sid=' + escHtml(s.uid || '') + '" style="color:var(--accent);text-decoration:none;font-weight:600;">' + escHtml(s.name || '—') + '</a></td>' +
       '<td style="padding:6px 4px;text-align:center;"><span style="background:' + scoreColor + ';color:#fff;padding:2px 8px;border-radius:10px;font-weight:700;font-size:11px;">' + score + '</span></td>' +
       '<td style="padding:6px 4px;text-align:center;font-size:11px;">' + watchDisplay + '</td>' +
       '<td style="padding:6px 4px;text-align:center;">' + s.summary.completedLessons + '</td>' +
@@ -146,7 +147,7 @@ function renderStudentTable(data) {
   data.forEach(function(s) {
     var scoreColor = s.activityScore >= 70 ? '#059669' : s.activityScore >= 40 ? '#d97706' : '#dc2626';
     h += '<tr style="border-bottom:1px solid var(--border);">' +
-      '<td style="padding:6px 4px;"><a href="/admin/student-progress?sid=' + s.id + '" style="color:var(--accent);text-decoration:none;font-weight:600;">' + (s.name || '—') + '</a></td>' +
+      '<td style="padding:6px 4px;"><a href="/admin/student-progress?sid=' + escHtml(s.id) + '" style="color:var(--accent);text-decoration:none;font-weight:600;">' + escHtml(s.name || '—') + '</a></td>' +
       '<td style="padding:6px 4px;text-align:center;"><span style="background:' + scoreColor + ';color:#fff;padding:2px 8px;border-radius:10px;font-weight:700;font-size:11px;">' + s.activityScore + '</span></td>' +
       '<td style="padding:6px 4px;text-align:center;">' + s.completedLessons + '/' + s.totalLessons + '</td>' +
       '<td style="padding:6px 4px;text-align:center;">' + (s.totalWatchMinutes >= 60 ? Math.round(s.totalWatchMinutes/60) + 'س' : s.totalWatchMinutes + 'د') + '</td>' +
@@ -172,11 +173,11 @@ function renderLessonAnalytics(data) {
     '<div style="flex:2;text-align:center;">الإكمال</div><div style="flex:1;text-align:center;">المشاهدة</div></div>';
   Object.keys(courses).forEach(function(cid) {
     var c = courses[cid];
-    h += '<div style="font-weight:700;font-size:13px;padding:8px 0 4px;color:var(--accent);border-bottom:1px solid var(--border);margin-top:10px;"><i class="fas fa-book" style="font-size:12px;"></i> ' + c.title + '</div>';
+    h += '<div style="font-weight:700;font-size:13px;padding:8px 0 4px;color:var(--accent);border-bottom:1px solid var(--border);margin-top:10px;"><i class="fas fa-book" style="font-size:12px;"></i> ' + escHtml(c.title) + '</div>';
     c.lessons.forEach(function(l) {
       var barColor = l.completionRate >= 70 ? '#059669' : l.completionRate >= 40 ? '#d97706' : '#dc2626';
       h += '<div style="display:flex;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;">' +
-        '<div style="flex:2;font-weight:600;">' + (l.lessonTitle || '—') + '</div>' +
+        '<div style="flex:2;font-weight:600;">' + escHtml(l.lessonTitle || '—') + '</div>' +
         '<div style="flex:1;text-align:center;color:var(--text-muted);">' + l.opens + '</div>' +
         '<div style="flex:2;text-align:center;"><div style="display:flex;align-items:center;gap:4px;"><div style="flex:1;height:5px;background:var(--bg);border-radius:3px;overflow:hidden;"><div style="height:100%;width:' + l.completionRate + '%;background:' + barColor + ';border-radius:3px;"></div></div><span style="font-weight:700;font-size:10px;color:' + barColor + ';">' + l.completionRate + '%</span></div></div>' +
         '<div style="flex:1;text-align:center;font-size:11px;color:var(--text-muted);">' + fmtTime(l.averageWatchTimeSeconds) + '</div></div>';
@@ -188,8 +189,8 @@ function renderLessonAnalytics(data) {
 function renderLessonCard(l, icon) {
   return '<div style="text-align:center;padding:12px;">' +
     '<i class="fas fa-' + icon + '" style="font-size:28px;color:var(--accent);margin-bottom:8px;"></i>' +
-    '<div style="font-weight:700;font-size:14px;margin-bottom:4px;">' + (l.lessonTitle || '—') + '</div>' +
-    '<div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">' + (l.courseTitle || '') + '</div>' +
+    '<div style="font-weight:700;font-size:14px;margin-bottom:4px;">' + escHtml(l.lessonTitle || '—') + '</div>' +
+    '<div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">' + escHtml(l.courseTitle || '') + '</div>' +
     '<div style="display:flex;justify-content:center;gap:16px;font-size:12px;">' +
     '<div><span style="color:var(--text-muted);">الإكمال</span> <strong>' + l.completionRate + '%</strong></div>' +
     '<div><span style="color:var(--text-muted);">الفتح</span> <strong>' + l.opens + '</strong></div></div></div>';
@@ -206,7 +207,7 @@ function renderExamAnalytics(data) {
     var barColor = e.passRate >= 70 ? '#059669' : e.passRate >= 40 ? '#d97706' : '#dc2626';
     var avgColor = e.averageScore >= 70 ? '#059669' : e.averageScore >= 40 ? '#d97706' : '#dc2626';
     h += '<tr style="border-bottom:1px solid var(--border);">' +
-      '<td style="padding:6px 4px;font-weight:600;font-size:12px;">' + (e.examTitle || '—') + '</td>' +
+      '<td style="padding:6px 4px;font-weight:600;font-size:12px;">' + escHtml(e.examTitle || '—') + '</td>' +
       '<td style="padding:6px 4px;text-align:center;">' + e.students + '</td>' +
       '<td style="padding:6px 4px;text-align:center;font-weight:700;color:' + avgColor + ';">' + e.averageScore + '%</td>' +
       '<td style="padding:6px 4px;text-align:center;"><div style="display:flex;align-items:center;gap:4px;"><div style="flex:1;height:5px;background:var(--bg);border-radius:3px;overflow:hidden;"><div style="height:100%;width:' + e.passRate + '%;background:' + barColor + ';border-radius:3px;"></div></div><span style="font-weight:700;font-size:10px;color:' + barColor + ';">' + e.passRate + '%</span></div></td>' +
@@ -220,7 +221,7 @@ function renderExamCard(e, icon) {
   var students = (e.students != null) ? e.students : (e.studentsCount != null ? e.studentsCount : '—');
   return '<div style="font-size:13px;">' +
     '<div style="font-size:18px;margin-bottom:4px;">' + icon + '</div>' +
-    '<div style="font-weight:700;font-size:12px;margin-bottom:2px;">' + title + '</div>' +
+    '<div style="font-weight:700;font-size:12px;margin-bottom:2px;">' + escHtml(title) + '</div>' +
     '<div style="font-size:11px;color:var(--text-muted);">المعدل: <strong>' + (e.averageScore != null ? e.averageScore + '%' : '—') + '</strong> | الطلاب: <strong>' + students + '</strong></div></div>';
 }
 </script>

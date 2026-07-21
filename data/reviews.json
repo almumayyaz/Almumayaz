@@ -183,32 +183,6 @@
   },
   {
     "color": "#a07200",
-    "course": "الوحدة الاولي",
-    "courseId": "1783652697899",
-    "date": "2026-07-13",
-    "desc": "",
-    "grade": "الأول الإعدادي",
-    "icon": "fa-book-open",
-    "id": "1783979584634",
-    "isFree": false,
-    "order": 0,
-    "pdfFiles": [
-      {
-        "path": "reviews/cd32197e-0bd8-48e2-9373-8bf5f5cda826-Certificate.pdf",
-        "title": "ملف"
-      }
-    ],
-    "stage": "إعدادية",
-    "title": "مراجعة",
-    "videos": [
-      {
-        "title": "فيديو",
-        "url": "https://www.youtube.com/embed/O-tLaUAqRZY"
-      }
-    ]
-  },
-  {
-    "color": "#a07200",
     "course": "الأدب",
     "courseId": "3",
     "date": "2026-07-13",
@@ -240,6 +214,43 @@
     "videos": [
       {
         "title": "فيديو",
+        "url": "https://www.youtube.com/embed/O-tLaUAqRZY"
+      }
+    ]
+  },
+  {
+    "color": "#a07200",
+    "course": "نحو",
+    "courseId": "",
+    "date": "2026-07-15",
+    "desc": "وصف المراجعة",
+    "grade": "الأول الإعدادي",
+    "icon": "fa-book-open",
+    "id": "1784147798542",
+    "isFree": false,
+    "order": 0,
+    "quiz": {
+      "id": "rq1784149871248",
+      "questions": [
+        {
+          "correct": 0,
+          "options": [
+            "لنرقي",
+            "لنتخلف",
+            "لنتطور",
+            "لن"
+          ],
+          "question": "لماذا نتعلم",
+          "wrongAnswerMessage": "ارجع شوف الدرس ياض"
+        }
+      ],
+      "title": "اختبار المراجعة"
+    },
+    "stage": "إعدادية",
+    "title": "مراجعة شاملة",
+    "videos": [
+      {
+        "title": "شرح المراجعة",
         "url": "https://www.youtube.com/embed/O-tLaUAqRZY"
       }
     ]

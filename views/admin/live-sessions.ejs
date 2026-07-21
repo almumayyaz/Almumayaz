@@ -230,7 +230,12 @@ function startSession(id) {
   fetch('/api/admin/live-sessions/' + id + '/start', { method: 'POST' })
     .then(function(r) { return r.json(); })
     .then(function(d) {
-      if (d.success) loadSessions();
+      if (d.success) {
+        loadSessions();
+        if (d.session && d.session.startUrl) {
+          window.open(d.session.startUrl, '_blank');
+        }
+      }
       else alert(d.error || 'حدث خطأ');
     });
 }
