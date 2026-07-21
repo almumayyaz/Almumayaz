@@ -1780,7 +1780,7 @@ app.put('/api/student/profile', requireAuth, async (req, res) => {
     // Respond immediately, then persist to Firebase
     req.session.user = sessionUser(users[idx]);
     var safeUser = {};
-    var safeFields = ['id','name','email','phone','role','stage','grade','governorate','subscriptionStatus','subscriptionEnd','stage','referralCode','avatar','parentName','parentPhone','parentEmail','fcmEnabled','phoneVerified'];
+    var safeFields = ['id','name','email','phone','role','stage','grade','governorate','subscriptionStatus','subscriptionEnd','referralCode','parentName','parentPhone','parentEmail','fcmEnabled','phoneVerified'];
     safeFields.forEach(function(k) { if (users[idx][k] !== undefined) safeUser[k] = users[idx][k]; });
     res.json({ success: true, user: safeUser });
     // Persist to Firebase asynchronously (Vercel grace period allows pending promises)

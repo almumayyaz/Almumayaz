@@ -449,8 +449,8 @@ function saveProfile() {
       document.getElementById('viewGrade').textContent = d.user.grade || '---';
       document.getElementById('viewGovernorate').textContent = d.user.governorate || '---';
       document.getElementById('profileNameDisplay').textContent = d.user.name;
-      setAvatar(document.getElementById('profileAvatarWrap'), d.user.avatar, d.user.name);
-      setAvatar(document.getElementById('sidebarAvatarWrap'), d.user.avatar, d.user.name);
+      setAvatar(document.getElementById('profileAvatarWrap'), avatarBase64, d.user.name);
+      setAvatar(document.getElementById('sidebarAvatarWrap'), avatarBase64, d.user.name);
       toggleEdit();
       alert('تم حفظ التغييرات بنجاح');
     } else alert(d.error || 'فشل الحفظ');
