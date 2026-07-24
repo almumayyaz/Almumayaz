@@ -1,6 +1,27 @@
 const { initializeApp, getApps, cert } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
 const admin = require('firebase-admin');
+// Firestore adapter — primary data store for all persistent collections
+const fsCore = require('./services/firestore/firestore');
+const log = require('./services/firestore/logger');
+
+// Collections that have been migrated from RTDB to Firestore
+const FIRESTORE_COLLECTIONS = new Set([
+  'users', 'courses', 'settings', 'notifications', 'payments',
+  'subscriptions', 'reviews', 'supportTickets', 'notes', 'quotes',
+  'questionBanks', 'announcements', 'liveSessions', 'parentInvites',
+  'chargeCodes', 'maintenanceMode', 'contacts', 'appConfig', 'cronLastRun',
+  'themeConfig', 'subRequests', 'dismissed', 'studentAnalytics',
+]);
+
+// Feature flags for dual-write control (set via environment variables)
+const USE_RTDB_FALLBACK = process.env.USE_RTDB_FALLBACK !== 'false';
+const ENABLE_DUAL_WRITE = process.env.ENABLE_DUAL_WRITE !== 'false';
+
+// Collections that stay on RTDB (real-time only)
+const RTDB_REALTIME = new Set([
+  'chats', '_usage', '_cronClaims', 'liveSessionAttendance',
+]);
 
 function stripBOM(s) { return s && s.charCodeAt(0) === 0xFEFF ? s.slice(1) : s; }
 
@@ -111,6 +132,11 @@ const fcmLog = require('./fcm-log');
 const localStore = require('./data-store');
 let useLocalFallback = !ready;
 const perf = require('./perf');
+let _usage = null;
+function trackUsage(op, sub) {
+  if (!_usage) { try { _usage = require('./usage-tracker'); } catch(e) { return; } }
+  _usage.trackFirebaseOp(op + '/' + sub);
+}
 
 /* ===================== READ-THROUGH CACHE (TTL) ===================== */
 // Stage 2 / 6 / 13 / 14: in-memory cache with per-key TTL.
@@ -142,21 +168,25 @@ function clone(o) {
 }
 
 function normalizeSnapshot(val) {
-  // Firebase returns stored arrays as objects with numeric keys - normalize to array
-  if (val && typeof val === 'object' && !Array.isArray(val)) {
+  if (val === null || val === undefined) return val;
+  if (Array.isArray(val)) return val.map(normalizeSnapshot).filter(v => v != null);
+  if (typeof val === 'object') {
     const keys2 = Object.keys(val);
-    if (keys2.length > 0) {
-      if (keys2.every(k => !isNaN(parseInt(k)))) {
-        return keys2.sort((a, b) => parseInt(a) - parseInt(b)).map(k => val[k]).filter(Boolean);
-      } else {
-        const first = val[keys2[0]];
-        if (first && typeof first === 'object' && first.id) {
-          return keys2.map(k => val[k]).filter(Boolean);
-        }
+    if (keys2.length > 0 && keys2.every(k => !isNaN(parseInt(k)))) {
+      const sorted = keys2.slice().sort((a, b) => parseInt(a) - parseInt(b));
+      if (sorted[0] === '0' && parseInt(sorted[sorted.length - 1]) === sorted.length - 1) {
+        return sorted.map(k => normalizeSnapshot(val[k])).filter(v => v != null);
+      }
+    } else if (keys2.length > 0) {
+      const first = val[keys2[0]];
+      if (first && typeof first === 'object' && first.id) {
+        return keys2.map(k => normalizeSnapshot(val[k])).filter(v => v != null);
       }
     }
+    const obj = {};
+    for (const k of keys2) obj[k] = normalizeSnapshot(val[k]);
+    return obj;
   }
-  if (Array.isArray(val)) return val.filter(Boolean);
   return val;
 }
 
@@ -167,46 +197,89 @@ async function readData(key, noCache) {
     const cached = cacheGet(key);
     if (cached !== undefined) return clone(cached);
   }
-  let val;
-  let readFromFirebase = false;
-  // Try Firebase first (authoritative source - persists across instances)
-  if (fbDb) {
+  // For Firestore-migrated collections, read from Firestore (authoritative source)
+  if (FIRESTORE_COLLECTIONS.has(key)) {
     try {
       perf.trackRead();
+      log.info('readData', `Reading "${key}" from Firestore`);
+      const val = await fsCore.readCollection(key);
+      if (val !== null) {
+        localStore.writeData(key, val).catch(function() {});
+        if (!noCache && CACHEABLE.has(key) && !(Array.isArray(val) && val.length === 0)) cacheSet(key, val);
+        return clone(val);
+      }
+      log.warn('readData', `Firestore returned null for "${key}"`);
+    } catch (e) {
+      log.error('readData', `Firestore error for "${key}"`, e.message);
+    }
+  }
+  // Firestore-migrated collections: only fall back to RTDB if USE_RTDB_FALLBACK is enabled
+  // Non-migrated collections: always read from RTDB
+  const shouldReadFromRTDB = !FIRESTORE_COLLECTIONS.has(key) || USE_RTDB_FALLBACK;
+  let val;
+  let readFromFirebase = false;
+  if (shouldReadFromRTDB && fbDb) {
+    try {
+      perf.trackRead();
+      trackUsage('read', key);
       readFromFirebase = true;
       var snap = await Promise.race([
         fbDb.ref(key).once('value'),
-        new Promise(function(_, reject) { setTimeout(function() { reject(new Error('timeout')); }, 8000); })
+        new Promise(function(_, reject) { setTimeout(function() { reject(new Error('timeout')); }, 15000); })
       ]);
       val = normalizeSnapshot(snap.val());
     } catch (e) {
-      console.error('Firebase read error, using local store:', e.message);
-      val = undefined;
+      console.error('Firebase read error, retrying:', e.message);
+      // Retry once — Admin SDK connection may not be ready on cold start
+      try {
+        var snap2 = await Promise.race([
+          fbDb.ref(key).once('value'),
+          new Promise(function(_, reject) { setTimeout(function() { reject(new Error('timeout')); }, 15000); })
+        ]);
+        val = normalizeSnapshot(snap2.val());
+      } catch (e2) {
+        console.error('Firebase read retry failed:', e2.message);
+        val = undefined;
+      }
     }
   }
   if (val === null || val === undefined) {
     if (!readFromFirebase) perf.trackRead();
     val = await localStore.readData(key);
   }
-  if (val !== null && val !== undefined && !noCache && CACHEABLE.has(key)) cacheSet(key, val);
+  // Persist successful Firebase reads to localStore for cold-start resilience
+  if (val !== null && val !== undefined && readFromFirebase && !noCache) {
+    localStore.writeData(key, val).catch(function() {});
+  }
+  if (val !== null && val !== undefined && !(Array.isArray(val) && val.length === 0) && !noCache && CACHEABLE.has(key)) cacheSet(key, val);
   return clone(val);
 }
 
 async function writeData(key, data) {
   // Write to local store first (always works)
   await localStore.writeData(key, data);
-  // Write to Firebase Admin SDK (persistent across instances)
-  var firebaseOk = false;
-  if (fbDb) {
+  // Dual-write to Firestore for migrated collections
+  if (FIRESTORE_COLLECTIONS.has(key)) {
     try {
-      perf.trackWrite();
-      await fbDb.ref(key).set(data);
-      firebaseOk = true;
+      log.info('writeData', `Writing "${key}" to Firestore`);
+      await fsCore.writeCollection(key, data);
+      log.info('writeData', `Firestore write OK for "${key}"`);
     } catch (e) {
-      console.error('Firebase Admin write error:', e.message);
+      log.error('writeData', `Firestore write failed for "${key}"`, e.message);
     }
   }
-  // Always invalidate cache so next read fetches fresh data (from local store if Firebase failed)
+  // Write to Firebase RTDB (controlled by feature flags)
+  if (fbDb && (ENABLE_DUAL_WRITE || RTDB_REALTIME.has(key))) {
+    try {
+      perf.trackWrite();
+      trackUsage('write', key);
+      await fbDb.ref(key).set(data);
+    } catch (e) {
+      if (ENABLE_DUAL_WRITE) log.warn('writeData', 'RTDB write warning', e.message);
+      else console.error('Firebase Admin write error:', e.message);
+    }
+  }
+  // Always invalidate cache so next read fetches fresh data
   cacheInvalidate(key);
   return data;
 }
@@ -215,6 +288,16 @@ async function writeData(key, data) {
 // Uses the (cached) users collection; falls back to a full read only when not found.
 async function readUserById(id) {
   if (!id) return null;
+  // Try direct Firestore document read first (avoids full collection scan)
+  try {
+    if (FIRESTORE_COLLECTIONS.has('users')) {
+      const doc = await fsCore.getDocument('users/' + id);
+      if (doc) return doc;
+    }
+  } catch (e) {
+    log.warn('readUserById', 'Firestore direct read failed, falling back', e.message);
+  }
+  // Fallback: read full users collection and search
   const users = await readData('users');
   const list = Array.isArray(users) ? users : (users ? Object.values(users) : []);
   return list.find(u => u.id === id || u.uid === id) || null;
@@ -225,27 +308,41 @@ async function readUserById(id) {
 // merges into the stored object. Much cheaper than rewriting the whole node.
 async function updateData(path, partial) {
   perf.trackWrite();
-  if (fbDb) {
+  trackUsage('update', path.split('/')[0]);
+  const collectionName = path.split('/')[0];
+  // Write to Firestore for migrated collections
+  if (FIRESTORE_COLLECTIONS.has(collectionName)) {
     try {
-      await fbDb.ref(path).update(partial);
-      cacheInvalidate(path.split('/')[0]);
-      return partial;
+      await fsCore.updateDocument(path, partial);
+      cacheInvalidate(collectionName);
     } catch (e) {
-      console.error('Firebase Admin update error:', e.message);
+      log.error('updateData', `Firestore update failed for "${path}"`, e.message);
     }
   }
-  // Local fallback: the leaf document at `path` is stored as `<path>.json` by
-  // writeData, so merge the partial into that same document and write it back.
+  // Write to Firebase RTDB (controlled by feature flags)
+  const isRealtime = RTDB_REALTIME.has(collectionName);
+  if (fbDb && (ENABLE_DUAL_WRITE || isRealtime)) {
+    try {
+      await fbDb.ref(path).update(partial);
+      cacheInvalidate(collectionName);
+      return partial;
+    } catch (e) {
+      if (ENABLE_DUAL_WRITE) log.warn('updateData', 'RTDB update warning', e.message);
+      else console.error('Firebase Admin update error:', e.message);
+    }
+  }
+  // Local fallback
   const leaf = await localStore.readData(path);
   const node = Object.assign((leaf == null) ? {} : clone(leaf), partial);
   await localStore.writeData(path, node);
-  cacheInvalidate(path.split('/')[0]);
+  cacheInvalidate(collectionName);
   return partial;
 }
 
 // Stage 5: atomic read-modify-write transaction at `path`.
 async function transactionData(path, mutate) {
   perf.trackWrite();
+  trackUsage('transaction', path.split('/')[0]);
   if (fbDb) {
     try {
       await fbDb.ref(path).transaction(current => mutate(current));
@@ -307,6 +404,15 @@ async function fbPush(path, data) {
 }
 
 async function fbRemove(path) {
+  const collectionName = path.split('/')[0];
+  if (FIRESTORE_COLLECTIONS.has(collectionName)) {
+    try {
+      await fsCore.deleteAllDocuments(path);
+      log.info('fbRemove', `Firestore delete for "${path}"`);
+    } catch (e) {
+      log.error('fbRemove', `Firestore delete failed for "${path}"`, e.message);
+    }
+  }
   if (!fbDb) throw new Error('Firebase not available');
   try {
     await fbDb.ref(path).remove();
@@ -330,6 +436,7 @@ async function sendFCM(userId, title, body, url) {
     try {
       const response = await admin.messaging().send(message);
       fcmLog.add({ userId, title, messageId: response || 'unknown', success: true, error: null });
+      try { require('./usage-tracker').track('fcm', 'sendFCM'); } catch (e) {}
       return true;
     } catch (e) {
       console.error('sendFCM error:', e.code || e.message, 'for user', userId);
@@ -364,6 +471,7 @@ async function sendFCMToRole(role, title, body, url) {
         };
         const resp = await admin.messaging().send(message);
         fcmLog.add({ userId: u.id, title, messageId: resp || 'unknown', success: true, error: null });
+        try { require('./usage-tracker').track('fcm', 'sendFCMToRole'); } catch (e) {}
       } catch (e) {
         console.error('sendFCMToRole error for', u.id, ':', e.code || e.message);
         fcmLog.add({ userId: u.id, title, messageId: null, success: false, error: e.code || e.message });
@@ -391,7 +499,7 @@ async function sendFCMToRole(role, title, body, url) {
   }
 }
 
-module.exports = { db: fbDb, fbAuth, readData, writeData, updateData, transactionData, readUserById, pushData, fbRead, fbSet, fbPush, fbRemove, restGet, restPut, sendFCM, sendFCMToRole, admin, migrateSeedData, cacheInvalidate };
+module.exports = { db: fbDb, fbAuth, readData, writeData, updateData, transactionData, readUserById, pushData, fbRead, fbSet, fbPush, fbRemove, restGet, restPut, sendFCM, sendFCMToRole, admin, migrateSeedData, cacheInvalidate, fsCore, FIRESTORE_COLLECTIONS };
 
 // Startup: ensure seed data exists in Firebase
 async function migrateSeedData() {
@@ -429,6 +537,15 @@ async function migrateSeedData() {
       if (isEmpty) {
         await fbDb.ref(key).set(Array.isArray(local) ? seedData : local);
         console.log('Migrated seed data to Firebase:', key, typeof local === 'object' && !Array.isArray(local) ? JSON.stringify(local).length : seedData.length);
+        // Also write to Firestore for migrated collections
+        if (FIRESTORE_COLLECTIONS.has(key)) {
+          try {
+            await fsCore.writeCollection(key, seedData);
+            log.info('migrateSeedData', `Wrote "${key}" to Firestore`);
+          } catch (e) {
+            log.error('migrateSeedData', `Firestore write failed for "${key}"`, e.message);
+          }
+        }
         continue;
       }
 
@@ -458,6 +575,14 @@ async function migrateSeedData() {
         if (changed) {
           await fbDb.ref(key).set(val);
           console.log('Merged seed data into Firebase courses');
+          if (FIRESTORE_COLLECTIONS.has(key)) {
+            try {
+              await fsCore.writeCollection(key, val);
+              log.info('migrateSeedData', `Synced "${key}" to Firestore`);
+            } catch (e) {
+              log.error('migrateSeedData', `Firestore sync failed for "${key}"`, e.message);
+            }
+          }
         }
       }
     } catch (e) {
