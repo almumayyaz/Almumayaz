@@ -151,8 +151,24 @@ function firebaseLogin() {
         body: JSON.stringify({ idToken })
       });
     })
-    .then(function(res) { return res.json(); })
-    .then(function(data) {
+    .then(function(resp) { return resp.json().then(function(data) { return { status: resp.status, data: data }; }); })
+    .then(function(o) {
+      const data = o.data;
+      if (o.status === 503) {
+        // fbAuth unavailable on server — fall back to form-based /login
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/login';
+        form.style.display = 'none';
+        const ei = document.createElement('input');
+        ei.name = 'email'; ei.value = email;
+        const pi = document.createElement('input');
+        pi.name = 'password'; pi.value = password;
+        form.appendChild(ei); form.appendChild(pi);
+        document.body.appendChild(form);
+        form.submit();
+        return;
+      }
       if (data.success) { window.location.href = data.redirect; }
       else if (data.error === 'email_not_verified') {
         btn.disabled = false; btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> تسجيل الدخول';
