@@ -2717,7 +2717,7 @@ app.get('/student/subscription', requireAuth, async (req, res) => {
   const filtered = subscriptions.filter(s => !s.stage || s.stage === userStage);
   var settingsSub = await readData('settings') || {};
   var refDiscSetting = settingsSub.referralDiscount != null ? settingsSub.referralDiscount : 25;
-  res.render('student/subscription', { subscriptions: filtered, user, isGuest, refDiscSetting, title: 'الاشتراك - المُميز' });
+  res.render('student/subscription', { subscriptions: filtered, user, isGuest, refDiscSetting, fawaterkStatus: req.query.fawaterk || '', title: 'الاشتراك - المُميز' });
 });
 
 app.get('/student/payment', requireAuth, async (req, res) => {
@@ -2764,176 +2764,84 @@ app.post('/api/payments/fawaterk/webhook', async (req, res) => {
     if (!fawaterk.verifyWebhookHash(body, signature)) return res.status(401).json({ error: 'Invalid signature' });
     const event = fawaterk.parseWebhookEvent(body);
     if (!event.depositRef) return res.status(400).json({ error: 'Missing deposit reference' });
-    const deposits = await readData('walletDeposits') || [];
-    const idx = deposits.findIndex(d => d.depositId === event.depositRef);
-    if (idx === -1) return res.status(404).json({ error: 'Deposit not found' });
-    if (deposits[idx].status === 'paid') return res.json({ success: true, message: 'Already processed' });
     const isPaid = event.status === 'paid' || event.status === 'completed' || event.event === 'payment_success';
-    if (isPaid) {
-      deposits[idx].status = 'paid';
-      deposits[idx].paidAt = new Date().toISOString();
-      deposits[idx].transactionId = deposits[idx].transactionId || event.transactionId;
-      await writeData('walletDeposits', deposits);
-      const users = await readData('users');
-      const uIdx = users.findIndex(u => u.id === deposits[idx].userId || u.uid === deposits[idx].userId);
-      if (uIdx !== -1) {
-        if (!users[uIdx].wallet) users[uIdx].wallet = { balance: 0, totalDeposited: 0 };
-        users[uIdx].wallet.balance = (users[uIdx].wallet.balance || 0) + (deposits[idx].amount || 0);
-        users[uIdx].wallet.totalDeposited = (users[uIdx].wallet.totalDeposited || 0) + (deposits[idx].amount || 0);
-        users[uIdx].wallet.lastDeposit = new Date().toISOString();
-        await writeData('users', users);
-        const wallets = await readData('walletTransactions') || [];
-        wallets.push({
-          id: 'WLT-' + Date.now(),
-          userId: deposits[idx].userId,
-          type: 'deposit',
-          amount: deposits[idx].amount,
-          balanceAfter: users[uIdx].wallet.balance,
-          depositId: deposits[idx].depositId,
-          transactionId: event.transactionId,
-          provider: 'fawaterk',
-          createdAt: new Date().toISOString(),
-        });
-        await writeData('walletTransactions', wallets);
+    if (event.depositRef.startsWith('SUBPAY-')) {
+      const subPayments = await readData('subscriptionPayments') || [];
+      const sIdx = subPayments.findIndex(p => p.payId === event.depositRef);
+      if (sIdx === -1) return res.status(404).json({ error: 'Subscription payment not found' });
+      if (subPayments[sIdx].status === 'paid') return res.json({ success: true, message: 'Already processed' });
+      if (isPaid) {
+        subPayments[sIdx].status = 'paid';
+        subPayments[sIdx].paidAt = new Date().toISOString();
+        subPayments[sIdx].paymentTransactionId = event.transactionId;
+        await writeData('subscriptionPayments', subPayments);
+        const users = await readData('users');
+        const uIdx = users.findIndex(u => u.id === subPayments[sIdx].userId || u.uid === subPayments[sIdx].userId);
+        if (uIdx !== -1) {
+          users[uIdx].subscriptionStatus = 'active';
+          users[uIdx].subscriptionStart = new Date().toISOString();
+          const dur = subPayments[sIdx].durationDays || 30;
+          users[uIdx].subscriptionEnd = new Date(Date.now() + dur * 86400000).toISOString();
+          users[uIdx].planName = subPayments[sIdx].planName;
+          users[uIdx].planPeriod = subPayments[sIdx].period;
+          await writeData('users', users);
+        }
+        fawalog.info('Fawaterk.Webhook', 'Subscription activated ' + event.depositRef, { plan: subPayments[sIdx].planName });
       }
-      fawalog.info('Fawaterk.Webhook', 'Processed deposit ' + event.depositRef, { amount: deposits[idx].amount });
+      return res.json({ success: true });
     }
-    res.json({ success: true });
+    return res.status(400).json({ error: 'Unknown payment type' });
   } catch (e) {
     fawalog.error('Fawaterk.Webhook', 'Error', e.message);
     res.status(500).json({ error: e.message });
   }
 });
 
-// POST /api/student/wallet/deposit — Create Fawaterk wallet deposit
-app.post('/api/student/wallet/deposit', requireStudent, async (req, res) => {
+// POST /api/student/pay-subscription-fawaterk — direct Fawaterk payment for subscription
+app.post('/api/student/pay-subscription-fawaterk', requireStudent, async (req, res) => {
   try {
     if (!fawaterk.isEnabled()) return res.status(503).json({ error: 'Fawaterk غير متاح حالياً' });
-    const { amount } = req.body;
-    const numAmount = parseInt(amount);
-    if (!numAmount || numAmount < 10 || numAmount > 100000) return res.status(400).json({ error: 'المبلغ يجب أن يكون بين 10 و 100,000 جنيه' });
-    const depositId = 'FAW-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
-    const deposit = {
-      depositId,
-      userId: req.session.user.id,
-      userName: req.session.user.name,
-      amount: numAmount,
-      currency: 'EGP',
-      status: 'pending',
-      provider: 'fawaterk',
-      intentKey: '',
-      transactionId: '',
+    const { planName, price } = req.body;
+    if (!planName || !price) return res.status(400).json({ error: 'بيانات الخطة غير مكتملة' });
+    const subs = await readData('subscriptions') || [];
+    const sub = subs.find(s => s.name === planName);
+    const numPrice = parseInt(price);
+    if (!numPrice || numPrice < 1) return res.status(400).json({ error: 'سعر غير صالح' });
+    const payId = 'SUBPAY-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+    const payment = {
+      payId, planName, price: numPrice,
+      userId: req.session.user.id, userName: req.session.user.name,
+      userPhone: req.session.user.phone || '',
+      userEmail: req.session.user.email || '',
+      planId: sub ? sub.id : '',
+      planStage: req.session.user.stage || (sub ? (sub.stage || '') : ''),
+      period: sub ? (sub.period || '') : '',
+      durationDays: sub ? (sub.durationDays || 30) : 30,
+      discount: req.session.user.referralDiscount || 0,
+      status: 'pending', type: 'subscription',
+      createdAt: new Date().toISOString()
+    };
+    const result = await fawaterk.createTransaction({
+      customerRef: payId,
+      depositId: payId,
+      amount: numPrice,
       customerName: req.session.user.name || '',
       customerEmail: req.session.user.email || '',
       customerPhone: req.session.user.phone || '',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    const result = await fawaterk.createTransaction({
-      ...deposit,
-      customerRef: deposit.depositId,
+      successUrl: (process.env.APP_URL || 'https://almumayaz.online') + '/student/subscription?fawaterk=success',
+      failUrl: (process.env.APP_URL || 'https://almumayaz.online') + '/student/subscription?fawaterk=fail',
+      pendingUrl: (process.env.APP_URL || 'https://almumayaz.online') + '/student/subscription?fawaterk=pending',
     });
-    deposit.intentKey = result.intentKey;
-    deposit.transactionId = result.transactionId;
-    const deposits = await readData('walletDeposits') || [];
-    deposits.push(deposit);
-    await writeData('walletDeposits', deposits);
-    fawalog.info('Fawaterk.Deposit', 'Deposit created ' + depositId, { amount: numAmount });
-    res.json({ success: true, deposit, paymentUrl: result.paymentUrl });
+    payment.intentKey = result.intentKey;
+    payment.transactionId = result.transactionId;
+    const payments = await readData('subscriptionPayments') || [];
+    payments.push(payment);
+    await writeData('subscriptionPayments', payments);
+    res.json({ success: true, payment, paymentUrl: result.paymentUrl });
   } catch (e) {
-    fawalog.error('Fawaterk.Deposit', 'Error', e.message);
-    res.status(500).json({ error: e.message });
+    fawalog.error('Fawaterk.SubPay', 'Error', e.message);
+    res.status(500).json({ error: 'تعذر إنشاء عملية الدفع' });
   }
-});
-
-// GET /student/wallet — Student wallet page
-app.get('/student/wallet', requireStudent, async (req, res) => {
-  try {
-    const users = await readData('users');
-    const user = users.find(u => u.id === req.session.user.id || u.uid === req.session.user.id);
-    const wallet = (user && user.wallet) || { balance: 0, totalDeposited: 0 };
-    const deposits = (await readData('walletDeposits') || []).filter(d => d.userId === req.session.user.id).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    const transactions = (await readData('walletTransactions') || []).filter(t => t.userId === req.session.user.id).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    res.render('student/wallet', {
-      title: 'المحفظة',
-      wallet, deposits, transactions,
-      fawaterkEnabled: fawaterk.isEnabled(),
-      user: req.session.user,
-    });
-  } catch (e) {
-    fawalog.error('Fawaterk.Wallet', 'Error', e.message);
-    res.status(500).send('تعذر تحميل المحفظة');
-  }
-});
-
-// GET /payment/success — Payment success page
-app.get('/payment/success', async (req, res) => {
-  const depositId = req.query.depositId || '';
-  let deposit = null;
-  if (depositId) {
-    const deposits = await readData('walletDeposits') || [];
-    deposit = deposits.find(d => d.depositId === depositId);
-  }
-  res.render('payment-result', { title: 'تم الدفع', result: 'success', deposit, user: req.session.user || null });
-});
-
-// GET /payment/fail — Payment fail page
-app.get('/payment/fail', async (req, res) => {
-  const depositId = req.query.depositId || '';
-  let deposit = null;
-  if (depositId) {
-    const deposits = await readData('walletDeposits') || [];
-    deposit = deposits.find(d => d.depositId === depositId);
-  }
-  res.render('payment-result', { title: 'فشل الدفع', result: 'fail', deposit, user: req.session.user || null });
-});
-
-// GET /payment/pending — Payment pending page
-app.get('/payment/pending', async (req, res) => {
-  const depositId = req.query.depositId || '';
-  let deposit = null;
-  if (depositId) {
-    const deposits = await readData('walletDeposits') || [];
-    deposit = deposits.find(d => d.depositId === depositId);
-  }
-  res.render('payment-result', { title: 'الدفع معلق', result: 'pending', deposit, user: req.session.user || null });
-});
-
-// GET /admin/fawaterk-payments — Admin management page
-app.get('/admin/fawaterk-payments', requireAdmin, async (req, res) => {
-  try {
-    const deposits = await readData('walletDeposits') || [];
-    const sorted = deposits.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    const users = await readData('users') || [];
-    res.render('admin/fawaterk-payments', { title: 'مدفوعات Fawaterk', deposits: sorted, users, user: req.session.user });
-  } catch (e) {
-    fawalog.error('Fawaterk.Admin', 'Error', e.message);
-    res.status(500).send('تعذر تحميل المدفوعات');
-  }
-});
-
-// GET /api/admin/fawaterk-payments — Admin API
-app.get('/api/admin/fawaterk-payments', requireAdmin, async (req, res) => {
-  try {
-    const deposits = await readData('walletDeposits') || [];
-    const sorted = deposits.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    const search = (req.query.search || '').toLowerCase();
-    const filtered = search ? sorted.filter(d => (d.userName || '').toLowerCase().includes(search) || d.depositId.toLowerCase().includes(search) || d.status.toLowerCase().includes(search)) : sorted;
-    res.json({ success: true, deposits: filtered.slice(0, 200), total: filtered.length });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// GET /api/debug/fawaterk — diagnostic endpoint (admin only)
-app.get('/api/debug/fawaterk', requireAdmin, async (req, res) => {
-  try {
-    const result = { enabled: fawaterk.isEnabled(), clientId: (process.env.FAWATERK_CLIENT_ID || '').slice(0, 8) + '...', tokenResult: null, createResult: null };
-    if (result.enabled) {
-      try { result.tokenResult = await fawaterk.getAccessToken().then(t => t ? '✅ Token acquired' : '❌ No token').catch(e => '❌ ' + e.message); } catch (e) { result.tokenResult = '❌ ' + e.message; }
-    }
-    res.json({ success: true, ...result });
-  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.get('/student/profile', requireStudent, async (req, res) => {

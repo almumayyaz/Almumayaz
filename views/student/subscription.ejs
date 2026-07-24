@@ -8,6 +8,25 @@
     </div>
   </div>
 
+  <% var fawaterkStatus = typeof fawaterkStatus !== 'undefined' ? fawaterkStatus : ''; %>
+  <% if (fawaterkStatus === 'success') { %>
+  <div style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);border-radius:var(--radius);padding:20px 24px;margin-bottom:20px;display:flex;align-items:center;gap:14px;">
+    <i class="fas fa-check-circle" style="font-size:28px;color:var(--success);"></i>
+    <div>
+      <h3 style="font-size:15px;font-weight:700;margin-bottom:4px;color:var(--success);">تم الدفع بنجاح!</h3>
+      <p style="font-size:13px;color:var(--text-light);margin:0;">تم تفعيل اشتراكك. يمكنك الآن مشاهدة جميع المحاضرات.</p>
+    </div>
+  </div>
+  <% } else if (fawaterkStatus === 'fail') { %>
+  <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:var(--radius);padding:20px 24px;margin-bottom:20px;display:flex;align-items:center;gap:14px;">
+    <i class="fas fa-times-circle" style="font-size:28px;color:var(--danger);"></i>
+    <div>
+      <h3 style="font-size:15px;font-weight:700;margin-bottom:4px;color:var(--danger);">فشلت عملية الدفع</h3>
+      <p style="font-size:13px;color:var(--text-light);margin:0;">لم تتم عملية الدفع. يمكنك المحاولة مرة أخرى أو اختيار الدفع اليدوي.</p>
+    </div>
+  </div>
+  <% } %>
+
   <% if (isGuest) { %>
   <div style="background:var(--accent-glow);border:1px solid var(--accent);border-radius:var(--radius);padding:20px 24px;margin-bottom:20px;text-align:center;">
     <i class="fas fa-user-friends" style="font-size:32px;color:var(--accent);display:block;margin-bottom:12px;"></i>
@@ -42,12 +61,10 @@
           <% } %>
         </div>
       </div>
-
     </div>
   </div>
   <% } %>
 
-  <!-- Action Buttons Row -->
   <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
     <button onclick="openChargePopup()" style="flex:1;min-width:130px;display:flex;align-items:center;justify-content:center;gap:6px;background:var(--accent-glow);border:1px solid var(--accent);border-radius:var(--radius);padding:10px 14px;cursor:pointer;transition:var(--transition);font-size:13px;font-weight:600;color:var(--text);font-family:inherit;">
       <i class="fas fa-barcode" style="color:var(--accent);"></i>
@@ -59,12 +76,11 @@
     </button>
   </div>
 
-  <!-- Referral Status (always visible) -->
   <div style="background:var(--card);border-radius:var(--radius-lg);padding:16px 20px;margin-bottom:20px;box-shadow:var(--shadow);border:1px solid var(--border);">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
       <div style="display:flex;align-items:center;gap:10px;">
         <i class="fas fa-gift" style="color:var(--success);font-size:16px;"></i>
-        <span style="font-size:13px;color:var(--text-light);">كودك للإحالة:</span>
+        <span style="font-size:13px;color:var(--text-light);">كود الدعوة:</span>
         <span style="font-family:monospace;font-weight:700;font-size:16px;letter-spacing:2px;direction:ltr;"><%= user.referralCode || '---' %></span>
         <% if (user.referralCode) { %>
         <button class="btn btn-sm" onclick="navigator.clipboard.writeText('<%= user.referralCode %>');this.innerHTML='<i class=\\'fas fa-check\\'></i> تم';setTimeout(()=>this.innerHTML='<i class=\\'fas fa-copy\\'></i> نسخ',2000)" style="font-size:12px;padding:4px 10px;"><i class="fas fa-copy"></i> نسخ</button>
@@ -98,7 +114,7 @@
         </div>
         <div class="sub-period"><%= sub.period %></div>
       </div>
-      <div class="sub-features-wrap">
+      <div class="sub-features-wrap" id="subFeaturesWrap<%= idx %>">
         <ul class="sub-features" id="subFeatures<%= idx %>">
           <% sub.features.forEach(function(f) { %>
           <li><i class="fas fa-check"></i> <%= f %></li>
@@ -112,76 +128,124 @@
   </div>
 </main>
 
-<!-- Subscription Payment Popup -->
+<!-- Subscription Payment Popup — خيارين -->
 <div class="modal-overlay" id="subPopup">
-  <div class="modal" style="max-width:460px;">
+  <div class="modal" style="max-width:520px;">
     <div class="modal-header">
       <h3>اشتراك: <span id="popupPlanName"></span></h3>
       <button class="modal-close" onclick="closeSubPopup()">&times;</button>
     </div>
-    <div class="modal-body">
-      <div style="background:var(--accent-glow);border:1px solid var(--accent);border-radius:var(--radius);padding:16px;margin-bottom:16px;text-align:center;">
-        <div style="font-size:13px;font-weight:700;margin-bottom:8px;">المطلوب: <span id="popupPlanPrice" style="color:var(--accent);font-size:20px;"></span> جنيه</div>
-        <div id="popupDiscountInfo" style="display:none;font-size:12px;color:var(--success);font-weight:600;margin-top:4px;"><i class="fas fa-tag"></i> شامل خصم الدعوة</div>
+    <div class="modal-body" style="padding:0;">
+      <!-- Tabs -->
+      <div style="display:flex;border-bottom:1px solid var(--border);">
+        <button id="tabInstant" class="sub-tab active" onclick="switchTab('instant')" style="flex:1;padding:14px;font-size:14px;font-weight:700;background:none;border:none;border-bottom:3px solid var(--accent);color:var(--accent);cursor:pointer;font-family:inherit;transition:var(--transition);">
+          <i class="fas fa-bolt"></i> دفع لحظي
+        </button>
+        <button id="tabManual" class="sub-tab" onclick="switchTab('manual')" style="flex:1;padding:14px;font-size:14px;font-weight:600;background:none;border:none;border-bottom:3px solid transparent;color:var(--text-light);cursor:pointer;font-family:inherit;transition:var(--transition);">
+          <i class="fas fa-hand-holding-usd"></i> دفع يدوي
+        </button>
       </div>
 
-      <div style="background:var(--bg);border-radius:var(--radius);padding:16px;margin-bottom:16px;">
-        <div style="font-weight:700;font-size:14px;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
-          <i class="fas fa-info-circle" style="color:var(--accent);"></i> بيانات الدفع
-        </div>
-        <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;">
-          <div style="display:flex;justify-content:space-between;padding:8px 12px;background:var(--card);border-radius:8px;">
-            <span style="color:var(--text-light);">فودافون كاش</span>
-            <span dir="ltr" style="font-weight:700;font-family:monospace;font-size:15px;color:var(--accent);"><%= vodafoneCash %></span>
-          </div>
-          <div style="display:flex;justify-content:space-between;padding:8px 12px;background:var(--card);border-radius:8px;">
-            <span style="color:var(--text-light);">إنستا باي</span>
-            <span dir="ltr" style="font-weight:700;font-family:monospace;font-size:15px;color:var(--accent);"><%= instaPay %></span>
+      <!-- Tab Content: Instant -->
+      <div id="tabInstantContent" style="padding:24px;">
+        <div style="background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.15);border-radius:var(--radius);padding:20px;text-align:center;margin-bottom:20px;">
+          <div style="font-size:13px;color:var(--text-light);margin-bottom:8px;">المطلوب</div>
+          <div id="instantPriceDisplay" style="font-size:32px;font-weight:900;color:var(--accent);"></div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">
+            <i class="fas fa-info-circle"></i> رسوم خدمة الدفع الإلكتروني <strong>3%</strong>
           </div>
         </div>
-        <div style="font-size:12px;color:var(--text-muted);margin-top:12px;text-align:center;">
-          <i class="fas fa-check-circle" style="color:var(--success);"></i> حول المبلغ على أي من الرقمين ثم أدخل كود العملية
+
+        <div style="background:var(--bg);border-radius:var(--radius);padding:16px;margin-bottom:20px;font-size:13px;color:var(--text-light);line-height:1.8;">
+          <div style="display:flex;justify-content:space-between;padding:4px 0;">
+            <span>سعر الخطة</span>
+            <span id="instantBasePrice" style="font-weight:700;color:var(--text);"></span>
+          </div>
+          <div id="instantDiscountRow" style="display:none;justify-content:space-between;padding:4px 0;">
+            <span style="color:var(--success);">خصم الدعوة (<span id="instantDiscountPct"></span>%)</span>
+            <span id="instantDiscountAmount" style="font-weight:700;color:var(--success);"></span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:4px 0;">
+            <span>رسوم الخدمة (3%)</span>
+            <span id="instantFee" style="font-weight:700;color:var(--text);"></span>
+          </div>
+          <div style="border-top:1px solid var(--border);margin:8px 0;padding:8px 0 0;display:flex;justify-content:space-between;">
+            <span style="font-weight:700;">الإجمالي</span>
+            <span id="instantTotal" style="font-weight:900;font-size:18px;color:var(--accent);"></span>
+          </div>
         </div>
+
+        <button class="btn btn-primary btn-lg" onclick="payInstant()" id="instantPayBtn" style="width:100%;">
+          <i class="fas fa-credit-card"></i> ادفع الآن عبر Fawaterk
+        </button>
+        <div id="instantPayError" style="display:none;background:rgba(220,38,38,0.1);border:1px solid rgba(220,38,38,0.2);border-radius:var(--radius);padding:12px;margin-top:12px;text-align:center;font-size:13px;color:var(--danger);"></div>
       </div>
 
-      <div id="subFormError" style="display:none;background:rgba(220,38,38,0.1);border:1px solid rgba(220,38,38,0.2);border-radius:var(--radius);padding:12px;margin-bottom:12px;text-align:center;font-size:13px;color:var(--danger);">
-        <span id="subFormErrorText"></span>
-      </div>
+      <!-- Tab Content: Manual -->
+      <div id="tabManualContent" style="display:none;padding:24px;">
+        <div style="background:var(--accent-glow);border:1px solid var(--accent);border-radius:var(--radius);padding:16px;margin-bottom:16px;text-align:center;">
+          <div style="font-size:13px;font-weight:700;margin-bottom:8px;">المطلوب: <span id="manualPrice" style="color:var(--accent);font-size:20px;"></span> جنيه</div>
+          <div id="manualDiscountInfo" style="display:none;font-size:12px;color:var(--success);font-weight:600;margin-top:4px;"><i class="fas fa-tag"></i> شامل خصم الدعوة</div>
+        </div>
 
-      <input type="hidden" id="subPlanName">
-      <input type="hidden" id="subPlanPrice">
-      <div class="form-group">
-        <label>كود العملية (رقم المعاملة)</label>
-        <input type="text" id="subTransactionId" class="form-input" placeholder="أدخل كود العملية من المحفظة" style="direction:rtl;">
-      </div>
-      <input type="hidden" id="subStage" value="<%= user.stage || '' %>">
-      <div class="form-group">
-        <label>طريقة التحويل</label>
-        <select id="subPaymentMethod" class="form-input">
-          <option value="vodafone-cash">فودافون كاش</option>
-          <option value="instapay">إنستا باي</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>صورة الإيصال</label>
-        <div style="position:relative;">
-          <input type="file" id="subReceiptImage" accept="image/*" style="display:none;" onchange="handleSubReceiptUpload(event)">
-          <div id="subReceiptUploadArea" style="border:2px dashed var(--border);border-radius:var(--radius);padding:20px;text-align:center;cursor:pointer;transition:var(--transition);" onclick="document.getElementById('subReceiptImage').click()">
-            <i class="fas fa-cloud-upload-alt" style="font-size:30px;color:var(--accent);margin-bottom:6px;display:block;"></i>
-            <span style="font-size:13px;font-weight:600;color:var(--text);">اضغط لرفع صورة الإيصال</span>
-            <span style="display:block;font-size:11px;color:var(--text-muted);margin-top:2px;">PNG, JPG - الحد الأقصى 5 ميجابايت</span>
+        <div style="background:var(--bg);border-radius:var(--radius);padding:16px;margin-bottom:16px;">
+          <div style="font-weight:700;font-size:14px;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+            <i class="fas fa-info-circle" style="color:var(--accent);"></i> بيانات الدفع
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;">
+            <div style="display:flex;justify-content:space-between;padding:8px 12px;background:var(--card);border-radius:8px;">
+              <span style="color:var(--text-light);">فودافون كاش</span>
+              <span dir="ltr" style="font-weight:700;font-family:monospace;font-size:15px;color:var(--accent);"><%= vodafoneCash %></span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:8px 12px;background:var(--card);border-radius:8px;">
+              <span style="color:var(--text-light);">إنستا باي</span>
+              <span dir="ltr" style="font-weight:700;font-family:monospace;font-size:15px;color:var(--accent);"><%= instaPay %></span>
+            </div>
+          </div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:12px;text-align:center;">
+            <i class="fas fa-check-circle" style="color:var(--success);"></i> حول المبلغ على أي من الرقمين ثم أدخل كود العملية
           </div>
         </div>
-        <div id="subReceiptPreview" style="display:none;margin-top:10px;position:relative;border-radius:var(--radius-sm);overflow:hidden;border:1px solid var(--border);">
-          <img id="subReceiptPreviewImg" style="width:100%;max-height:140px;object-fit:contain;background:var(--bg);">
-          <button type="button" onclick="removeSubReceipt()" style="position:absolute;top:6px;left:6px;background:rgba(220,38,38,0.9);color:#fff;border:none;border-radius:50%;width:28px;height:28px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;">
-            <i class="fas fa-times"></i>
-          </button>
+
+        <div id="manualFormError" style="display:none;background:rgba(220,38,38,0.1);border:1px solid rgba(220,38,38,0.2);border-radius:var(--radius);padding:12px;margin-bottom:12px;text-align:center;font-size:13px;color:var(--danger);">
+          <span id="manualFormErrorText"></span>
         </div>
+
+        <input type="hidden" id="manualPlanName">
+        <input type="hidden" id="manualPlanPrice">
+        <input type="hidden" id="manualStage" value="<%= user.stage || '' %>">
+        <div class="form-group">
+          <label>كود العملية (رقم المعاملة)</label>
+          <input type="text" id="manualTransactionId" class="form-input" placeholder="أدخل كود العملية من المحفظة" style="direction:rtl;">
+        </div>
+        <div class="form-group">
+          <label>طريقة التحويل</label>
+          <select id="manualPaymentMethod" class="form-input">
+            <option value="vodafone-cash">فودافون كاش</option>
+            <option value="instapay">إنستا باي</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>صورة الإيصال</label>
+          <div style="position:relative;">
+            <input type="file" id="manualReceiptImage" accept="image/*" style="display:none;" onchange="handleManualReceiptUpload(event)">
+            <div id="manualReceiptUploadArea" style="border:2px dashed var(--border);border-radius:var(--radius);padding:20px;text-align:center;cursor:pointer;transition:var(--transition);" onclick="document.getElementById('manualReceiptImage').click()">
+              <i class="fas fa-cloud-upload-alt" style="font-size:30px;color:var(--accent);margin-bottom:6px;display:block;"></i>
+              <span style="font-size:13px;font-weight:600;color:var(--text);">اضغط لرفع صورة الإيصال</span>
+              <span style="display:block;font-size:11px;color:var(--text-muted);margin-top:2px;">PNG, JPG - الحد الأقصى 5 ميجابايت</span>
+            </div>
+          </div>
+          <div id="manualReceiptPreview" style="display:none;margin-top:10px;position:relative;border-radius:var(--radius-sm);overflow:hidden;border:1px solid var(--border);">
+            <img id="manualReceiptPreviewImg" style="width:100%;max-height:140px;object-fit:contain;background:var(--bg);">
+            <button type="button" onclick="removeManualReceipt()" style="position:absolute;top:6px;left:6px;background:rgba(220,38,38,0.9);color:#fff;border:none;border-radius:50%;width:28px;height:28px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-lg" onclick="submitManualSubscription()" id="manualSubmitBtn" style="width:100%;">
+          <i class="fas fa-check"></i> تأكيد الاشتراك (مراجعة المدرس)
+        </button>
       </div>
-      <button class="btn btn-primary btn-lg" onclick="submitSubscription()" id="subSubmitBtn" style="width:100%;">
-        <i class="fas fa-check"></i> تأكيد الاشتراك
-      </button>
     </div>
   </div>
 </div>
@@ -222,10 +286,29 @@
   </div>
 </div>
 
+<!-- Under Review Success Popup -->
+<div class="modal-overlay" id="reviewPopup">
+  <div class="modal" style="max-width:420px;text-align:center;">
+    <div style="padding:40px 24px 32px;">
+      <div style="width:72px;height:72px;border-radius:50%;background:rgba(245,158,11,0.12);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">
+        <i class="fas fa-clock" style="font-size:34px;color:var(--accent);"></i>
+      </div>
+      <h2 style="font-family:'Aref Ruqaa',serif;font-size:22px;font-weight:700;margin-bottom:10px;color:var(--text);">قيد المراجعة</h2>
+      <p style="font-size:14px;color:var(--text-light);line-height:1.8;margin-bottom:24px;">
+        تم استلام طلب اشتراكك بنجاح.<br>
+        في انتظار مراجعة الأستاذ <strong>محمد عفيفي</strong>.<br>
+        سيتم تفعيل اشتراكك فور الموافقة.
+      </p>
+      <button class="btn btn-primary" onclick="closeReviewPopup()" style="width:100%;padding:14px;font-size:15px;">
+        <i class="fas fa-check"></i> حسناً
+      </button>
+    </div>
+  </div>
+</div>
+
 <style>
   .sub-features-wrap { overflow:hidden; max-height:0; transition:max-height 0.4s ease; }
   .sub-features-wrap.open { max-height:600px; }
-
   .sub-expand { display:flex; align-items:center; justify-content:center; gap:6px; padding:10px; cursor:pointer; color:var(--text); font-size:13px; font-weight:600; transition:var(--transition); background:var(--card-alt); border-radius:0 0 var(--radius-xl) var(--radius-xl); }
   .sub-expand:hover { color:var(--accent); background:var(--accent-glow); }
   .sub-expand i { font-size:13px; transition:transform 0.3s ease; }
@@ -234,6 +317,9 @@
 </style>
 
 <script>
+var discountPct = <%= user.referralDiscount || 0 %>;
+var manualReceiptBase64 = null;
+
 function toggleFeatures(idx) {
   var wrap = document.getElementById('subFeatures' + idx);
   if (!wrap) return;
@@ -245,46 +331,154 @@ function toggleFeatures(idx) {
   expand.classList.toggle('open', parent.classList.contains('open'));
 }
 
-var subReceiptBase64 = null;
-function handleSubReceiptUpload(e) {
+function handleManualReceiptUpload(e) {
   var file = e.target.files[0];
   if (!file) return;
   if (file.size > 5 * 1024 * 1024) { alert('حجم الصورة يجب أن يكون أقل من 5 ميجابايت'); return; }
   var reader = new FileReader();
   reader.onload = function(ev) {
-    subReceiptBase64 = ev.target.result;
-    document.getElementById('subReceiptPreviewImg').src = subReceiptBase64;
-    document.getElementById('subReceiptPreview').style.display = 'block';
-    document.getElementById('subReceiptUploadArea').style.display = 'none';
+    manualReceiptBase64 = ev.target.result;
+    document.getElementById('manualReceiptPreviewImg').src = manualReceiptBase64;
+    document.getElementById('manualReceiptPreview').style.display = 'block';
+    document.getElementById('manualReceiptUploadArea').style.display = 'none';
   };
   reader.readAsDataURL(file);
 }
-function removeSubReceipt() {
-  subReceiptBase64 = null;
-  document.getElementById('subReceiptPreview').style.display = 'none';
-  document.getElementById('subReceiptUploadArea').style.display = 'block';
-  document.getElementById('subReceiptImage').value = '';
+function removeManualReceipt() {
+  manualReceiptBase64 = null;
+  document.getElementById('manualReceiptPreview').style.display = 'none';
+  document.getElementById('manualReceiptUploadArea').style.display = 'block';
+  document.getElementById('manualReceiptImage').value = '';
 }
 
+var currentPlanName = '', currentPlanPrice = 0, currentPriceNum = 0;
+
 function openSubPopup(idx, name, price) {
-  var discount = <%= user.referralDiscount || 0 %>;
-  var priceNum = parseInt(price) || 0;
-  var finalPrice = discount > 0 ? Math.round(priceNum - (priceNum * discount / 100)) : priceNum;
+  currentPlanName = name;
+  currentPriceNum = parseInt(price) || 0;
+  currentPlanPrice = discountPct > 0 ? Math.round(currentPriceNum - (currentPriceNum * discountPct / 100)) : currentPriceNum;
   document.getElementById('popupPlanName').textContent = name;
-  if (discount > 0) {
-    document.getElementById('popupPlanPrice').innerHTML = '<span style="text-decoration:line-through;opacity:0.5;margin-left:8px;font-size:14px;">' + price + '</span> <strong style="color:var(--success);font-size:22px;">' + finalPrice + '</strong>';
-    document.getElementById('popupDiscountInfo').style.display = 'block';
-  } else {
-    document.getElementById('popupPlanPrice').textContent = price;
-    document.getElementById('popupDiscountInfo').style.display = 'none';
-  }
-  document.getElementById('subPlanName').value = name;
-  document.getElementById('subPlanPrice').value = finalPrice;
-  document.getElementById('subFormError').style.display = 'none';
-  document.getElementById('subTransactionId').value = '';
-  removeSubReceipt();
+  document.getElementById('manualPlanName').value = name;
+  document.getElementById('manualPlanPrice').value = currentPlanPrice;
+  document.getElementById('manualFormError').style.display = 'none';
+  document.getElementById('manualTransactionId').value = '';
+  removeManualReceipt();
+  switchTab('instant');
   document.getElementById('subPopup').classList.add('show');
 }
+
+function switchTab(tab) {
+  var instant = document.getElementById('tabInstant');
+  var manual = document.getElementById('tabManual');
+  var instantContent = document.getElementById('tabInstantContent');
+  var manualContent = document.getElementById('tabManualContent');
+  if (tab === 'instant') {
+    instant.style.borderBottomColor = 'var(--accent)'; instant.style.color = 'var(--accent)'; instant.style.fontWeight = '700';
+    manual.style.borderBottomColor = 'transparent'; manual.style.color = 'var(--text-light)'; manual.style.fontWeight = '600';
+    instantContent.style.display = 'block';
+    manualContent.style.display = 'none';
+    updateInstantPrices();
+  } else {
+    manual.style.borderBottomColor = 'var(--accent)'; manual.style.color = 'var(--accent)'; manual.style.fontWeight = '700';
+    instant.style.borderBottomColor = 'transparent'; instant.style.color = 'var(--text-light)'; instant.style.fontWeight = '600';
+    manualContent.style.display = 'block';
+    instantContent.style.display = 'none';
+    updateManualPrices();
+  }
+}
+
+function updateInstantPrices() {
+  var base = currentPriceNum;
+  var discounted = discountPct > 0 ? Math.round(base - (base * discountPct / 100)) : base;
+  var afterDiscount = discounted;
+  var fee = Math.round(afterDiscount * 3 / 100);
+  var total = afterDiscount + fee;
+  var feeDisplay = document.getElementById('instantFee');
+  var totalDisplay = document.getElementById('instantTotal');
+  var baseDisplay = document.getElementById('instantBasePrice');
+  var priceDisplay = document.getElementById('instantPriceDisplay');
+  priceDisplay.innerHTML = total + ' <span style="font-size:16px;font-weight:600;">جنيه</span>';
+  baseDisplay.textContent = base + ' جنيه';
+  feeDisplay.textContent = fee + ' جنيه';
+  totalDisplay.textContent = total + ' جنيه';
+  var discountRow = document.getElementById('instantDiscountRow');
+  if (discountPct > 0) {
+    discountRow.style.display = 'flex';
+    document.getElementById('instantDiscountPct').textContent = discountPct;
+    document.getElementById('instantDiscountAmount').textContent = '-' + (base - discounted) + ' جنيه';
+  } else {
+    discountRow.style.display = 'none';
+  }
+  var totalWithFees = document.getElementById('instantPriceDisplay');
+  totalWithFees.innerHTML = total + ' <span style="font-size:16px;font-weight:600;">جنيه</span>';
+}
+
+function updateManualPrices() {
+  var el = document.getElementById('manualPrice');
+  if (discountPct > 0) {
+    el.innerHTML = '<span style="text-decoration:line-through;opacity:0.5;margin-left:8px;font-size:14px;">' + currentPriceNum + '</span> <strong style="color:var(--success);font-size:22px;">' + currentPlanPrice + '</strong>';
+    document.getElementById('manualDiscountInfo').style.display = 'block';
+  } else {
+    el.textContent = currentPriceNum;
+    document.getElementById('manualDiscountInfo').style.display = 'none';
+  }
+}
+
+function payInstant() {
+  var btn = document.getElementById('instantPayBtn');
+  var errDiv = document.getElementById('instantPayError');
+  errDiv.style.display = 'none';
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري تحويلك إلى بوابة الدفع...';
+  fetch('/api/student/pay-subscription-fawaterk', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ planName: currentPlanName, price: currentPlanPrice })
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.success && d.paymentUrl) {
+      window.location.href = d.paymentUrl;
+    } else {
+      errDiv.style.display = 'block';
+      errDiv.textContent = d.error || 'حدث خطأ، حاول مرة أخرى';
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-credit-card"></i> ادفع الآن عبر Fawaterk';
+    }
+  }).catch(function() {
+    errDiv.style.display = 'block';
+    errDiv.textContent = 'حدث خطأ في الاتصال';
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-credit-card"></i> ادفع الآن عبر Fawaterk';
+  });
+}
+
+function submitManualSubscription() {
+  var transactionId = document.getElementById('manualTransactionId').value.trim();
+  var planName = document.getElementById('manualPlanName').value;
+  var price = document.getElementById('manualPlanPrice').value;
+  var paymentMethod = document.getElementById('manualPaymentMethod').value;
+  var errDiv = document.getElementById('manualFormError');
+  var errText = document.getElementById('manualFormErrorText');
+  errDiv.style.display = 'none';
+  if (!transactionId) { errDiv.style.display = 'block'; errText.textContent = 'يرجى إدخال كود العملية'; return; }
+  if (!manualReceiptBase64) { errDiv.style.display = 'block'; errText.textContent = 'يرجى رفع صورة الإيصال'; return; }
+  var btn = document.getElementById('manualSubmitBtn');
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الإرسال...';
+  fetch('/api/student/subscribe', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ planName: planName, price: Number(price), transactionId: transactionId, paymentMethod: paymentMethod, receiptImage: manualReceiptBase64 })
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.success) {
+      closeSubPopup();
+      document.getElementById('reviewPopup').classList.add('show');
+    } else {
+      errDiv.style.display = 'block'; errText.textContent = d.error || 'حدث خطأ';
+      btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> تأكيد الاشتراك (مراجعة المدرس)';
+    }
+  }).catch(function() {
+    errDiv.style.display = 'block'; errText.textContent = 'حدث خطأ في الاتصال';
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> تأكيد الاشتراك (مراجعة المدرس)';
+  });
+}
+
 function closeSubPopup() { document.getElementById('subPopup').classList.remove('show'); }
 document.getElementById('subPopup').addEventListener('click', function(e) { if (e.target === this) this.classList.remove('show'); });
 
@@ -295,6 +489,9 @@ document.getElementById('chargePopup').addEventListener('click', function(e) { i
 function openReferralPopup() { document.getElementById('referralPopup').classList.add('show'); }
 function closeReferralPopup() { document.getElementById('referralPopup').classList.remove('show'); }
 document.getElementById('referralPopup').addEventListener('click', function(e) { if (e.target === this) this.classList.remove('show'); });
+
+function closeReviewPopup() { document.getElementById('reviewPopup').classList.remove('show'); location.reload(); }
+document.getElementById('reviewPopup').addEventListener('click', function(e) { if (e.target === this) { this.classList.remove('show'); location.reload(); } });
 
 function redeemCode() {
   var code = document.getElementById('redeemCode').value.trim();
@@ -315,34 +512,6 @@ function redeemCode() {
     btn.disabled=false; btn.innerHTML='<i class="fas fa-check"></i> تفعيل';
   })
   .catch(function(){ msg.style.display='block'; msg.style.background='rgba(220,38,38,0.1)'; msg.style.color='var(--danger)'; msg.textContent='حدث خطأ في الاتصال'; btn.disabled=false; btn.innerHTML='<i class="fas fa-check"></i> تفعيل'; });
-}
-
-function submitSubscription() {
-  var transactionId = document.getElementById('subTransactionId').value.trim();
-  var planName = document.getElementById('subPlanName').value;
-  var price = document.getElementById('subPlanPrice').value;
-  var paymentMethod = document.getElementById('subPaymentMethod').value;
-  var errDiv = document.getElementById('subFormError');
-  var errText = document.getElementById('subFormErrorText');
-  errDiv.style.display = 'none';
-  if (!transactionId) { errDiv.style.display = 'block'; errText.textContent = 'يرجى إدخال كود العملية'; return; }
-  if (!subReceiptBase64) { errDiv.style.display = 'block'; errText.textContent = 'يرجى رفع صورة الإيصال'; return; }
-  var btn = document.getElementById('subSubmitBtn');
-  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الإرسال...';
-  fetch('/api/student/subscribe', {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ planName: planName, price: Number(price), transactionId: transactionId, paymentMethod: paymentMethod, receiptImage: subReceiptBase64 })
-  }).then(function(r) { return r.json(); }).then(function(d) {
-    if (d.success) {
-      document.getElementById('subPopup').innerHTML = '<div style="padding:60px 24px;text-align:center;"><i class="fas fa-check-circle" style="font-size:56px;color:var(--success);display:block;margin-bottom:16px;"></i><h2 style="font-family:\'Aref Ruqaa\',serif;font-size:22px;font-weight:700;margin-bottom:8px;">✅ تم إرسال طلب الاشتراك</h2><p style="font-size:14px;color:var(--text-light);margin-bottom:20px;">في انتظار موافقة الأستاذ محمد عفيفي. سيتم تفعيل اشتراكك فور الموافقة.</p><button class="btn btn-primary" onclick="location.reload()"><i class="fas fa-home"></i> العودة</button></div>';
-    } else {
-      errDiv.style.display = 'block'; errText.textContent = d.error || 'حدث خطأ';
-      btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> تأكيد الاشتراك';
-    }
-  }).catch(function() {
-    errDiv.style.display = 'block'; errText.textContent = 'حدث خطأ في الاتصال';
-    btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> تأكيد الاشتراك';
-  });
 }
 
 function applyReferral() {
