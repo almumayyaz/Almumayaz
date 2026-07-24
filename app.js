@@ -452,7 +452,7 @@ app.use(async (req, res, next) => {
           '<title>المنصة قيد الصيانة</title>' +
           '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">' +
           '<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">' +
-          '<style>*{box-sizing:border-box;margin:0;padding:0;}' +
+          '<style>*{box-sizing:border-box;margin:0;padding:0;scrollbar-width:none;-ms-overflow-style:none}*::-webkit-scrollbar{display:none}' +
           'body{font-family:Cairo,Tahoma,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;' +
           'background:#0f172a;color:#e2e8f0;padding:20px;overflow:hidden;position:relative;}' +
           /* animated bg grid */
@@ -603,7 +603,7 @@ function splashHTML(redirectUrl) {
     '<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=Aref+Ruqaa:wght@400;700&display=swap" rel="stylesheet">' +
     '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">' +
     '<style>' +
-    '*{box-sizing:border-box;margin:0;padding:0;}' +
+    '*{box-sizing:border-box;margin:0;padding:0;scrollbar-width:none;-ms-overflow-style:none}*::-webkit-scrollbar{display:none}' +
     'body{' +
     'font-family:Cairo,Tahoma,sans-serif;' +
     'min-height:100vh;display:flex;align-items:center;justify-content:center;' +
@@ -1039,7 +1039,7 @@ function landingHTML(themeCss, themeAccent) {
     '<style>' +
     '[data-theme="dark"]{--noise:rgba(255,255,255,0.008);--primary:#F59E0B;--accent:#F59E0B;--accent-glow:rgba(245,158,11,0.18);--gold-gradient:linear-gradient(135deg,#F59E0B,#D97706);--btn-text:#111;--bg:#0F172A;--card:#1E293B;--card-alt:#111827;--glass-bg:rgba(255,255,255,0.06);--glass-border:rgba(255,255,255,0.1);--glass-blur:24px;--text:#F1F5F9;--text-light:#94A3B8;--text-muted:#64748B;--border:rgba(255,255,255,0.06);--radius:14px;--radius-lg:18px;--radius-xl:24px;--shadow:0 2px 8px rgba(0,0,0,0.25);--shadow-md:0 4px 16px rgba(0,0,0,0.3);--shadow-lg:0 8px 30px rgba(0,0,0,0.35);--transition:all 0.3s cubic-bezier(0.4,0,0.2,1)}' +
     '[data-theme="light"]{--noise:rgba(0,0,0,0.012);--primary:#F59E0B;--accent:#F59E0B;--accent-glow:rgba(245,158,11,0.15);--gold-gradient:linear-gradient(135deg,#F59E0B,#D97706);--btn-text:#fff;--bg:#FFF9F1;--card:#FFFFFF;--card-alt:#f5f5f5;--glass-bg:rgba(255,255,255,0.85);--glass-border:rgba(0,0,0,0.06);--glass-blur:20px;--text:#111111;--text-light:#666666;--text-muted:#9A8A7A;--border:#E8E8E8;--radius:14px;--radius-lg:18px;--radius-xl:24px;--shadow:0 2px 8px rgba(0,0,0,0.06);--shadow-md:0 4px 16px rgba(0,0,0,0.08);--shadow-lg:0 8px 30px rgba(0,0,0,0.1);--transition:all 0.3s cubic-bezier(0.4,0,0.2,1)}' +
-    '*{box-sizing:border-box;margin:0;padding:0}' +
+    '*{box-sizing:border-box;margin:0;padding:0;scrollbar-width:none;-ms-overflow-style:none}*::-webkit-scrollbar{display:none}' +
     'html,body{height:100%}' +
     'body{font-family:Cairo,Tahoma,sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden}' +
 
@@ -1322,7 +1322,7 @@ app.get('/support', function(req, res) {
     '<style>' +
     ':root,[data-theme="dark"]{--bg:#0f172a;--card-bg:rgba(255,255,255,.03);--card-border:rgba(255,255,255,.06);--text:#e2e8f0;--text-light:#94a3b8;--text-muted:#64748b;--input-bg:rgba(255,255,255,.04);--input-border:rgba(255,255,255,.08);--shadow:rgba(245,158,11,.25);}' +
     '[data-theme="light"]{--bg:#f4f4f6;--card-bg:#fff;--card-border:#e0e0e0;--text:#111;--text-light:#555;--text-muted:#888;--input-bg:#f8f8f8;--input-border:#ddd;--shadow:rgba(245,158,11,.25);}' +
-    '*{box-sizing:border-box;margin:0;padding:0;}' +
+    '*{box-sizing:border-box;margin:0;padding:0;scrollbar-width:none;-ms-overflow-style:none}*::-webkit-scrollbar{display:none}' +
     'body{font-family:Cairo,Tahoma,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;' +
     'background:var(--bg);color:var(--text);padding:20px;}' +
     'body::before{content:"";position:fixed;inset:0;' +
@@ -1477,7 +1477,7 @@ app.get('/support/login', function(req, res) {
     '<style>' +
     ':root,[data-theme="dark"]{--bg:#0f172a;--card-bg:rgba(255,255,255,.03);--card-border:rgba(255,255,255,.06);--text:#e2e8f0;--text-light:#94a3b8;--text-muted:#64748b;--input-bg:rgba(255,255,255,.04);--input-border:rgba(255,255,255,.08);}' +
     '[data-theme="light"]{--bg:#f4f4f6;--card-bg:#fff;--card-border:#e0e0e0;--text:#111;--text-light:#555;--text-muted:#888;--input-bg:#f8f8f8;--input-border:#ddd;}' +
-    '*{box-sizing:border-box;margin:0;padding:0;}' +
+    '*{box-sizing:border-box;margin:0;padding:0;scrollbar-width:none;-ms-overflow-style:none}*::-webkit-scrollbar{display:none}' +
     'body{font-family:Cairo,Tahoma,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;' +
     'background:var(--bg);color:var(--text);padding:20px;}' +
     'body::before{content:"";position:fixed;inset:0;' +
@@ -1563,7 +1563,7 @@ app.get('/support/admin', requireSupport, async (req, res) => {
       '<style>' +
       ':root,[data-theme="dark"]{--bg:#0f172a;--card-bg:rgba(255,255,255,.03);--card-border:rgba(255,255,255,.06);--text:#e2e8f0;--text-light:#94a3b8;--text-muted:#64748b;--hover:rgba(245,158,11,.04);}' +
       '[data-theme="light"]{--bg:#f4f4f6;--card-bg:#fff;--card-border:#e0e0e0;--text:#111;--text-light:#555;--text-muted:#888;--hover:rgba(245,158,11,.08);}' +
-    '*{box-sizing:border-box;margin:0;padding:0;}' +
+    '*{box-sizing:border-box;margin:0;padding:0;scrollbar-width:none;-ms-overflow-style:none}*::-webkit-scrollbar{display:none}' +
     'body{font-family:Cairo,Tahoma,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;background:var(--bg);color:var(--text);padding:20px;}' +
     'body::before{content:"";position:fixed;inset:0;' +
     'background:radial-gradient(ellipse at 50% 0%,rgba(245,158,11,.04) 0%,transparent 60%),' +
@@ -1659,7 +1659,7 @@ app.get('/support/admin/ticket/:id', requireSupport, async (req, res) => {
       '<style>' +
       ':root,[data-theme="dark"]{--bg:#0f172a;--card-bg:rgba(255,255,255,.03);--card-border:rgba(255,255,255,.06);--text:#e2e8f0;--text-light:#94a3b8;--text-muted:#64748b;--input-bg:rgba(255,255,255,.04);--input-border:rgba(255,255,255,.08);--border:rgba(255,255,255,.06);}' +
       '[data-theme="light"]{--bg:#f4f4f6;--card-bg:#fff;--card-border:#e0e0e0;--text:#111;--text-light:#555;--text-muted:#888;--input-bg:#f8f8f8;--input-border:#ddd;--border:#e0e0e0;}' +
-    '*{box-sizing:border-box;margin:0;padding:0;}' +
+    '*{box-sizing:border-box;margin:0;padding:0;scrollbar-width:none;-ms-overflow-style:none}*::-webkit-scrollbar{display:none}' +
     'body{font-family:Cairo,Tahoma,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;background:var(--bg);color:var(--text);padding:20px;}' +
     'body::before{content:"";position:fixed;inset:0;' +
     'background:radial-gradient(ellipse at 50% 0%,rgba(245,158,11,.04) 0%,transparent 60%),' +
@@ -1894,7 +1894,7 @@ app.get('/support/my-tickets', async function(req, res) {
     '<style>' +
     ':root,[data-theme="dark"]{--bg:#0f172a;--card-bg:rgba(255,255,255,.03);--card-border:rgba(255,255,255,.06);--text:#e2e8f0;--text-light:#94a3b8;--text-muted:#64748b;--input-bg:rgba(255,255,255,.04);--input-border:rgba(255,255,255,.08);--border:rgba(255,255,255,.06);}' +
     '[data-theme="light"]{--bg:#f4f4f6;--card-bg:#fff;--card-border:#e0e0e0;--text:#111;--text-light:#555;--text-muted:#888;--input-bg:#f8f8f8;--input-border:#ddd;--border:#e0e0e0;}' +
-    '*{box-sizing:border-box;margin:0;padding:0;}' +
+    '*{box-sizing:border-box;margin:0;padding:0;scrollbar-width:none;-ms-overflow-style:none}*::-webkit-scrollbar{display:none}' +
     'body{font-family:Cairo,Tahoma,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg);color:var(--text);padding:20px;}' +
     'body::before{content:"";position:fixed;inset:0;' +
     'background:radial-gradient(ellipse at 50% 0%,rgba(245,158,11,.04) 0%,transparent 60%),' +

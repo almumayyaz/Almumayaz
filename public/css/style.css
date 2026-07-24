@@ -1,5 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&family=Aref+Ruqaa:wght@400;700&display=swap');
 
+*{scrollbar-width:none;-ms-overflow-style:none}*::-webkit-scrollbar{display:none}
+
 :root {
   --primary: #F59E0B;
   --primary-light: #FBBF24;
@@ -86,7 +88,7 @@ body {
   color: var(--text);
   direction: rtl;
   line-height: 1.8;
-  font-size: 14px;
+  font-size: 16px;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   transition: background 0.3s ease, color 0.3s ease;
@@ -97,7 +99,7 @@ ul { list-style: none; }
 img { max-width: 100%; display: block; }
 button { cursor: pointer; font-family: inherit; border: none; background: none; }
 input, select, textarea { font-family: inherit; }
-p { color: var(--text-light); font-size: 14px; }
+p { color: var(--text-light); font-size: 15px; }
 
 .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
 
@@ -2846,7 +2848,7 @@ h3 { font-size: 18px; font-weight: 900; }
   .bottom-tabs { display: flex; }
   .main-content { padding: 16px 16px 96px; }
   .student-body { display:block; }
-  .sidebar { position:fixed; top:0; right:-300px; width:280px !important; min-width:280px; transition:right .4s cubic-bezier(.22,1,.36,1); border-radius:20px 0 0 20px; height:100vh; z-index:1001; background:rgba(15,23,42,0.92); backdrop-filter:blur(20px); border-left:1px solid rgba(255,255,255,0.06); display:flex; flex-direction:column; }
+  .sidebar, .admin-body .sidebar { position:fixed; top:0; right:-300px; width:280px !important; min-width:280px; transition:right .4s cubic-bezier(.22,1,.36,1); border-radius:20px 0 0 20px; height:100vh; z-index:1001; background:rgba(15,23,42,0.92); backdrop-filter:blur(20px); border-left:1px solid rgba(255,255,255,0.06); display:flex; flex-direction:column; }
   .sidebar.collapsed { width:280px !important; padding:0; border-left:1px solid rgba(255,255,255,0.06); right:-300px; }
   [data-theme="light"] .sidebar { background:rgba(255,255,255,0.95); border-left:1px solid rgba(0,0,0,0.06); }
   .sidebar.open { right:0; box-shadow:-10px 0 40px rgba(0,0,0,0.4); }
