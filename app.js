@@ -4407,6 +4407,8 @@ app.get('/admin/settings', requireAdmin, async (req, res) => {
     contactWhatsapp: settings.contactWhatsapp || '0100 000 0000',
     announcementsEnabled: settings.announcementsEnabled !== false,
     referralDiscount: settings.referralDiscount != null ? settings.referralDiscount : 25,
+    themeAccent: settings.themeAccent || '#F59E0B',
+    themeBtnShape: settings.themeBtnShape || 'rounded',
     title: 'الإعدادات - الإدارة'
   });
 });
