@@ -76,12 +76,17 @@ function toggleTheme(){fetch('/api/toggle-dark-mode',{method:'POST'}).then(r=>r.
 .pd-item.pd-danger:hover{background:color-mix(in srgb,var(--danger) 10%,transparent)}
 .pd-item.pd-danger:hover .pd-icon{background:color-mix(in srgb,var(--danger) 20%,transparent)}
 .pd-badge{font-size:10px;background:var(--danger);color:#fff;padding:1px 6px;border-radius:6px;font-weight:700;line-height:1.4}
+.pd-handle{display:none;height:4px;width:32px;border-radius:2px;background:var(--border);margin:6px auto 2px;flex-shrink:0}
+.pd-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9998;opacity:0;visibility:hidden;transition:opacity .2s ease}
+.pd-overlay.show{opacity:1;visibility:visible}
 @media(max-width:768px){
-.pd-menu{position:fixed;top:auto;bottom:0;left:0;right:0;min-width:0;width:100%;border-radius:20px 20px 0 0;transform:translateY(20px);padding:8px 0 env(safe-area-inset-bottom,16px);max-height:80vh;overflow-y:auto}
+.pd-handle{display:block}
+.pd-wrap{position:static}
+.pd-menu{position:fixed;top:auto;bottom:0;left:0;right:0;min-width:0;width:100%;border-radius:20px 20px 0 0;transform:translateY(100%);padding:4px 0 env(safe-area-inset-bottom,16px);max-height:85vh;overflow-y:auto}
 .pd-menu.open{transform:translateY(0)}
 }
 </style>
-<script>(function(){var m=document.getElementById('pdMenu'),r;function i(){m=document.getElementById('pdMenu');if(!m)return;r=m.parentElement;var t=r.querySelector('.pd-trigger');document.addEventListener('click',function(e){if(!m.classList.contains('open'))return;if(r&&(r===e.target||r.contains(e.target)))return;c()});document.addEventListener('keydown',function(e){if(e.key==='Escape'&&m.classList.contains('open'))c()})}function o(){m&&(m.classList.add('open'),m.parentElement&&m.parentElement.querySelector('.pd-trigger')&&m.parentElement.querySelector('.pd-trigger').setAttribute('aria-expanded','true'))}function c(){m&&(m.classList.remove('open'),m.parentElement&&m.parentElement.querySelector('.pd-trigger')&&m.parentElement.querySelector('.pd-trigger').setAttribute('aria-expanded','false'))}document.readyState==='loading'?document.addEventListener('DOMContentLoaded',i):i();window.ProfileDD={toggle:function(){m&&(m.classList.contains('open')?c():o())},open:o,close:c}})();</script></head>
+<script>(function(){var m=document.getElementById('pdMenu'),o;function i(){m=document.getElementById('pdMenu');if(!m)return;var r=m.closest('.pd-wrap');var t=r&&r.querySelector('.pd-trigger');o=document.createElement('div');o.className='pd-overlay';o.addEventListener('click',c);document.body.appendChild(o);document.addEventListener('keydown',function(e){if(e.key==='Escape'&&m.classList.contains('open'))c()});document.addEventListener('click',function(e){if(!m.classList.contains('open'))return;if(r&&(r===e.target||r.contains(e.target)))return;if(o&&(o===e.target||o.contains(e.target)))return;c()})}function o_(){m&&(m.classList.add('open'),o&&o.classList.add('show'),document.body.style.overflow='hidden',m.parentElement&&m.parentElement.querySelector('.pd-trigger')&&m.parentElement.querySelector('.pd-trigger').setAttribute('aria-expanded','true'))}function c(){m&&(m.classList.remove('open'),o&&o.classList.remove('show'),document.body.style.overflow='',m.parentElement&&m.parentElement.querySelector('.pd-trigger')&&m.parentElement.querySelector('.pd-trigger').setAttribute('aria-expanded','false'))}document.readyState==='loading'?document.addEventListener('DOMContentLoaded',i):i();window.ProfileDD={toggle:function(){m&&(m.classList.contains('open')?c():o_())},open:o_,close:c}})();</script></head>
 <body class="<%= typeof bodyClass !== 'undefined' ? bodyClass : '' %>">
   <%- include('../partials/splash') %>
   <nav class="navbar">
@@ -110,6 +115,7 @@ function toggleTheme(){fetch('/api/toggle-dark-mode',{method:'POST'}).then(r=>r.
         <% if (user) { %><div class="pd-wrap">
   <button class="pd-trigger" onclick="ProfileDD.toggle()" aria-label="قائمة الحساب" aria-expanded="false"><span class="pd-avatar"><%= user.name ? user.name.charAt(0).toUpperCase() : 'U' %></span></button>
   <div class="pd-menu" id="pdMenu" role="menu">
+    <div class="pd-handle"></div>
     <a href="<%= user.role === 'admin' ? '/admin/settings' : '/student/profile' %>" class="pd-header" role="menuitem">
       <div class="pd-avatar lg"><%= user.name ? user.name.charAt(0).toUpperCase() : 'U' %></div>
       <div class="pd-info">
@@ -135,11 +141,6 @@ function toggleTheme(){fetch('/api/toggle-dark-mode',{method:'POST'}).then(r=>r.
       <% if (typeof unreadCount !== 'undefined' && unreadCount > 0) { %><span class="pd-badge"><%= unreadCount > 99 ? '99+' : unreadCount %></span><% } %>
     </a>
     <% } %>
-    <div class="pd-divider"></div>
-    <a href="/privacy" class="pd-item" role="menuitem">
-      <div class="pd-icon"><i class="fas fa-lock"></i></div>
-      <div class="pd-text"><div class="pd-title">الخصوصية والأمان</div><div class="pd-desc">إدارة كلمة المرور والجلسات</div></div>
-    </a>
     <div class="pd-divider"></div>
     <button class="pd-item pd-danger btn-logout" role="menuitem" onclick="if(!confirm('هل أنت متأكد من تسجيل الخروج؟'))event.preventDefault();else window.location.href='/logout'">
       <div class="pd-icon"><i class="fas fa-sign-out-alt"></i></div>
