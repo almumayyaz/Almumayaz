@@ -152,6 +152,8 @@
     <h1>المحتوى التعليمي</h1>
     <p>إدارة المحاضرات والدروس حسب المرحلة والصف</p>
   </div>
+  <% var prepCourses = (allCourses || []).filter(function(c){return c.stage==='إعدادية';}); %>
+  <% var secCourses = (allCourses || []).filter(function(c){return c.stage==='ثانوية';}); %>
   <div class="stage-grid-modern">
     <a href="/admin/courses?stage=%D8%A5%D8%B9%D8%AF%D8%A7%D8%AF%D9%8A%D8%A9" class="stage-card-modern">
       <div class="sc-head">
