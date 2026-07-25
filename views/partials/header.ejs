@@ -49,14 +49,14 @@ function toggleTheme(){fetch('/api/toggle-dark-mode',{method:'POST'}).then(r=>r.
 (function(){var a=document.querySelector('a[href="/student/notifications"]');if(!a)return;var b=a.querySelector('span');function u(){fetch('/api/unread-count').then(function(r){return r.json()}).then(function(d){if(d.count>0){if(!b||!a.contains(b)){b=document.createElement('span');b.style.cssText='position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:var(--danger);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px var(--card);';a.appendChild(b)}b.textContent=d.count>99?'99+':d.count}else{if(b&&a.contains(b)){b.remove();b=null}}}).catch(function(){})}u();setInterval(u,30000)})();
 </script>
 <style>
-.pd-wrap{position:relative;display:inline-flex;direction:rtl}
+.pd-wrap{display:inline-flex;direction:rtl}
 .pd-trigger{width:36px;height:36px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;font-size:13px;font-weight:800;transition:var(--transition);padding:0;line-height:1}
 .pd-trigger:hover{border-color:var(--accent);background:var(--accent-glow);color:var(--accent)}
 .pd-trigger:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:10px}
 .pd-avatar{width:28px;height:28px;border-radius:8px;background:var(--accent-glow);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;line-height:1;flex-shrink:0;user-select:none}
 .pd-avatar.lg{width:44px;height:44px;border-radius:12px;font-size:18px}
-.pd-menu{position:absolute;top:calc(100% + 10px);left:0;min-width:300px;background:color-mix(in srgb,var(--card) 92%,transparent);border:1px solid var(--border);border-radius:20px;box-shadow:var(--shadow-xl);padding:8px;opacity:0;visibility:hidden;transform:translateY(-6px) scale(0.97);transition:all 200ms cubic-bezier(0.22,1,0.36,1);z-index:9999;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
-.pd-menu.open{opacity:1;visibility:visible;transform:translateY(0) scale(1)}
+.pd-menu{position:fixed;min-width:300px;max-width:calc(100vw - 24px);background:color-mix(in srgb,var(--card) 92%,transparent);border:1px solid var(--border);border-radius:20px;box-shadow:var(--shadow-xl);padding:8px;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(-6px) scale(0.97);transition:all 200ms cubic-bezier(0.22,1,0.36,1);z-index:9999;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+.pd-menu.open{opacity:1;visibility:visible;pointer-events:auto;transform:translateY(0) scale(1)}
 .pd-header{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:14px;cursor:pointer;transition:var(--transition);text-decoration:none;color:var(--text)}
 .pd-header:hover{background:color-mix(in srgb,var(--accent) 10%,transparent)}
 .pd-info{min-width:0;flex:1}
@@ -76,17 +76,11 @@ function toggleTheme(){fetch('/api/toggle-dark-mode',{method:'POST'}).then(r=>r.
 .pd-item.pd-danger:hover{background:color-mix(in srgb,var(--danger) 10%,transparent)}
 .pd-item.pd-danger:hover .pd-icon{background:color-mix(in srgb,var(--danger) 20%,transparent)}
 .pd-badge{font-size:10px;background:var(--danger);color:#fff;padding:1px 6px;border-radius:6px;font-weight:700;line-height:1.4}
-.pd-handle{display:none;height:4px;width:32px;border-radius:2px;background:var(--border);margin:6px auto 2px;flex-shrink:0}
 .pd-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9998;opacity:0;visibility:hidden;transition:opacity .2s ease}
 .pd-overlay.show{opacity:1;visibility:visible}
-@media(max-width:768px){
-.pd-handle{display:block}
-.pd-wrap{position:static}
-.pd-menu{position:fixed;top:auto;bottom:0;left:0;right:0;min-width:0;width:100%;border-radius:20px 20px 0 0;transform:translateY(100%);padding:4px 0 env(safe-area-inset-bottom,16px);max-height:85vh;overflow-y:auto}
-.pd-menu.open{transform:translateY(0)}
-}
+@media(max-width:768px){.pd-menu{min-width:260px}}
 </style>
-<script>(function(){var m=document.getElementById('pdMenu'),o;function i(){m=document.getElementById('pdMenu');if(!m)return;var r=m.closest('.pd-wrap');var t=r&&r.querySelector('.pd-trigger');o=document.createElement('div');o.className='pd-overlay';o.addEventListener('click',c);document.body.appendChild(o);document.addEventListener('keydown',function(e){if(e.key==='Escape'&&m.classList.contains('open'))c()});document.addEventListener('click',function(e){if(!m.classList.contains('open'))return;if(r&&(r===e.target||r.contains(e.target)))return;if(o&&(o===e.target||o.contains(e.target)))return;c()})}function o_(){m&&(m.classList.add('open'),o&&o.classList.add('show'),document.body.style.overflow='hidden',m.parentElement&&m.parentElement.querySelector('.pd-trigger')&&m.parentElement.querySelector('.pd-trigger').setAttribute('aria-expanded','true'))}function c(){m&&(m.classList.remove('open'),o&&o.classList.remove('show'),document.body.style.overflow='',m.parentElement&&m.parentElement.querySelector('.pd-trigger')&&m.parentElement.querySelector('.pd-trigger').setAttribute('aria-expanded','false'))}document.readyState==='loading'?document.addEventListener('DOMContentLoaded',i):i();window.ProfileDD={toggle:function(){m&&(m.classList.contains('open')?c():o_())},open:o_,close:c}})();</script></head>
+<script>(function(){var m=document.getElementById('pdMenu'),o,t;function p(){if(!m||!t)return;var r=t.getBoundingClientRect(),g=8;var l=r.left;var w=m.offsetWidth||300;var vw=window.innerWidth;var maxL=vw-w-12;if(l>maxL)l=Math.max(maxL,12);l=Math.max(l,12);m.style.top=(r.bottom+g)+'px';m.style.left=l+'px'}function i(){m=document.getElementById('pdMenu');if(!m)return;var w=m.closest('.pd-wrap');t=w&&w.querySelector('.pd-trigger');o=document.createElement('div');o.className='pd-overlay';o.addEventListener('click',c);document.body.appendChild(o);document.addEventListener('keydown',function(e){if(e.key==='Escape'&&m.classList.contains('open'))c()});document.addEventListener('click',function(e){if(!m.classList.contains('open'))return;if(w&&(w===e.target||w.contains(e.target)))return;if(o&&(o===e.target||o.contains(e.target)))return;c()});window.addEventListener('scroll',function(){if(m.classList.contains('open'))p()},true);window.addEventListener('resize',function(){if(m.classList.contains('open'))p()})}function o_(){if(!m||!t)return;p();m.classList.add('open');o&&o.classList.add('show');if(window.innerWidth<=768)document.body.style.overflow='hidden';t.setAttribute('aria-expanded','true')}function c(){if(!m)return;m.classList.remove('open');o&&o.classList.remove('show');document.body.style.overflow='';t&&t.setAttribute('aria-expanded','false')}document.readyState==='loading'?document.addEventListener('DOMContentLoaded',i):i();window.ProfileDD={toggle:function(){m&&(m.classList.contains('open')?c():o_())},open:o_,close:c}})();</script></head>
 <body class="<%= typeof bodyClass !== 'undefined' ? bodyClass : '' %>">
   <%- include('../partials/splash') %>
   <nav class="navbar">
@@ -115,7 +109,6 @@ function toggleTheme(){fetch('/api/toggle-dark-mode',{method:'POST'}).then(r=>r.
         <% if (user) { %><div class="pd-wrap">
   <button class="pd-trigger" onclick="ProfileDD.toggle()" aria-label="قائمة الحساب" aria-expanded="false"><span class="pd-avatar"><%= user.name ? user.name.charAt(0).toUpperCase() : 'U' %></span></button>
   <div class="pd-menu" id="pdMenu" role="menu">
-    <div class="pd-handle"></div>
     <a href="<%= user.role === 'admin' ? '/admin/settings' : '/student/profile' %>" class="pd-header" role="menuitem">
       <div class="pd-avatar lg"><%= user.name ? user.name.charAt(0).toUpperCase() : 'U' %></div>
       <div class="pd-info">
