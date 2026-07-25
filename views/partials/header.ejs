@@ -47,7 +47,41 @@ function toggleTheme(){fetch('/api/toggle-dark-mode',{method:'POST'}).then(r=>r.
 </script>
 <script>
 (function(){var a=document.querySelector('a[href="/student/notifications"]');if(!a)return;var b=a.querySelector('span');function u(){fetch('/api/unread-count').then(function(r){return r.json()}).then(function(d){if(d.count>0){if(!b||!a.contains(b)){b=document.createElement('span');b.style.cssText='position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:var(--danger);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px var(--card);';a.appendChild(b)}b.textContent=d.count>99?'99+':d.count}else{if(b&&a.contains(b)){b.remove();b=null}}}).catch(function(){})}u();setInterval(u,30000)})();
-</script></head>
+</script>
+<style>
+.pd-wrap{position:relative;display:inline-flex;direction:rtl}
+.pd-trigger{width:36px;height:36px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;font-size:13px;font-weight:800;transition:var(--transition);padding:0;line-height:1}
+.pd-trigger:hover{border-color:var(--accent);background:var(--accent-glow);color:var(--accent)}
+.pd-trigger:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:10px}
+.pd-avatar{width:28px;height:28px;border-radius:8px;background:var(--accent-glow);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;line-height:1;flex-shrink:0;user-select:none}
+.pd-avatar.lg{width:44px;height:44px;border-radius:12px;font-size:18px}
+.pd-menu{position:absolute;top:calc(100% + 10px);left:0;min-width:300px;background:color-mix(in srgb,var(--card) 92%,transparent);border:1px solid var(--border);border-radius:20px;box-shadow:var(--shadow-xl);padding:8px;opacity:0;visibility:hidden;transform:translateY(-6px) scale(0.97);transition:all 200ms cubic-bezier(0.22,1,0.36,1);z-index:9999;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+.pd-menu.open{opacity:1;visibility:visible;transform:translateY(0) scale(1)}
+.pd-header{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:14px;cursor:pointer;transition:var(--transition);text-decoration:none;color:var(--text)}
+.pd-header:hover{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.pd-info{min-width:0;flex:1}
+.pd-name{font-size:14px;font-weight:700;color:var(--text);line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pd-detail{font-size:12px;color:var(--text-light);line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px}
+.pd-divider{height:1px;background:var(--border);margin:4px 8px}
+.pd-item{display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:14px;text-decoration:none;color:var(--text);transition:var(--transition);cursor:pointer;border:none;background:none;width:100%;font-family:inherit;font-size:inherit;text-align:inherit}
+.pd-item:hover{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.pd-item:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:14px}
+.pd-icon{width:34px;height:34px;border-radius:10px;background:var(--bg);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px;color:var(--accent);transition:var(--transition)}
+.pd-item:hover .pd-icon{background:var(--accent-glow)}
+.pd-text{min-width:0;flex:1}
+.pd-title{font-size:13px;font-weight:600;color:var(--text);line-height:1.3}
+.pd-desc{font-size:11px;color:var(--text-light);line-height:1.3;margin-top:1px}
+.pd-item.pd-danger{color:var(--danger)}
+.pd-item.pd-danger .pd-icon{background:color-mix(in srgb,var(--danger) 12%,transparent);color:var(--danger)}
+.pd-item.pd-danger:hover{background:color-mix(in srgb,var(--danger) 10%,transparent)}
+.pd-item.pd-danger:hover .pd-icon{background:color-mix(in srgb,var(--danger) 20%,transparent)}
+.pd-badge{font-size:10px;background:var(--danger);color:#fff;padding:1px 6px;border-radius:6px;font-weight:700;line-height:1.4}
+@media(max-width:768px){
+.pd-menu{position:fixed;top:auto;bottom:0;left:0;right:0;min-width:0;width:100%;border-radius:20px 20px 0 0;transform:translateY(20px);padding:8px 0 env(safe-area-inset-bottom,16px);max-height:80vh;overflow-y:auto}
+.pd-menu.open{transform:translateY(0)}
+}
+</style>
+<script>(function(){var m=document.getElementById('pdMenu'),r;function i(){m=document.getElementById('pdMenu');if(!m)return;r=m.parentElement;var t=r.querySelector('.pd-trigger');document.addEventListener('click',function(e){if(!m.classList.contains('open'))return;if(r&&(r===e.target||r.contains(e.target)))return;c()});document.addEventListener('keydown',function(e){if(e.key==='Escape'&&m.classList.contains('open'))c()})}function o(){m&&(m.classList.add('open'),m.parentElement&&m.parentElement.querySelector('.pd-trigger')&&m.parentElement.querySelector('.pd-trigger').setAttribute('aria-expanded','true'))}function c(){m&&(m.classList.remove('open'),m.parentElement&&m.parentElement.querySelector('.pd-trigger')&&m.parentElement.querySelector('.pd-trigger').setAttribute('aria-expanded','false'))}document.readyState==='loading'?document.addEventListener('DOMContentLoaded',i):i();window.ProfileDD={toggle:function(){m&&(m.classList.contains('open')?c():o())},open:o,close:c}})();</script></head>
 <body class="<%= typeof bodyClass !== 'undefined' ? bodyClass : '' %>">
   <%- include('../partials/splash') %>
   <nav class="navbar">
@@ -73,6 +107,46 @@ function toggleTheme(){fetch('/api/toggle-dark-mode',{method:'POST'}).then(r=>r.
         <button class="theme-toggle" onclick="spinTheme(this);toggleTheme()" title="الوضع الليلي/النهاري">
           <i class="fas <%= darkMode ? 'fa-sun' : 'fa-moon' %>"></i>
         </button>
+        <% if (user) { %><div class="pd-wrap">
+  <button class="pd-trigger" onclick="ProfileDD.toggle()" aria-label="قائمة الحساب" aria-expanded="false"><span class="pd-avatar"><%= user.name ? user.name.charAt(0).toUpperCase() : 'U' %></span></button>
+  <div class="pd-menu" id="pdMenu" role="menu">
+    <a href="<%= user.role === 'admin' ? '/admin/settings' : '/student/profile' %>" class="pd-header" role="menuitem">
+      <div class="pd-avatar lg"><%= user.name ? user.name.charAt(0).toUpperCase() : 'U' %></div>
+      <div class="pd-info">
+        <div class="pd-name"><%= user.name %></div>
+        <div class="pd-detail"><%= user.grade || user.stage || user.email || '' %></div>
+      </div>
+    </a>
+    <div class="pd-divider"></div>
+    <a href="<%= user.role === 'admin' ? '/admin/settings' : '/student/profile' %>" class="pd-item" role="menuitem">
+      <div class="pd-icon"><i class="fas fa-user"></i></div>
+      <div class="pd-text"><div class="pd-title">الملف الشخصي</div><div class="pd-desc">عرض وتعديل بيانات الحساب</div></div>
+    </a>
+    <div class="pd-divider"></div>
+    <a href="/support" class="pd-item" role="menuitem">
+      <div class="pd-icon"><i class="fas fa-headset"></i></div>
+      <div class="pd-text"><div class="pd-title">الدعم الفني</div><div class="pd-desc">تواصل مع الدعم الفني</div></div>
+    </a>
+    <% if (user.role === 'student') { %>
+    <div class="pd-divider"></div>
+    <a href="/student/notifications" class="pd-item" role="menuitem">
+      <div class="pd-icon"><i class="fas fa-bell"></i></div>
+      <div class="pd-text"><div class="pd-title">الإشعارات</div><div class="pd-desc">آخر الإشعارات والتنبيهات</div></div>
+      <% if (typeof unreadCount !== 'undefined' && unreadCount > 0) { %><span class="pd-badge"><%= unreadCount > 99 ? '99+' : unreadCount %></span><% } %>
+    </a>
+    <% } %>
+    <div class="pd-divider"></div>
+    <a href="/privacy" class="pd-item" role="menuitem">
+      <div class="pd-icon"><i class="fas fa-lock"></i></div>
+      <div class="pd-text"><div class="pd-title">الخصوصية والأمان</div><div class="pd-desc">إدارة كلمة المرور والجلسات</div></div>
+    </a>
+    <div class="pd-divider"></div>
+    <button class="pd-item pd-danger btn-logout" role="menuitem" onclick="if(!confirm('هل أنت متأكد من تسجيل الخروج؟'))event.preventDefault();else window.location.href='/logout'">
+      <div class="pd-icon"><i class="fas fa-sign-out-alt"></i></div>
+      <div class="pd-text"><div class="pd-title">تسجيل الخروج</div><div class="pd-desc">إنهاء الجلسة الحالية</div></div>
+    </button>
+  </div>
+</div><% } %>
         <% if (user && user.role === 'student') { %>
         <a href="/student/notifications" style="position:relative;display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:10px;background:var(--bg);color:var(--accent);border:1px solid var(--border);" title="مركز الإشعارات">
           <i class="fas fa-bell"></i>
