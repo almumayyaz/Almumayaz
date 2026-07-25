@@ -171,7 +171,7 @@
       youtube: { noCookie: true, rel: 0, iv_load_policy: 3, modestbranding: 1, controls: 0, fs: 0, cc_load_policy: 0 },
       poster: 'https://img.youtube.com/vi/' + videoId + '/maxresdefault.jpg',
       ratio: '16:9',
-      resetOnEnd: false,
+      resetOnEnd: true,
       clickToPlay: true,
       hideControls: true,
       tooltips: { controls: true, seek: true }
