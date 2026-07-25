@@ -9,6 +9,7 @@
     "seed": "node scripts/seed-firebase.js"
   },
   "dependencies": {
+    "@getbrevo/brevo": "^6.0.2",
     "@supabase/supabase-js": "^2.45.0",
     "body-parser": "^1.20.2",
     "cookie-session": "^2.1.1",

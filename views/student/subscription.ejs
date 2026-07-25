@@ -116,7 +116,7 @@
       </div>
       <div class="sub-features-wrap" id="subFeaturesWrap<%= idx %>">
         <ul class="sub-features" id="subFeatures<%= idx %>">
-          <% sub.features.forEach(function(f) { %>
+          <% (sub.features || []).forEach(function(f) { %>
           <li><i class="fas fa-check"></i> <%= f %></li>
           <% }) %>
         </ul>
