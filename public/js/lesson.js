@@ -159,103 +159,78 @@
   });
 
   // ── Plyr init ──────────────────────────────────────────────
-  if (typeof Plyr === 'undefined') {
-    document.querySelectorAll('.plyr-container[data-plyr-embed-id]').forEach(function(c) {
-      var id = c.getAttribute('data-plyr-embed-id');
-      if (!id) return;
-      c.innerHTML = '<iframe src="https://www.youtube.com/embed/' + encodeURIComponent(id) + '?rel=0&modestbranding=1&iv_load_policy=3&controls=0" style="width:100%;aspect-ratio:16/9;border:0;border-radius:12px;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>';
+  document.querySelectorAll('.plyr__video-embed').forEach(function(container) {
+    var id = container.id;
+    if (!id) return;
+    var videoId = container.querySelector('iframe').src.match(/\/embed\/([^?]+)/);
+    if (!videoId) return;
+    videoId = videoId[1];
+
+    var player = new Plyr('#' + id, {
+      controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen'],
+      youtube: { noCookie: true, rel: 0, iv_load_policy: 3, modestbranding: 1, controls: 0, fs: 0, cc_load_policy: 0 },
+      poster: 'https://img.youtube.com/vi/' + videoId + '/maxresdefault.jpg',
+      ratio: '16:9',
+      resetOnEnd: false,
+      clickToPlay: true,
+      hideControls: true,
+      tooltips: { controls: true, seek: true }
     });
-  } else {
-    document.querySelectorAll('.plyr-container[data-plyr-embed-id]').forEach(function(container) {
-      var videoId = container.getAttribute('data-plyr-embed-id');
-      if (!videoId) return;
+    players.push(player);
 
-      var player = new Plyr(container, {
-        iconUrl: '/img/plyr.svg',
-        controls: ['play-large', 'play', 'progress', 'current-time', 'duration'],
-        youtube: { noCookie: true, rel: 0, modestbranding: 1, iv_load_policy: 3, playsinline: 1 },
-        urls: { youtube: { api: '' } },
-        keyboard: { focused: true, global: false },
-        clickToPlay: true,
-        hideControls: true,
-        resetOnEnd: false,
-        displayDuration: true
-      });
-      players.push(player);
+    // ── Ready: load saved position ──
+    player.on('ready', function() {
+      updateUI(0, false);
+      hbLastPos = Math.floor(player.currentTime || 0);
+      loadPosition();
+    });
 
-      // ── Ready: load saved position ──
-      player.on('ready', function() {
-        updateUI(0, false);
-        hbLastPos = Math.floor(player.currentTime || 0);
-        loadPosition();
-      });
+    // ── Timeupdate: update UI immediately + save every 5s ──
+    player.on('timeupdate', function() {
+      var ct = player.currentTime || 0;
+      var dur = player.duration;
+      var valid = dur > 1 && isFinite(dur);
+      var pct = valid ? Math.min(Math.round((ct / dur) * 100), 100) : 0;
 
-      // ── Timeupdate: update UI immediately + save every 5s ──
-      player.on('timeupdate', function() {
-        var ct = player.currentTime || 0;
-        var dur = player.duration;
-        var valid = dur > 1 && isFinite(dur);
-        var pct = valid ? Math.min(Math.round((ct / dur) * 100), 100) : 0;
+      updateUI(pct, false);
 
-        updateUI(pct, false);
+      var now = Date.now();
+      if (now - lastSaveTime < 5000) return;
+      lastSaveTime = now;
 
-        var now = Date.now();
-        if (now - lastSaveTime < 5000) return;
-        lastSaveTime = now;
+      var pos = Math.floor(ct);
+      savePosition(pct, false, pos);
+      saveLocal({ position: pos, percentage: pct });
 
-        var pos = Math.floor(ct);
-        savePosition(pct, false, pos);
-        saveLocal({ position: pos, percentage: pct });
-
-        // Send heartbeat with watched seconds since last heartbeat
-        var watched = hbLastPos >= 0 ? pos - hbLastPos : 0;
-        if (watched > 0) {
-          sendHeartbeat(ct, dur, watched);
-        } else if (hbLastPos < 0) {
-          hbLastPos = pos;
-        }
-      });
-
-      // ── Pause: save immediately ──
-      player.on('pause', function() {
-        var ct = player.currentTime || 0;
-        var dur = player.duration;
-        var valid = dur > 1 && isFinite(dur);
-        var pct = valid ? Math.min(Math.round((ct / dur) * 100), 100) : 0;
-
-        updateUI(pct, false);
-
-        var pos = Math.floor(ct);
-        savePosition(pct, false, pos);
-        saveLocal({ position: pos, percentage: pct });
-
-        // Heartbeat on pause
-        var watched = hbLastPos >= 0 ? pos - hbLastPos : 0;
-        if (watched > 0) { sendHeartbeat(ct, dur, watched); }
+      // Send heartbeat with watched seconds since last heartbeat
+      var watched = hbLastPos >= 0 ? pos - hbLastPos : 0;
+      if (watched > 0) {
+        sendHeartbeat(ct, dur, watched);
+      } else if (hbLastPos < 0) {
         hbLastPos = pos;
-      });
-
-      // ── Ended: mark complete only if no quiz (quiz-based completion) ──
-      player.on('ended', function() { if (!lessonHasQuiz) completeLesson(); });
-
-      // ── YouTube overlay ──
-      (function setupOverlay(container, player) {
-        var wrapper = container.querySelector('.plyr__video-wrapper');
-        if (!wrapper) return;
-        wrapper.style.position = 'relative';
-        var topEl = document.createElement('div');
-        topEl.className = 'plyr-youtube-overlay plyr-youtube-overlay-top';
-        var botEl = document.createElement('div');
-        botEl.className = 'plyr-youtube-overlay plyr-youtube-overlay-bottom';
-        wrapper.appendChild(topEl);
-        wrapper.appendChild(botEl);
-        function show(){ topEl.classList.remove('plyr-youtube-overlay-hidden'); botEl.classList.remove('plyr-youtube-overlay-hidden'); }
-        function hide(){ topEl.classList.add('plyr-youtube-overlay-hidden'); botEl.classList.add('plyr-youtube-overlay-hidden'); }
-        player.on('ready', function(){ if (player.playing) hide(); else show(); });
-        player.on('playing', hide);
-        player.on('pause', show);
-        player.on('ended', show);
-      })(container, player);
+      }
     });
-  }
+
+    // ── Pause: save immediately ──
+    player.on('pause', function() {
+      var ct = player.currentTime || 0;
+      var dur = player.duration;
+      var valid = dur > 1 && isFinite(dur);
+      var pct = valid ? Math.min(Math.round((ct / dur) * 100), 100) : 0;
+
+      updateUI(pct, false);
+
+      var pos = Math.floor(ct);
+      savePosition(pct, false, pos);
+      saveLocal({ position: pos, percentage: pct });
+
+      // Heartbeat on pause
+      var watched = hbLastPos >= 0 ? pos - hbLastPos : 0;
+      if (watched > 0) { sendHeartbeat(ct, dur, watched); }
+      hbLastPos = pos;
+    });
+
+    // ── Ended: mark complete only if no quiz (quiz-based completion) ──
+    player.on('ended', function() { if (!lessonHasQuiz) completeLesson(); });
+  });
 })();
