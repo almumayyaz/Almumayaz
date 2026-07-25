@@ -173,7 +173,7 @@
       ratio: '16:9',
       resetOnEnd: true,
       clickToPlay: true,
-      hideControls: true,
+      hideControls: false,
       tooltips: { controls: true, seek: true }
     });
     players.push(player);
