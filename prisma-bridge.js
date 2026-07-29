@@ -94,26 +94,40 @@ function _kvStorageKey(collectionName) {
   return '__' + collectionName;
 }
 
-// ── Cache of valid Prisma model fields ──
-const _MODEL_FIELDS_CACHE = {};
+// ── JSON fields that should always be arrays/objects on read ──
+const _JSON_NORMALIZE = {
+  course: ['sections'],
+  user: ['progress', 'childrenIds', 'parentOf', 'referrals'],
+};
 
-function _getModelFields(prisma, modelName) {
-  if (_MODEL_FIELDS_CACHE[modelName]) return _MODEL_FIELDS_CACHE[modelName];
-  try {
-    // Use Prisma DMMF to get scalar field names
-    const model = prisma._dmmf?.modelMap?.[modelName];
-    if (model && Array.isArray(model.fields)) {
-      const set = new Set(model.fields.map(f => f.name));
-      _MODEL_FIELDS_CACHE[modelName] = set;
-      return set;
+function _normalizeJsonFields(modelName, items) {
+  const fields = _JSON_NORMALIZE[modelName];
+  if (!fields) return;
+  const list = Array.isArray(items) ? items : [items];
+  for (const item of list) {
+    if (!item || typeof item !== 'object') continue;
+    for (const field of fields) {
+      const val = item[field];
+      if (val !== null && val !== undefined && !Array.isArray(val) && typeof val === 'object') continue; // already object
+      if (!Array.isArray(val)) {
+        // Attempt JSON parse if string; otherwise default to []
+        if (typeof val === 'string') {
+          try { item[field] = JSON.parse(val); } catch (e) { item[field] = []; }
+        } else {
+          item[field] = [];
+        }
+      }
     }
-  } catch (e) {
-    // silently fall through
   }
-  // Fallback: empty set passes all fields through
-  _MODEL_FIELDS_CACHE[modelName] = new Set();
-  return _MODEL_FIELDS_CACHE[modelName];
 }
+
+// ── Fields that exist in Firebase data but NOT in Prisma models ──
+// These must be stripped before writing to Prisma to avoid:
+//   "Unknown argument" / "is not defined" errors
+const _EXTRA_FIREBASE_FIELDS = new Set([
+  'fcmTokenSavedAt',
+  'fcmUid',
+]);
 
 // ── Helpers ──
 
@@ -219,7 +233,9 @@ async function readData(key, noCache) {
       const prisma = getPrisma();
       const where = _modelHasSoftDelete(modelName) ? { deletedAt: null } : {};
       const rows = await prisma[modelName].findMany({ where });
-      return _convertDatesToTimestamps(_clone(rows));
+      const result = _convertDatesToTimestamps(_clone(rows));
+      _normalizeJsonFields(modelName, result);
+      return result;
     } catch (e) {
       console.error(`[prisma-bridge] readData("${key}") error:`, e.message);
       const fb = _fb();
@@ -332,29 +348,23 @@ async function writeData(key, data) {
 
       const items = Array.isArray(data) ? data : [data];
 
-      // Get valid scalar fields for this model (remove extra Firebase fields)
-      const validFields = _getModelFields(prisma, modelName);
-
       // Batch upsert each item
       await prisma.$transaction(
         items.map(item => {
           const fixed = _fixTimestamps(_clone(item));
           const clean = _stripTimestamps(fixed);
-          // Keep only fields that exist in the Prisma model
-          const pruned = {};
-          for (const key of Object.keys(clean)) {
-            if (validFields.has(key)) {
-              pruned[key] = clean[key];
-            }
+          // Remove fields that only exist in Firebase, not in Prisma
+          for (const key of _EXTRA_FIREBASE_FIELDS) {
+            delete clean[key];
           }
           if (item.id) {
             return prisma[modelName].upsert({
               where: { id: item.id },
-              create: { ...pruned, id: item.id },
-              update: pruned,
+              create: { ...clean, id: item.id },
+              update: clean,
             });
           }
-          return prisma[modelName].create({ data: pruned });
+          return prisma[modelName].create({ data: clean });
         })
       );
 
