@@ -98,6 +98,7 @@ function _kvStorageKey(collectionName) {
 const _JSON_NORMALIZE = {
   course: ['sections'],
   user: ['progress', 'childrenIds', 'parentOf', 'referrals'],
+  lesson: ['videos', 'pdfFiles'],
 };
 
 function _normalizeJsonFields(modelName, items) {
@@ -235,6 +236,23 @@ async function readData(key, noCache) {
       const rows = await prisma[modelName].findMany({ where });
       const result = _convertDatesToTimestamps(_clone(rows));
       _normalizeJsonFields(modelName, result);
+      // Attach embedded lessons to courses (old admin code expects course.lessons)
+      if (modelName === 'course') {
+        const allLessons = await prisma.lesson.findMany({ where: { deletedAt: null } });
+        const grouped = {};
+        for (const l of allLessons) {
+          const cid = l.courseId;
+          if (!grouped[cid]) grouped[cid] = [];
+          const lessonData = _clone(l);
+          _normalizeJsonFields('lesson', lessonData);
+          grouped[cid].push(_convertDatesToTimestamps(lessonData));
+        }
+        for (const course of (Array.isArray(result) ? result : [result])) {
+          if (course && !course.lessons) {
+            course.lessons = grouped[course.id] || [];
+          }
+        }
+      }
       return result;
     } catch (e) {
       console.error(`[prisma-bridge] readData("${key}") error:`, e.message);
@@ -348,25 +366,45 @@ async function writeData(key, data) {
 
       const items = Array.isArray(data) ? data : [data];
 
-      // Batch upsert each item
-      await prisma.$transaction(
-        items.map(item => {
-          const fixed = _fixTimestamps(_clone(item));
-          const clean = _stripTimestamps(fixed);
-          // Remove fields that only exist in Firebase, not in Prisma
-          for (const key of _EXTRA_FIREBASE_FIELDS) {
-            delete clean[key];
+      // Build a flat list of operations for the transaction
+      const operations = [];
+      for (const item of items) {
+        const fixed = _fixTimestamps(_clone(item));
+        const clean = _stripTimestamps(fixed);
+        // Remove fields that only exist in Firebase, not in Prisma
+        for (const key of _EXTRA_FIREBASE_FIELDS) {
+          delete clean[key];
+        }
+        // Extract embedded lessons for Course → write to Lesson table separately
+        let embeddedLessons;
+        if (modelName === 'course' && item.lessons) {
+          embeddedLessons = Array.isArray(item.lessons) ? item.lessons : [];
+          delete clean.lessons;
+        }
+        operations.push(
+          item.id
+            ? prisma[modelName].upsert({ where: { id: item.id }, create: { ...clean, id: item.id }, update: clean })
+            : prisma[modelName].create({ data: clean })
+        );
+        if (modelName === 'course' && item.id) {
+          // Replace embedded lessons: delete old, insert new
+          operations.push(prisma.lesson.deleteMany({ where: { courseId: item.id } }));
+          if (embeddedLessons && embeddedLessons.length) {
+            for (const l of embeddedLessons) {
+              const lClean = _stripTimestamps(_fixTimestamps(_clone(l)));
+              delete lClean.courseId; // set via create/update
+              operations.push(
+                prisma.lesson.upsert({
+                  where: { id: l.id },
+                  create: { ...lClean, courseId: item.id, id: l.id },
+                  update: { ...lClean, courseId: item.id },
+                })
+              );
+            }
           }
-          if (item.id) {
-            return prisma[modelName].upsert({
-              where: { id: item.id },
-              create: { ...clean, id: item.id },
-              update: clean,
-            });
-          }
-          return prisma[modelName].create({ data: clean });
-        })
-      );
+        }
+      }
+      await prisma.$transaction(operations);
 
       return data;
     } catch (e) {
