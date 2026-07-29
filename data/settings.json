@@ -1,11 +1,12 @@
 {
   "announcementsEnabled": true,
-  "contactAddress": "الاسكندرية , مصر ",
-  "contactEmail": "codixa.info.io@gmail.com",
+  "contactAddress": "الاسكندرية، مصر",
+  "contactEmail": "almumayyaz.info@gmail.com",
   "contactPhone": "01211275526",
-  "contactWhatsapp": "01037623529",
+  "contactWhatsapp": "01211275526",
   "currentSemester": "first",
   "instaPay": "01211275526",
-  "vodafoneCash": "01037623529",
-  "referralDiscount": 25
+  "referralDiscount": 10,
+  "supportKey": "دعم فني",
+  "vodafoneCash": "01037623529"
 }

@@ -68,22 +68,6 @@ class EmailService {
     return await this._sendWithRetry(to, subject, html, text);
   }
 
-  async sendMailDebug(to, subject, html, text) {
-    if (!this.ready) return { sent: false, error: 'BREVO_API_KEY not configured' };
-    for (var attempt = 1; attempt <= RETRY_MAX; attempt++) {
-      try {
-        var result = await this._sendSingle(to, subject, html, text);
-        return { sent: true, messageId: result.data && result.data.messageId ? result.data.messageId : 'unknown' };
-      } catch (err) {
-        var detail = err.body ? (err.body.message || JSON.stringify(err.body)) : (err.message || String(err));
-        if (err.statusCode) detail = '[HTTP ' + err.statusCode + '] ' + detail;
-        if (attempt === RETRY_MAX) return { sent: false, error: detail, attempts: attempt };
-        await this._sleep(1000 * Math.pow(2, attempt));
-      }
-    }
-    return { sent: false, error: 'unknown' };
-  }
-
   async sendVerificationEmail(to, name, code) {
     var html = this._verifyEmailHtml(name || 'طالب', code);
     var text = 'مرحباً ' + (name || 'طالب') + '،\n\nنشكرك على انضمامك إلى منصة المُميز! نحن سعداء بانضمامك.\n\nلتفعيل حسابك، يرجى إدخال كود التأكيد التالي:\n' + code + '\n\nصالح لمدة 30 دقيقة.\n\nهذه الرسالة مرسلة بشكل آلي، يرجى عدم الرد.';

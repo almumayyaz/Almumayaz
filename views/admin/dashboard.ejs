@@ -8,139 +8,123 @@
     </div>
   </div>
 
-  <div class="admin-stats">
-    <div class="admin-stat-card">
-      <h3>الطلاب المسجلين</h3>
-      <div class="value"><%= students.length %></div>
-      <div style="font-size:12px;color:var(--text-light);margin-top:4px;">
-        <a href="/admin/students" style="color:var(--accent);"><i class="fas fa-arrow-left"></i> إدارة الطلاب</a>
-      </div>
-    </div>
-    <div class="admin-stat-card" style="cursor:pointer;" onclick="location.href='/admin/analytics'">
-      <h3>تحليلات المنصة</h3>
-      <div class="value" style="font-size:16px;"><i class="fas fa-chart-bar"></i> عرض</div>
-      <div style="font-size:12px;color:var(--text-light);margin-top:4px;">
-        <span style="color:var(--accent);">نشاط الطلاب والمحاضرات</span>
-      </div>
-    </div>
-    <div class="admin-stat-card" style="cursor:pointer;" onclick="location.href='/admin/student-progress'">
-      <h3>تقدم الطلاب</h3>
-      <div class="value" style="font-size:16px;"><i class="fas fa-user-graduate"></i> عرض</div>
-      <div style="font-size:12px;color:var(--text-light);margin-top:4px;">
-        <span style="color:var(--accent);">بحث وتتبع تقدم كل طالب</span>
-      </div>
-    </div>
-    <div class="admin-stat-card">
-      <h3>المحاضرات</h3>
-      <div class="value"><%= courses.reduce(function(a, c) { return a + (c.lessons||[]).length; }, 0) %></div>
-      <div style="font-size:12px;color:var(--text-light);margin-top:4px;">
-        <a href="/admin/courses" style="color:var(--accent);"><i class="fas fa-arrow-left"></i> إدارة المحاضرات</a>
-      </div>
-    </div>
-    <div class="admin-stat-card">
-      <h3>بنك الأسئلة</h3>
-      <div class="value"><%= courses.reduce(function(a, c) { return a + (c.quiz ? (c.quiz.questions||[]).length : 0); }, 0) %></div>
-      <div style="font-size:12px;color:var(--text-light);margin-top:4px;"><%= courses.filter(function(c) { return c.quiz; }).length %> مواد لديها اختبارات</div>
-    </div>
-    <div class="admin-stat-card">
-      <h3>طلبات الدفع</h3>
-      <div class="value" style="color:#ca8a04;"><%= payments ? payments.filter(function(p) { return p.status === 'pending'; }).length : 0 %></div>
-      <div style="font-size:12px;color:var(--text-light);margin-top:4px;">
-        <a href="/admin/payments" style="color:var(--accent);"><i class="fas fa-arrow-left"></i> إدارة المدفوعات</a>
-      </div>
+  <!-- بطاقات التنقل السريع -->
+  <div style="margin-bottom:40px;">
+    <h2 style="font-size:20px;font-weight:700;color:var(--primary);margin-bottom:20px;display:flex;align-items:center;gap:8px;">
+      <i class="fas fa-th-large" style="color:var(--accent);"></i> التنقل السريع
+    </h2>
+
+    <% var pendingPayments = payments ? payments.filter(function(p) { return p.status === 'pending'; }).length : 0; %>
+    <% var notifBadge = (typeof unreadCount !== 'undefined' && unreadCount > 0) ? ((unreadCount > 99 ? '99+' : unreadCount) + ' جديد') : ''; %>
+
+    <div class="dash-cards-grid">
+      <% [
+        { href: '/admin/analytics', icon: 'fa-chart-bar', color: '#8B5CF6', title: 'تحليلات', desc: 'إحصائيات المنصة ونشاط الطلاب والمحاضرات' },
+        { href: '/admin/student-progress', icon: 'fa-user-graduate', color: '#06B6D4', title: 'تقدم الطلاب', desc: 'بحث وتتبع تقدم كل طالب في المواد' },
+        { href: '/admin/students', icon: 'fa-users', color: '#10B981', title: 'الطلاب', desc: 'إدارة الطلاب المسجلين وبياناتهم' },
+        { href: '/admin/courses', icon: 'fa-book', color: '#F59E0B', title: 'المحاضرات', desc: 'إضافة وتعديل المحاضرات والاختبارات', badge: courses.reduce(function(a, c) { return a + (c.lessons||[]).length; }, 0) + ' درس' },
+        { href: '/admin/notes', icon: 'fa-sticky-note', color: '#EC4899', title: 'المذكرات', desc: 'رفع وإدارة المذكرات والملفات التعليمية' },
+        { href: '/admin/sub-requests', icon: 'fa-file-invoice', color: '#F97316', title: 'طلبات الاشتراك', desc: 'متابعة طلبات انضمام الطلاب الجدد' },
+        { href: '/admin/charge-codes', icon: 'fa-barcode', color: '#6366F1', title: 'أكواد الشحن', desc: 'إنشاء وإدارة أكواد الشحن والتسجيل' },
+        { href: '/admin/subscriptions', icon: 'fa-credit-card', color: '#14B8A6', title: 'الاشتراكات', desc: 'إدارة باقات الاشتراك والأسعار' },
+        { href: '/admin/payments', icon: 'fa-money-bill', color: '#CA8A04', title: 'المدفوعات', desc: 'متابعة المدفوعات وطلبات الدفع المعلقة', badge: pendingPayments ? pendingPayments + ' معلقة' : '' },
+        { href: '/admin/announcements', icon: 'fa-bullhorn', color: '#DC2626', title: 'الإعلانات', desc: 'إرسال وإدارة الإعلانات والتحديثات' },
+        { href: '/admin/quotes', icon: 'fa-quote-right', color: '#D946EF', title: 'جمل تحفيزية', desc: 'إضافة جمل تحفيزية للطلاب' },
+        { href: '/admin/send-notification', icon: 'fa-bell', color: '#0EA5E9', title: 'إرسال إشعار', desc: 'إرسال إشعارات فورية أو مجدولة للطلاب' },
+        { href: '/admin/notifications', icon: 'fa-inbox', color: '#8B5CF6', title: 'مركز الإشعارات', desc: 'سجل الإشعارات المرسلة', badge: notifBadge },
+        { href: '/admin/reviews', icon: 'fa-star', color: '#F59E0B', title: 'المراجعات', desc: 'إدارة اختبارات المراجعة والدروس' },
+        { href: '/admin/live-sessions', icon: 'fa-video', color: '#EF4444', title: 'الحصص المباشرة', desc: 'جدولة وإدارة الحصص المباشرة عبر Zoom' },
+        { href: '/admin/settings', icon: 'fa-cog', color: '#6B7280', title: 'الإعدادات', desc: 'إعدادات المنصة والمظهر والبيانات' },
+        { href: '/admin/chat', icon: 'fa-comments', color: '#10B981', title: 'تواصل مع الطلاب', desc: 'الدردشة المباشرة مع الطلاب' },
+
+      ].forEach(function(card) { %>
+      <a href="<%= card.href %>" class="dash-card">
+        <div class="dash-card-icon" style="background:color-mix(in srgb, <%= card.color %> 15%, transparent);color:<%= card.color %>;">
+          <i class="fas <%= card.icon %>"></i>
+        </div>
+        <div class="dash-card-body">
+          <div class="dash-card-title">
+            <%= card.title %>
+            <% if (card.badge) { %><span class="dash-card-badge"><%= card.badge %></span><% } %>
+          </div>
+          <div class="dash-card-desc"><%= card.desc %></div>
+        </div>
+        <div class="dash-card-arrow"><i class="fas fa-chevron-left"></i></div>
+      </a>
+      <% }) %>
     </div>
   </div>
 
-  <div class="admin-dashboard-grid">
-    <div class="admin-table" style="padding:24px;">
-      <h3 style="font-size:18px;font-weight:700;color:var(--primary);margin-bottom:16px;display:flex;align-items:center;gap:8px;justify-content:space-between;">
-        <span><i class="fas fa-users" style="color:var(--accent);"></i> آخر الطلاب المسجلين</span>
-        <a href="/admin/students" style="font-size:12px;color:var(--accent);">إدارة <i class="fas fa-arrow-left"></i></a>
-      </h3>
-      <% if (students.length > 0) { %>
-      <table>
-        <thead>
-          <tr><th>الاسم</th><th>البريد الإلكتروني</th><th>الصف</th><th>الاشتراك</th></tr>
-        </thead>
-        <tbody>
-          <% students.slice(-5).reverse().forEach(function(s) { %>
-          <tr>
-            <td><strong><%= s.name %></strong></td>
-            <td dir="ltr"><%= s.email || '---' %></td>
-            <td><%= s.grade || '---' %></td>
-            <td>
-              <% if (s.subscriptionStatus === 'active') { %>
-                <span class="status-badge active">نشط</span>
-              <% } else { %>
-                <span class="status-badge pending">غير مشترك</span>
-              <% } %>
-            </td>
-          </tr>
-          <% }) %>
-        </tbody>
-      </table>
-      <% } else { %>
-      <div style="text-align:center;padding:30px;color:var(--text-light);">
-        <i class="fas fa-user-plus" style="font-size:32px;display:block;margin-bottom:8px;color:var(--border);"></i>
-        لا يوجد طلاب مسجلين بعد
-      </div>
-      <% } %>
-    </div>
-    <div class="admin-table" style="padding:24px;">
-      <h3 style="font-size:18px;font-weight:700;color:var(--primary);margin-bottom:16px;display:flex;align-items:center;gap:8px;justify-content:space-between;">
-        <span><i class="fas fa-bullhorn" style="color:var(--accent);"></i> الإعلانات</span>
-        <a href="/admin/announcements" style="font-size:12px;color:var(--accent);">إدارة <i class="fas fa-arrow-left"></i></a>
-      </h3>
-      <% if (announcements.length > 0) { %>
-        <% announcements.slice(0, 4).forEach(function(a) { %>
-        <div class="announcement-item">
-          <h4><%= a.title %><% if (a.important) { %><span class="badge" style="margin-right:8px;">مهم</span><% } %></h4>
-          <p><%= a.content.substring(0, 80) %><%= a.content.length > 80 ? '...' : '' %></p>
-          <div class="date"><%= a.date %></div>
-        </div>
-        <% }) %>
-      <% } else { %>
-      <div style="text-align:center;padding:30px;color:var(--text-light);">
-        <i class="fas fa-bullhorn" style="font-size:32px;display:block;margin-bottom:8px;color:var(--border);"></i>
-        لا توجد إعلانات
-      </div>
-      <% } %>
-    </div>
-  </div>
+  <style>
+    .dash-cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 14px;
+    }
+    .dash-card {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px 18px;
+      text-decoration: none;
+      transition: all 0.25s ease;
+      position: relative;
+    }
+    .dash-card:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+    }
+    .dash-card-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+    .dash-card-body { flex: 1; min-width: 0; }
+    .dash-card-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 3px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .dash-card-badge {
+      display: inline-block;
+      padding: 1px 8px;
+      border-radius: 10px;
+      background: var(--accent-glow);
+      color: var(--accent);
+      font-size: 10px;
+      font-weight: 700;
+    }
+    .dash-card-desc {
+      font-size: 12px;
+      color: var(--text-light);
+      line-height: 1.5;
+    }
+    .dash-card-arrow {
+      font-size: 12px;
+      color: var(--text-muted);
+      opacity: 0;
+      transition: opacity 0.2s, transform 0.2s;
+      flex-shrink: 0;
+    }
+    .dash-card:hover .dash-card-arrow {
+      opacity: 1;
+      transform: translateX(-3px);
+    }
+  </style>
 
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:24px;">
-    <div class="admin-table" style="padding:24px;">
-      <h3 style="font-size:18px;font-weight:700;color:var(--primary);margin-bottom:16px;display:flex;align-items:center;gap:8px;justify-content:space-between;">
-        <span><i class="fas fa-book" style="color:var(--accent);"></i> المواد الدراسية</span>
-        <a href="/admin/courses" style="font-size:12px;color:var(--accent);">إدارة <i class="fas fa-arrow-left"></i></a>
-      </h3>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
-        <% (courses||[]).forEach(function(c) { %>
-        <div style="background:var(--bg);border-radius:10px;padding:16px;text-align:center;border:1px solid var(--border);">
-          <div style="font-size:24px;color:<%= c.color %>;margin-bottom:6px;"><i class="fas <%= c.icon %>"></i></div>
-          <div style="font-size:13px;font-weight:700;color:var(--primary);"><%= c.title %></div>
-          <div style="font-size:11px;color:var(--text-light);"><%= (c.lessons||[]).length %> محاضرة</div>
-        </div>
-        <% }) %>
-      </div>
-    </div>
-    <div class="admin-table" style="padding:24px;">
-      <h3 style="font-size:18px;font-weight:700;color:var(--primary);margin-bottom:16px;display:flex;align-items:center;gap:8px;justify-content:space-between;">
-        <span><i class="fas fa-credit-card" style="color:var(--accent);"></i> الاشتراكات</span>
-        <a href="/admin/subscriptions" style="font-size:12px;color:var(--accent);">إدارة <i class="fas fa-arrow-left"></i></a>
-      </h3>
-      <% if (subscriptions && subscriptions.length > 0) { %>
-        <% subscriptions.forEach(function(s) { %>
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);">
-          <span style="font-weight:600;"><%= s.name %></span>
-          <span style="font-size:13px;color:var(--text-light);"><%= s.price %> <%= s.currency %> / <%= s.period %></span>
-        </div>
-        <% }) %>
-      <% } else { %>
-      <div style="text-align:center;padding:20px;color:var(--text-light);font-size:13px;">لا توجد اشتراكات</div>
-      <% } %>
-    </div>
-  </div>
 </main>
 <%- include("../partials/footer") %>
 </body>

@@ -126,8 +126,6 @@
       </div>
     </div>
 
-    <!-- الثيم -->
-
   </div>
 </main>
 
@@ -319,64 +317,7 @@ function disconnectZoom() {
     .catch(function() { alert('خطأ في الاتصال'); });
 }
 
-// ===================== Platform theme live preview + save =====================
-function hexToRgbJs(hex){hex=String(hex).replace('#','').trim();if(hex.length===3)hex=hex.split('').map(function(c){return c+c;}).join('');if(hex.length!==6)return null;return{r:parseInt(hex.slice(0,2),16),g:parseInt(hex.slice(2,4),16),b:parseInt(hex.slice(4,6),16)};}
-function rgbToHexJs(c){var h=function(n){var s=Math.max(0,Math.min(255,Math.round(n))).toString(16);return s.length===1?'0'+s:s;};return'#'+h(c.r)+h(c.g)+h(c.b);}
-function mixRgbJs(a,b,t){return{r:a.r+(b.r-a.r)*t,g:a.g+(b.g-a.g)*t,b:a.b+(b.b-a.b)*t};}
-function buildThemeCssJs(accent,shape){
-  var rgb=hexToRgbJs(accent)||{r:245,g:158,b:11};
-  var light=mixRgbJs(rgb,{r:255,g:255,b:255},0.35);
-  var lighter=mixRgbJs(rgb,{r:255,g:255,b:255},0.6);
-  var hover=mixRgbJs(rgb,{r:0,g:0,b:0},0.15);
-  var radius=shape==='square'?'0px':(shape==='circular'?'999px':'12px');
-  return ':root,[data-theme="light"],[data-theme="dark"]{'+
-    '--primary:'+accent+';--primary-light:'+rgbToHexJs(light)+';--primary-lighter:'+rgbToHexJs(lighter)+';'+
-    '--accent:'+accent+';--accent-light:'+rgbToHexJs(light)+';--accent-hover:'+rgbToHexJs(hover)+';'+
-    '--accent-glow:rgba('+rgb.r+','+rgb.g+','+rgb.b+',0.18);'+
-    '--gold-gradient:linear-gradient(135deg,'+accent+' 0%,'+rgbToHexJs(hover)+' 100%);'+
-    '--gold-gradient-text:linear-gradient(90deg,'+accent+','+rgbToHexJs(hover)+');'+
-    '--shadow-accent:0 8px 25px rgba('+rgb.r+','+rgb.g+','+rgb.b+',0.25);'+
-    '--course-c1:'+accent+';'+
-    '--course-c2:'+rgbToHexJs(mixRgbJs(rgb,{r:109,g:74,b:255},0.55))+';'+
-    '--course-c3:'+rgbToHexJs(mixRgbJs(rgb,{r:13,g:148,b:136},0.55))+';'+
-    '--course-c4:'+rgbToHexJs(mixRgbJs(rgb,{r:184,g:134,b:11},0.5))+';'+
-    '--btn-radius:'+radius+';}'+
-    '.btn,.btn-lg,.btn-sm,.btn-outline,.btn-primary,.btn-danger,.action-btn{border-radius:var(--btn-radius,14px)!important;}';
-}
-function currentThemeAccent(){return document.getElementById('themeAccent').value;}
-function currentBtnShape(){var els=document.getElementsByName('btnShape');for(var i=0;i<els.length;i++){if(els[i].checked)return els[i].value;}return 'rounded';}
-function previewTheme(){
-  var hex=currentThemeAccent();
-  document.getElementById('themeAccentHex').value=hex;
-  var styleEl=document.getElementById('theme-override');
-  if(!styleEl){styleEl=document.createElement('style');styleEl.id='theme-override';document.head.appendChild(styleEl);}
-  styleEl.textContent=buildThemeCssJs(hex,currentBtnShape());
-}
-function syncThemeHex(){
-  var v=document.getElementById('themeAccentHex').value.trim();
-  if(v&&v[0]!=='#')v='#'+v;
-  if(/^#[0-9a-fA-F]{3}$/.test(v)||/^#[0-9a-fA-F]{6}$/.test(v)){
-    document.getElementById('themeAccent').value=v.length===4?(function(h){h=h.replace('#','');return '#'+h[0]+h[0]+h[1]+h[1]+h[2]+h[2];})(v):v;
-    previewTheme();
-  }
-}
-function saveTheme(){
-  var btn=document.getElementById('themeSaveBtn');
-  var msg=document.getElementById('themeMsg');
-  var accent=currentThemeAccent();
-  var shape=currentBtnShape();
-  btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> ...';
-  msg.style.display='none';
-  fetch('/api/admin/theme',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accent:accent,btnShape:shape})})
-    .then(function(r){return r.json();})
-    .then(function(d){
-      if(d.success){previewTheme();msg.style.display='block';msg.style.background='rgba(22,163,74,0.1)';msg.style.color='var(--success)';msg.innerHTML='<i class="fas fa-check-circle"></i> تم حفظ الثيم وتطبيقه على المنصة';}
-      else{msg.style.display='block';msg.style.background='rgba(220,38,38,0.1)';msg.style.color='var(--danger)';msg.textContent=d.error||'حدث خطأ';}
-      btn.disabled=false;btn.innerHTML='<i class="fas fa-save"></i> حفظ الثيم';
-    })
-    .catch(function(){msg.style.display='block';msg.style.background='rgba(220,38,38,0.1)';msg.style.color='var(--danger)';msg.textContent='حدث خطأ في الاتصال';btn.disabled=false;btn.innerHTML='<i class="fas fa-save"></i> حفظ الثيم';});
-}
-previewTheme();
+// Theme management moved to /dev/dashboard — all platform colors come from the dev panel
 
 // Show success message if redirected from OAuth callback
 (function() {

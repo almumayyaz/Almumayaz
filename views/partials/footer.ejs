@@ -24,6 +24,7 @@
   </footer>
 
   <script src="/js/main.js"></script>
+  <script src="/js/firebase-errors.js"></script>
   <script>
     document.querySelectorAll('.faq-question').forEach(q => {
       q.addEventListener('click', () => q.parentElement.classList.toggle('active'));
@@ -34,7 +35,7 @@
         setTheme(d.darkMode ? 'dark' : 'light');
       });
     }
-    document.querySelectorAll('.btn-logout').forEach(btn => {
+    document.querySelectorAll('.btn-logout').forEach(function(btn) {
       btn.addEventListener('click', function(e) {
         if (!confirm('هل أنت متأكد من تسجيل الخروج؟')) e.preventDefault();
       });

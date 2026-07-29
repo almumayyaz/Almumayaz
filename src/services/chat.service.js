@@ -1,4 +1,5 @@
 const { chatSessionRepo, chatMessageRepo, userRepo } = require('../repositories');
+const { getPrisma } = require('../database');
 
 function chatId(uid) {
   if (!uid) return 'guest-' + Date.now();
@@ -38,7 +39,7 @@ async function sendMessage(uid, uname, rawStudentId, isAdmin, { text, image }) {
     if (student?.fcmToken) {
       const preview = text ? (text.length > 80 ? text.slice(0, 80) + '...' : text) : '📷 صورة';
       try {
-        const { sendFCM } = require('../../firebase-admin');
+        const { sendFCM } = require('../../prisma-bridge');
         await sendFCM(rawStudentId, 'رسالة جديدة من الأستاذ محمد عفيفي 📩', preview, '/student/chat');
       } catch (e) { /* ignore */ }
     }
@@ -50,7 +51,7 @@ async function sendMessage(uid, uname, rawStudentId, isAdmin, { text, image }) {
     for (const admin of admins) {
       if (admin.fcmToken) {
         try {
-          const { sendFCM } = require('../../firebase-admin');
+          const { sendFCM } = require('../../prisma-bridge');
           await sendFCM(admin.id, 'رسالة جديدة من ' + uname, preview, '/admin/chat/' + encodeURIComponent(realStudentId));
         } catch (e) { /* ignore */ }
       }
@@ -68,8 +69,11 @@ async function markRead(uid, studentId) {
 
 async function deleteChat(studentId) {
   const sessionId = 'student-' + studentId;
-  await chatMessageRepo.deleteMany({ sessionId });
-  await chatSessionRepo.deleteMany({ id: sessionId });
+  const prisma = getPrisma();
+  await prisma.$transaction(async (tx) => {
+    await tx.chatMessage.deleteMany({ where: { sessionId } });
+    await tx.chatSession.deleteMany({ where: { id: sessionId } });
+  });
 }
 
 async function listSessions() {

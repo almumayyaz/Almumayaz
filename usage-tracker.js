@@ -2,7 +2,7 @@
 // Usage tracker — records API consumption counters to Firebase under _usage/
 // Uses Firebase transactions for atomic increments across serverless instances.
 
-const { admin } = require('./firebase-admin');
+const { admin } = require('./prisma-bridge');
 
 const today = () => new Date().toISOString().slice(0, 10);
 

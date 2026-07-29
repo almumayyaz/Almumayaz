@@ -1,1 +1,51 @@
-[]
+[
+  {
+    "amount": 500,
+    "date": "2026-07-23T11:58:14.235Z",
+    "id": "PAY-1784807894235",
+    "method": "vodafone-cash",
+    "planName": "عرض الصيف",
+    "rejectReason": "",
+    "status": "approved",
+    "transactionId": "Jddjfjdhhs",
+    "userId": "M5xGjMu1VGOv8TL2Sf4KiqnNb4W2",
+    "userName": "عبدالرحمن محمد ",
+    "legacyMigratedAt": "2026-07-27T03:17:38.627Z"
+  },
+  {
+    "id": "PAY-1785127758923",
+    "userId": "4K5w0diOaWb4XJL4X0qiBGs00ly2",
+    "userName": "طالب",
+    "transactionId": "534646565",
+    "amount": 5,
+    "method": "vodafone-cash",
+    "planName": "الطالب الكحيان",
+    "status": "approved",
+    "date": "2026-07-27T04:49:18.923Z",
+    "rejectReason": ""
+  },
+  {
+    "id": "PAY-1785128350668",
+    "userId": "4K5w0diOaWb4XJL4X0qiBGs00ly2",
+    "userName": "طالب",
+    "transactionId": "758864457",
+    "amount": 5,
+    "method": "vodafone-cash",
+    "planName": "الطالب الكحيان",
+    "status": "approved",
+    "date": "2026-07-27T04:59:10.668Z",
+    "rejectReason": ""
+  },
+  {
+    "id": "PAY-1785129813851",
+    "userId": "4K5w0diOaWb4XJL4X0qiBGs00ly2",
+    "userName": "عبدالرحمن",
+    "transactionId": "9876543",
+    "amount": 5,
+    "method": "vodafone-cash",
+    "planName": "الطالب الكحيان",
+    "status": "approved",
+    "date": "2026-07-27T05:23:33.851Z",
+    "rejectReason": ""
+  }
+]

@@ -20,6 +20,7 @@
   <link rel="apple-touch-icon" href="/icon.png">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" id="themeColor" content="#080B18">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="المُميز">
@@ -48,8 +49,8 @@ function toggleNav(){var sb=document.getElementById('sidebar');if(!sb){document.
 function setTheme(t){document.documentElement.setAttribute('data-theme',t);localStorage.setItem('lughati-theme',t);document.querySelectorAll('.theme-toggle i').forEach(i=>{i.className=t==='dark'?'fas fa-sun':'fas fa-moon'});const mb=document.querySelector('.nav-buttons-mobile .btn-outline');if(mb){mb.innerHTML=t==='dark'?'<i class="fas fa-sun"></i> الوضع النهاري':'<i class="fas fa-moon"></i> الوضع الليلي'}document.querySelectorAll('.sidebar-theme-toggle').forEach(function(e){e.innerHTML='<i class="fas '+(t==='dark'?'fa-sun':'fa-moon')+'" style="font-size:14px;"></i> '+(t==='dark'?'الوضع النهاري':'الوضع الليلي')})}
 function spinTheme(el){el.classList.remove('spin');void el.offsetWidth;el.classList.add('spin')}
 function toggleTheme(){fetch('/api/toggle-dark-mode',{method:'POST'}).then(r=>r.json()).then(d=>setTheme(d.darkMode?'dark':'light'))}
-(function(){if(!window.matchMedia('(display-mode:standalone)').matches&&!window.navigator.standalone)return;var p=document.createElement('div');p.id='ptr';p.innerHTML='<i class="fas fa-arrow-down"></i>';var s=p.style;s.cssText='position:fixed;top:-60px;left:0;right:0;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:60px;padding-bottom:8px;background:var(--bg);color:var(--accent);font-size:13px;font-weight:700;transition:top .3s ease;box-shadow:0 2px 10px rgba(0,0,0,.1);gap:4px;';document.body.appendChild(p);var t=0,d=0,P=!1,th=80;document.addEventListener('touchstart',function(e){if(window.scrollY>0)return;t=e.touches[0].clientY;P=!0},{passive:true});document.addEventListener('touchmove',function(e){if(!P)return;d=Math.min(e.touches[0].clientY-t,150);if(d>0){s.top=Math.min(d-60,0)+'px';if(d>th)p.innerHTML='<i class="fas fa-redo-alt" style="animation:spin 1s linear infinite;"></i><span>أفلت للتحديث</span>';else p.innerHTML='<i class="fas fa-arrow-down"></i><span>اسحب للتحديث</span>'}},{passive:true});document.addEventListener('touchend',function(){if(P&&d>th)location.reload();P=!1;d=0;s.top='-60px';p.innerHTML='<i class="fas fa-arrow-down"></i>'},{passive:true})})();
-(function(){if(window.matchMedia('(display-mode:standalone)').matches||window.navigator.standalone||localStorage.getItem('lughati-install-prompt'))return;function initPWA(){var d=document;var b=d.createElement('div');b.id='install-banner';var isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)&&!window.MSStream;b.innerHTML='<div style="display:flex;align-items:center;gap:12px;flex:1;"><i class="fas fa-mobile-alt" style="font-size:22px;color:var(--accent);"></i><div><div style="font-weight:700;font-size:14px;">ثبّت تطبيق المُميز</div><div style="font-size:12px;color:var(--text-light);">'+(isIOS?'اضغط على زر المشاركة ← إضافة إلى الشاشة الرئيسية':'حمّل التطبيق للوصول السريع')+'</div></div></div><button id="install-close" style="background:none;border:none;color:var(--text-light);font-size:18px;cursor:pointer;padding:4px;"><i class="fas fa-times"></i></button>';var bs=b.style;bs.cssText='position:fixed;bottom:0;left:0;right:0;z-index:99998;display:flex;align-items:center;gap:10px;padding:14px 16px;background:var(--card);border-top:1px solid var(--border);box-shadow:0 -4px 20px rgba(0,0,0,.1);transform:translateY(100%);transition:transform .4s cubic-bezier(.22,1,.36,1);';document.body.appendChild(b);var ev=null;window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();ev=e;b.querySelector('#install-close').insertAdjacentHTML('beforebegin','<button id="install-btn" style="background:var(--accent);color:#fff;border:none;border-radius:var(--radius);padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;">تثبيت</button>');var btn=d.getElementById('install-btn');if(btn)btn.onclick=function(){ev.prompt();ev.userChoice.then(function(r){if(r.outcome==='accepted'){b.style.transform='translateY(100%)';localStorage.setItem('lughati-install-prompt','1')}})}});setTimeout(function(){b.style.transform='translateY(0)'},2000);d.getElementById('install-close').onclick=function(){b.style.transform='translateY(100%)';localStorage.setItem('lughati-install-prompt','1')}};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initPWA);else initPWA();})();</script>
+
+(function(){/* PWA install banner removed */})();</script>
 </script>
 
 <style>
@@ -85,6 +86,7 @@ function toggleTheme(){fetch('/api/toggle-dark-mode',{method:'POST'}).then(r=>r.
 <script>(function(){var m=document.getElementById('pdMenu'),t;function p(){if(!m||!t)return;var r=t.getBoundingClientRect();var l=r.left;var w=m.offsetWidth||300;var vw=window.innerWidth;l=Math.min(l,vw-w-12);l=Math.max(l,12);m.style.top=(r.bottom+8)+'px';m.style.left=l+'px'}function i(){m=document.getElementById('pdMenu');if(!m)return;var w=m.closest('.pd-wrap');t=w&&w.querySelector('.pd-trigger');document.addEventListener('keydown',function(e){if(e.key==='Escape'&&m.classList.contains('open'))c()});document.addEventListener('click',function(e){if(!m.classList.contains('open'))return;if(w&&(w===e.target||w.contains(e.target)))return;c()});window.addEventListener('scroll',function(){if(m.classList.contains('open'))p()},true);window.addEventListener('resize',function(){if(m.classList.contains('open'))p()})}function o_(){if(!m||!t)return;p();m.classList.add('open');t.setAttribute('aria-expanded','true')}function c(){if(!m)return;m.classList.remove('open');t&&t.setAttribute('aria-expanded','false')}document.readyState==='loading'?document.addEventListener('DOMContentLoaded',i):i();window.ProfileDD={toggle:function(){m&&(m.classList.contains('open')?c():o_())},open:o_,close:c}})();</script></head>
 <body class="<%= typeof bodyClass !== 'undefined' ? bodyClass : '' %>">
   <%- include('../partials/splash') %>
+
   <nav class="navbar">
     <div class="container">
       <div class="nav-right">
@@ -109,10 +111,10 @@ function toggleTheme(){fetch('/api/toggle-dark-mode',{method:'POST'}).then(r=>r.
           <i class="fas <%= darkMode ? 'fa-sun' : 'fa-moon' %>"></i>
         </button>
         <% if (user) { %><div class="pd-wrap">
-  <button class="pd-trigger" onclick="ProfileDD.toggle()" aria-label="قائمة الحساب" aria-expanded="false"><span class="pd-avatar"><%= user.name ? user.name.charAt(0).toUpperCase() : 'U' %></span></button>
+  <button class="pd-trigger" onclick="ProfileDD.toggle()" aria-label="قائمة الحساب" aria-expanded="false"><span class="pd-avatar"><% if (user.avatar) { %><img src="<%= user.avatar %>" style="width:100%;height:100%;object-fit:cover;border-radius:8px;"><% } else { %><%= user.name ? user.name.charAt(0).toUpperCase() : 'U' %><% } %></span></button>
   <div class="pd-menu" id="pdMenu" role="menu">
     <a href="<%= user.role === 'admin' ? '/admin/settings' : '/student/profile' %>" class="pd-header" role="menuitem">
-      <div class="pd-avatar lg"><%= user.name ? user.name.charAt(0).toUpperCase() : 'U' %></div>
+      <div class="pd-avatar lg"><% if (user.avatar) { %><img src="<%= user.avatar %>" style="width:100%;height:100%;object-fit:cover;border-radius:12px;"><% } else { %><%= user.name ? user.name.charAt(0).toUpperCase() : 'U' %><% } %></div>
       <div class="pd-info">
         <div class="pd-name"><%= user.name %></div>
         <div class="pd-detail"><%= user.grade || user.stage || user.email || '' %></div>
@@ -137,10 +139,10 @@ function toggleTheme(){fetch('/api/toggle-dark-mode',{method:'POST'}).then(r=>r.
     </a>
     <% } %>
     <div class="pd-divider"></div>
-    <button class="pd-item pd-danger btn-logout" role="menuitem" onclick="if(!confirm('هل أنت متأكد من تسجيل الخروج؟'))event.preventDefault();else window.location.href='/logout'">
+    <a href="/logout" class="pd-item pd-danger btn-logout" role="menuitem">
       <div class="pd-icon"><i class="fas fa-sign-out-alt"></i></div>
       <div class="pd-text"><div class="pd-title">تسجيل الخروج</div><div class="pd-desc">إنهاء الجلسة الحالية</div></div>
-    </button>
+    </a>
   </div>
 </div><% } %>
 

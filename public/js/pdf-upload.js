@@ -114,16 +114,21 @@
           body: JSON.stringify({ folder: folder, fileName: file.name })
         });
         var sign = await signRes.json().catch(function () { return {}; });
-        if (!signRes.ok || !sign.path || !sign.token) {
+        if (!signRes.ok || !sign.path || !sign.signedUrl) {
           throw new Error(sign.error || ('فشل تجهيز الرفع (HTTP ' + signRes.status + ')'));
         }
-        // 2) load supabase-js and upload the file straight to the bucket
-        var SB = await loadSupabase();
-        var client = SB.createClient(window.__SB_URL, window.__SB_ANON);
-        var up = await client.storage.from('books').uploadToSignedUrl(
-          sign.path, sign.token, file, { contentType: 'application/pdf', cacheControl: '0', upsert: true }
-        );
-        if (up.error) throw new Error(up.error.message || 'فشل رفع الملف إلى التخزين');
+        // 2) upload file using signed URL — supports both Supabase (with token) and R2/S3 presigned URLs
+        if (sign.token) {
+          var SB = await loadSupabase();
+          var client = SB.createClient(window.__SB_URL, window.__SB_ANON);
+          var up = await client.storage.from('books').uploadToSignedUrl(
+            sign.path, sign.token, file, { contentType: 'application/pdf', cacheControl: '0', upsert: true }
+          );
+          if (up.error) throw new Error(up.error.message || 'فشل رفع الملف إلى التخزين');
+        } else {
+          var upRes = await fetch(sign.signedUrl, { method: 'PUT', body: file, headers: { 'Content-Type': 'application/pdf' } });
+          if (!upRes.ok) throw new Error('فشل رفع الملف إلى التخزين (HTTP ' + upRes.status + ')');
+        }
         // 3) confirm with server (verifies object exists)
         var cRes = await fetch('/api/admin/upload-pdf', {
           method: 'POST',

@@ -171,8 +171,22 @@
 
       <!-- Edit mode (hidden by default) -->
       <div id="profileEditForm" class="sp-edit" style="display:none;">
-        <button type="button" class="sp-change-pic" onclick="document.getElementById('avatarInput').click()"><i class="fas fa-camera"></i> تغيير الصورة الشخصية</button>
-        <input type="file" id="avatarInput" accept="image/*" style="display:none;" onchange="onAvatarPicked(event)">
+        <div class="sp-avatar-upload" style="text-align:center;margin-bottom:22px;">
+          <button type="button" class="sp-change-pic" onclick="document.getElementById('avatarInput').click()"><i class="fas fa-camera"></i> تغيير الصورة الشخصية</button>
+          <input type="file" id="avatarInput" accept="image/*" style="display:none;" onchange="onAvatarPicked(event)">
+          <div id="avatarSaveArea" style="display:none;margin-top:14px;">
+            <div id="avatarProgressWrap" style="display:none;margin-bottom:10px;">
+              <div style="background:var(--bg);border-radius:999px;height:6px;overflow:hidden;">
+                <div id="avatarProgressBar" style="height:100%;width:0%;background:var(--accent);border-radius:999px;transition:width .3s ease;"></div>
+              </div>
+              <div id="avatarProgressText" style="font-size:11px;color:var(--text-light);text-align:center;margin-top:4px;">0%</div>
+            </div>
+            <div style="display:flex;gap:8px;justify-content:center;">
+              <button type="button" class="btn btn-primary" id="saveAvatarBtn" onclick="saveAvatar()"><i class="fas fa-cloud-upload-alt"></i> حفظ الصورة</button>
+              <button type="button" class="btn" style="background:var(--bg);color:var(--text);" onclick="cancelAvatar()"><i class="fas fa-times"></i> إلغاء</button>
+            </div>
+          </div>
+        </div>
         <div class="sp-edit-grid">
           <div class="form-group">
             <label>اسم الطالب</label>
@@ -435,8 +449,7 @@ function saveProfile() {
       parentEmail: document.getElementById('editParentEmail').value,
       stage: document.getElementById('editStage').value,
       grade: document.getElementById('editGrade').value,
-      governorate: document.getElementById('editGovernorate').value,
-      avatar: avatarBase64
+      governorate: document.getElementById('editGovernorate').value
     })
   }).then(function(r) { return r.json(); }).then(function(d) {
     if (d.success) {
@@ -462,6 +475,7 @@ function saveProfile() {
   });
 }
  var avatarBase64 = <%- JSON.stringify(user.avatar || '') %>;
+ var originalAvatar = avatarBase64;
    function setAvatar(wrap, avatar, name) {
      if (!wrap) return;
      var cam = '<span style="position:absolute;bottom:0;left:0;background:var(--accent);color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;border:2px solid var(--card);"><i class="fas fa-camera"></i></span>';
@@ -519,12 +533,53 @@ function saveProfile() {
   function cropDown(e) { cropDrag = true; var p = cropPt(e); cropLX = p.x; cropLY = p.y; e.preventDefault(); }
   function cropMove(e) { if (!cropDrag) return; var p = cropPt(e); cropPanX += (p.x - cropLX); cropPanY += (p.y - cropLY); cropLX = p.x; cropLY = p.y; cropClamp(); drawCrop(); e.preventDefault(); }
   function cropUp() { cropDrag = false; }
-   function confirmCrop() {
-     var c = document.getElementById('cropCanvas'); if (!c) return;
-     avatarBase64 = c.toDataURL('image/jpeg', 0.8);
-     setAvatar(document.getElementById('profileAvatarWrap'), avatarBase64, '<%= user.name %>');
-     var m = document.getElementById('cropModal'); if (m) m.style.display = 'none';
-   }
+    function confirmCrop() {
+      var c = document.getElementById('cropCanvas'); if (!c) return;
+      avatarBase64 = c.toDataURL('image/jpeg', 0.8);
+      setAvatar(document.getElementById('profileAvatarWrap'), avatarBase64, '<%= user.name %>');
+      var m = document.getElementById('cropModal'); if (m) m.style.display = 'none';
+      var sa = document.getElementById('avatarSaveArea'); if (sa) sa.style.display = 'block';
+    }
+    function saveAvatar() {
+      var btn = document.getElementById('saveAvatarBtn'), pw = document.getElementById('avatarProgressWrap'), pb = document.getElementById('avatarProgressBar'), pt = document.getElementById('avatarProgressText');
+      btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الرفع...';
+      pw.style.display = 'block'; pb.style.width = '0%'; pt.textContent = '0%';
+      var xhr = new XMLHttpRequest();
+      xhr.open('PUT', '/api/student/profile');
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.upload.onprogress = function(e) {
+        if (e.lengthComputable) {
+          var pct = Math.round((e.loaded / e.total) * 100);
+          pb.style.width = pct + '%'; pt.textContent = pct + '%';
+        }
+      };
+      xhr.onload = function() {
+        try {
+          var d = JSON.parse(xhr.responseText);
+          if (d.success) {
+            pb.style.width = '100%'; pt.textContent = '✓ تم';
+            originalAvatar = avatarBase64;
+            setAvatar(document.getElementById('sidebarAvatarWrap'), avatarBase64, '<%= user.name %>');
+            setTimeout(function() {
+              var sa = document.getElementById('avatarSaveArea'); if (sa) sa.style.display = 'none';
+              pw.style.display = 'none';
+              btn.disabled = false; btn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> حفظ الصورة';
+            }, 1200);
+          } else { throw new Error(d.error || 'فشل الحفظ'); }
+        } catch(e) {
+          alert('فشل حفظ الصورة: ' + (e.message || e));
+          pw.style.display = 'none';
+          btn.disabled = false; btn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> حفظ الصورة';
+        }
+      };
+      xhr.onerror = function() { alert('فشل الاتصال بالخادم'); pw.style.display = 'none'; btn.disabled = false; btn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> حفظ الصورة'; };
+      xhr.send(JSON.stringify({ avatar: avatarBase64 }));
+    }
+    function cancelAvatar() {
+      avatarBase64 = originalAvatar;
+      setAvatar(document.getElementById('profileAvatarWrap'), avatarBase64, '<%= user.name %>');
+      var sa = document.getElementById('avatarSaveArea'); if (sa) sa.style.display = 'none';
+    }
   (function() {
     var c = document.getElementById('cropCanvas'); if (!c) return;
     c.addEventListener('pointerdown', cropDown);

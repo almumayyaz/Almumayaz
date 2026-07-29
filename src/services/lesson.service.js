@@ -1,5 +1,6 @@
 const { recordAuditLog, ACTIONS } = require('../utils/auditLog');
 const { lessonRepo, courseRepo } = require('../repositories');
+const { getPrisma } = require('../database');
 
 async function listLessons(courseId) {
   return lessonRepo.query({ courseId }, { orderBy: { order: 'asc' } });
@@ -47,17 +48,20 @@ async function updateLesson(id, body) {
 async function deleteLesson(id, actor) {
   const existing = await lessonRepo.get(id);
   if (!existing || existing.deletedAt) return null;
-  await lessonRepo.softDelete(id, actor);
-  if (existing.sectionId) {
-    const course = await courseRepo.get(existing.courseId);
-    if (course && Array.isArray(course.sections)) {
-      const sections = course.sections.map(s => {
-        if (s.lessons) s.lessons = s.lessons.filter(lid => lid !== existing.id);
-        return s;
-      });
-      await courseRepo.update(existing.courseId, { sections });
+  const prisma = getPrisma();
+  await prisma.$transaction(async (tx) => {
+    await tx.lesson.update({ where: { id }, data: { deletedAt: new Date(), deletedBy: actor || null } });
+    if (existing.sectionId) {
+      const course = await tx.course.findUnique({ where: { id: existing.courseId } });
+      if (course && Array.isArray(course.sections)) {
+        const sections = course.sections.map(s => {
+          if (s.lessons) s.lessons = s.lessons.filter(lid => lid !== existing.id);
+          return s;
+        });
+        await tx.course.update({ where: { id: existing.courseId }, data: { sections } });
+      }
     }
-  }
+  });
 }
 
 module.exports = { listLessons, getLesson, createLesson, updateLesson, deleteLesson };

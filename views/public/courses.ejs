@@ -7,6 +7,7 @@
       <p>جميع محاضرات اللغة العربية للثانوية العامة في مكان واحد</p>
     </div>
     <div class="courses-grid">
+      <% if (courses && courses.length > 0) { %>
       <% courses.forEach(function(course) { %>
       <a href="<%= user ? '/student/course/' + course.id : '/register' %>" class="course-card">
         <div class="course-card-header">
@@ -16,6 +17,13 @@
         </div>
       </a>
       <% }) %>
+      <% } else { %>
+      <div style="text-align:center;padding:60px 20px;color:var(--text-muted);grid-column:1/-1;">
+        <i class="fas fa-book-open" style="font-size:40px;display:block;margin-bottom:12px;opacity:0.4;"></i>
+        <div style="font-size:16px;font-weight:600;">لا توجد محاضرات متاحة حالياً</div>
+        <p style="font-size:13px;margin-top:6px;">سيتم إضافة المحاضرات قريباً</p>
+      </div>
+      <% } %>
     </div>
   </div>
 </section>

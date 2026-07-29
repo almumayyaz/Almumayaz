@@ -67,7 +67,12 @@ async function updateSection(courseId, sectionId, body) {
   const sections = Array.isArray(existing.sections) ? [...existing.sections] : [];
   const idx = sections.findIndex(s => s.id === sectionId);
   if (idx === -1) return { sectionNotFound: true };
-  sections[idx] = { ...sections[idx], ...body, id: sections[idx].id };
+  const allowedSectionFields = ['name'];
+  const update = { id: sections[idx].id };
+  for (const field of allowedSectionFields) {
+    if (body[field] !== undefined) update[field] = body[field];
+  }
+  sections[idx] = { ...sections[idx], ...update };
   await courseRepo.update(courseId, { sections });
   return sections[idx];
 }

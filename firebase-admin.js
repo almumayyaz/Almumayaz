@@ -7,20 +7,26 @@ const log = require('./services/firestore/logger');
 
 // Collections that have been migrated from RTDB to Firestore
 const FIRESTORE_COLLECTIONS = new Set([
-  'users', 'courses', 'settings', 'notifications', 'payments',
+  'users', 'courses', 'payments',
   'subscriptions', 'reviews', 'supportTickets', 'notes', 'quotes',
   'questionBanks', 'announcements', 'liveSessions', 'parentInvites',
   'chargeCodes', 'maintenanceMode', 'contacts', 'appConfig', 'cronLastRun',
-  'themeConfig', 'subRequests', 'dismissed', 'studentAnalytics',
+  'themeConfig', 'subRequests', 'dismissed', 'studentAnalytics', 'subscriptionPayments',
+  'notifications', 'scheduledNotifications', 'examAttempts',
 ]);
 
-// Feature flags for dual-write control (set via environment variables)
-const USE_RTDB_FALLBACK = process.env.USE_RTDB_FALLBACK !== 'false';
-const ENABLE_DUAL_WRITE = process.env.ENABLE_DUAL_WRITE !== 'false';
+// RTDB fallback (disabled by default — Firestore is the primary source of truth)
+const USE_RTDB_FALLBACK = process.env.USE_RTDB_FALLBACK === 'true';
 
 // Collections that stay on RTDB (real-time only)
 const RTDB_REALTIME = new Set([
-  'chats', '_usage', '_cronClaims', 'liveSessionAttendance',
+  'chats', '_usage', '_cronClaims', 'liveSessionAttendance', 'notifications',
+  'zoomAppCredentials', 'zoomCredentials', 'settings',
+]);
+
+// Collections stored as a single document in Firestore (readData unwraps the array)
+const SINGLE_DOC_COLLECTIONS = new Set([
+  'themeConfig', 'appConfig', 'maintenanceMode',
 ]);
 
 function stripBOM(s) { return s && s.charCodeAt(0) === 0xFEFF ? s.slice(1) : s; }
@@ -130,7 +136,7 @@ function restPost(path, data) {
 
 const fcmLog = require('./fcm-log');
 const localStore = require('./data-store');
-let useLocalFallback = !ready;
+let useLocalFallback = false;
 const perf = require('./perf');
 let _usage = null;
 function trackUsage(op, sub) {
@@ -174,9 +180,7 @@ function normalizeSnapshot(val) {
     const keys2 = Object.keys(val);
     if (keys2.length > 0 && keys2.every(k => !isNaN(parseInt(k)))) {
       const sorted = keys2.slice().sort((a, b) => parseInt(a) - parseInt(b));
-      if (sorted[0] === '0' && parseInt(sorted[sorted.length - 1]) === sorted.length - 1) {
-        return sorted.map(k => normalizeSnapshot(val[k])).filter(v => v != null);
-      }
+      return sorted.map(k => normalizeSnapshot(val[k])).filter(v => v != null);
     } else if (keys2.length > 0) {
       const first = val[keys2[0]];
       if (first && typeof first === 'object' && first.id) {
@@ -191,6 +195,7 @@ function normalizeSnapshot(val) {
 }
 
 async function readData(key, noCache) {
+  // DEPRECATED: Use services/* or V2 API (/api/v2) instead. See LEGACY_CLEANUP.md
   // Read-through cache for cacheable top-level collections (stage 2/6/13/14).
   // A cache hit performs ZERO Firebase reads.
   if (!noCache && CACHEABLE.has(key)) {
@@ -202,8 +207,9 @@ async function readData(key, noCache) {
     try {
       perf.trackRead();
       log.info('readData', `Reading "${key}" from Firestore`);
-      const val = await fsCore.readCollection(key);
+      let val = await fsCore.readCollection(key);
       if (val !== null) {
+        if (SINGLE_DOC_COLLECTIONS.has(key) && Array.isArray(val) && val.length === 1) val = val[0];
         localStore.writeData(key, val).catch(function() {});
         if (!noCache && CACHEABLE.has(key) && !(Array.isArray(val) && val.length === 0)) cacheSet(key, val);
         return clone(val);
@@ -245,7 +251,7 @@ async function readData(key, noCache) {
   }
   if (val === null || val === undefined) {
     if (!readFromFirebase) perf.trackRead();
-    val = await localStore.readData(key);
+    val = normalizeSnapshot(await localStore.readData(key));
   }
   // Persist successful Firebase reads to localStore for cold-start resilience
   if (val !== null && val !== undefined && readFromFirebase && !noCache) {
@@ -256,27 +262,30 @@ async function readData(key, noCache) {
 }
 
 async function writeData(key, data) {
+  // DEPRECATED: Use services/* or V2 API (/api/v2) instead. See LEGACY_CLEANUP.md
   // Write to local store first (always works)
   await localStore.writeData(key, data);
   // Dual-write to Firestore for migrated collections
   if (FIRESTORE_COLLECTIONS.has(key)) {
     try {
       log.info('writeData', `Writing "${key}" to Firestore`);
-      await fsCore.writeCollection(key, data);
+      const writeData = SINGLE_DOC_COLLECTIONS.has(key) && !Array.isArray(data) ? [data] : data;
+      await fsCore.writeCollection(key, writeData);
       log.info('writeData', `Firestore write OK for "${key}"`);
+      fsCore.cacheInvalidate(key).catch(function() {});
     } catch (e) {
       log.error('writeData', `Firestore write failed for "${key}"`, e.message);
     }
   }
-  // Write to Firebase RTDB (controlled by feature flags)
-  if (fbDb && (ENABLE_DUAL_WRITE || RTDB_REALTIME.has(key))) {
+  // Write to RTDB for real-time collections only (chats, zoom, settings)
+  const rtdbKey = key.split('/')[0];
+  if (fbDb && RTDB_REALTIME.has(rtdbKey)) {
     try {
       perf.trackWrite();
       trackUsage('write', key);
       await fbDb.ref(key).set(data);
     } catch (e) {
-      if (ENABLE_DUAL_WRITE) log.warn('writeData', 'RTDB write warning', e.message);
-      else console.error('Firebase Admin write error:', e.message);
+      console.error('Firebase Admin write error:', e.message);
     }
   }
   // Always invalidate cache so next read fetches fresh data
@@ -315,20 +324,20 @@ async function updateData(path, partial) {
     try {
       await fsCore.updateDocument(path, partial);
       cacheInvalidate(collectionName);
+      fsCore.cacheInvalidate(collectionName).catch(function() {});
     } catch (e) {
       log.error('updateData', `Firestore update failed for "${path}"`, e.message);
     }
   }
   // Write to Firebase RTDB (controlled by feature flags)
   const isRealtime = RTDB_REALTIME.has(collectionName);
-  if (fbDb && (ENABLE_DUAL_WRITE || isRealtime)) {
+  if (fbDb && isRealtime) {
     try {
       await fbDb.ref(path).update(partial);
       cacheInvalidate(collectionName);
       return partial;
     } catch (e) {
-      if (ENABLE_DUAL_WRITE) log.warn('updateData', 'RTDB update warning', e.message);
-      else console.error('Firebase Admin update error:', e.message);
+      log.warn('updateData', 'RTDB update warning', e.message);
     }
   }
   // Local fallback
@@ -371,7 +380,15 @@ async function pushData(key, item) {
 }
 
 async function fbRead(path) {
-  if (!fbDb) return readData(path);
+  if (!fbDb) {
+    try {
+      const result = await restGet(path);
+      return result;
+    } catch (e) {
+      console.error('fbRead REST fallback error:', e.message);
+      return readData(path);
+    }
+  }
   try {
     const snap = await fbDb.ref(path).once('value');
     return snap.val();
@@ -382,7 +399,15 @@ async function fbRead(path) {
 }
 
 async function fbSet(path, data) {
-  if (!fbDb) return writeData(path, data);
+  if (!fbDb) {
+    try {
+      await restPut(path, data);
+      return data;
+    } catch (e) {
+      console.error('fbSet REST fallback error:', e.message);
+      return writeData(path, data);
+    }
+  }
   try {
     await fbDb.ref(path).set(data);
     return data;
@@ -446,6 +471,29 @@ async function sendFCM(userId, title, body, url) {
         const idx = users.findIndex(u => u.id === userId);
         if (idx !== -1) { users[idx].fcmToken = ''; await writeData('users', users); }
       }
+      // Fallback: FCM Legacy HTTP API
+      try {
+        const serverKey = process.env.FIREBASE_SERVER_KEY;
+        if (serverKey) {
+          const resp = await fetch('https://fcm.googleapis.com/fcm/send', {
+            method: 'POST',
+            headers: { 'Authorization': 'key=' + serverKey, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              to: user.fcmToken,
+              notification: { title: title, body: body },
+              data: { url: url || '/' }
+            })
+          });
+          const result = await resp.json();
+          if (result.message_id || result.success === 1) {
+            fcmLog.add({ userId, title, messageId: result.message_id || 'legacy', success: true, error: null });
+            return true;
+          }
+          console.error('sendFCM legacy fallback error:', result);
+        }
+      } catch (fcmLegacyErr) {
+        console.error('sendFCM legacy fallback exception:', fcmLegacyErr.message);
+      }
       return false;
     }
   } catch (e) {
@@ -461,6 +509,7 @@ async function sendFCMToRole(role, title, body, url) {
     console.log('sendFCMToRole: found', recipients.length, 'recipients for role', role);
     if (!admin.messaging) { console.error('sendFCMToRole: admin.messaging not available'); return 0; }
     const toClear = [];
+    const serverKey = process.env.FIREBASE_SERVER_KEY;
     // Stage 10: send all notifications concurrently instead of serial await.
     await Promise.allSettled(recipients.map(async (u) => {
       try {
@@ -469,15 +518,41 @@ async function sendFCMToRole(role, title, body, url) {
           notification: { title: title, body: body },
           data: { url: url || '/', click_action: 'FLUTTER_NOTIFICATION_CLICK' }
         };
-        const resp = await admin.messaging().send(message);
-        fcmLog.add({ userId: u.id, title, messageId: resp || 'unknown', success: true, error: null });
-        try { require('./usage-tracker').track('fcm', 'sendFCMToRole'); } catch (e) {}
-      } catch (e) {
-        console.error('sendFCMToRole error for', u.id, ':', e.code || e.message);
-        fcmLog.add({ userId: u.id, title, messageId: null, success: false, error: e.code || e.message });
-        if (e.code === 'messaging/invalid-registration-token' || e.code === 'messaging/registration-token-not-registered') {
-          toClear.push(u.id);
+        try {
+          const resp = await admin.messaging().send(message);
+          fcmLog.add({ userId: u.id, title, messageId: resp || 'unknown', success: true, error: null });
+          try { require('./usage-tracker').track('fcm', 'sendFCMToRole'); } catch (e) {}
+        } catch (sendErr) {
+          console.error('sendFCMToRole error for', u.id, ':', sendErr.code || sendErr.message);
+          fcmLog.add({ userId: u.id, title, messageId: null, success: false, error: sendErr.code || sendErr.message });
+          if (sendErr.code === 'messaging/invalid-registration-token' || sendErr.code === 'messaging/registration-token-not-registered') {
+            toClear.push(u.id);
+          }
+          // Fallback: FCM Legacy HTTP API
+          if (serverKey) {
+            try {
+              const resp = await fetch('https://fcm.googleapis.com/fcm/send', {
+                method: 'POST',
+                headers: { 'Authorization': 'key=' + serverKey, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  to: u.fcmToken,
+                  notification: { title: title, body: body },
+                  data: { url: url || '/' }
+                })
+              });
+              const result = await resp.json();
+              if (result.message_id || result.success === 1) {
+                fcmLog.add({ userId: u.id, title, messageId: result.message_id || 'legacy', success: true, error: null });
+                return;
+              }
+              console.error('sendFCMToRole legacy fallback error for', u.id, ':', result);
+            } catch (legacyErr) {
+              console.error('sendFCMToRole legacy fallback exception for', u.id, ':', legacyErr.message);
+            }
+          }
         }
+      } catch (e) {
+        console.error('sendFCMToRole inner error for', u.id, ':', e.message);
       }
     }));
     let sent = recipients.length - toClear.length;
@@ -499,96 +574,4 @@ async function sendFCMToRole(role, title, body, url) {
   }
 }
 
-module.exports = { db: fbDb, fbAuth, readData, writeData, updateData, transactionData, readUserById, pushData, fbRead, fbSet, fbPush, fbRemove, restGet, restPut, sendFCM, sendFCMToRole, admin, migrateSeedData, cacheInvalidate, fsCore, FIRESTORE_COLLECTIONS };
-
-// Startup: ensure seed data exists in Firebase
-async function migrateSeedData() {
-  if (!fbDb) return;
-  const keys = ['courses', 'announcements', 'subscriptions', 'reviews', 'users', 'settings', 'quotes'];
-  for (const key of keys) {
-    try {
-      const local = await localStore.readData(key);
-      if (!local) continue;
-      const seedData = Array.isArray(local) ? local : Object.values(local);
-      if (!seedData.length) continue;
-
-      const snap = await fbDb.ref(key).once('value');
-      let val = snap.val();
-
-      // Normalize existing Firebase data to array
-      if (val && typeof val === 'object' && !Array.isArray(val)) {
-        const k2 = Object.keys(val);
-        if (k2.length > 0) {
-          if (k2.every(k => !isNaN(parseInt(k)))) {
-            val = k2.sort((a,b) => parseInt(a)-parseInt(b)).map(k => val[k]);
-          } else {
-            const first = val[k2[0]];
-            if (first && typeof first === 'object' && first.id) {
-              val = k2.map(k => val[k]);
-            }
-          }
-        }
-      }
-
-      const isEmpty = !val || (Array.isArray(val) && val.length === 0) ||
-        (typeof val === 'object' && !Array.isArray(val) && Object.keys(val || {}).length === 0);
-
-      // If Firebase is empty, write all seed data
-      if (isEmpty) {
-        await fbDb.ref(key).set(Array.isArray(local) ? seedData : local);
-        console.log('Migrated seed data to Firebase:', key, typeof local === 'object' && !Array.isArray(local) ? JSON.stringify(local).length : seedData.length);
-        // Also write to Firestore for migrated collections
-        if (FIRESTORE_COLLECTIONS.has(key)) {
-          try {
-            await fsCore.writeCollection(key, seedData);
-            log.info('migrateSeedData', `Wrote "${key}" to Firestore`);
-          } catch (e) {
-            log.error('migrateSeedData', `Firestore write failed for "${key}"`, e.message);
-          }
-        }
-        continue;
-      }
-
-      // For courses: merge missing lessons/sections/fields from seed
-      if (key === 'courses' && Array.isArray(val) && Array.isArray(seedData)) {
-        let changed = false;
-        for (const c of val) {
-          const sc = seedData.find(s => s.id === c.id);
-          if (!sc) continue;
-          ['lessons', 'sections', 'quiz', 'subtitle', 'description', 'icon', 'color', 'gradient', 'stage', 'grade', 'semester'].forEach(function(f) {
-            if (f === 'quiz') {
-              if ((!c.quiz || typeof c.quiz !== 'object' || Object.keys(c.quiz).length === 0) && sc.quiz) {
-                c.quiz = JSON.parse(JSON.stringify(sc.quiz));
-                changed = true;
-              }
-            } else if ((!c[f] || (Array.isArray(c[f]) && c[f].length === 0)) && sc[f]) {
-              c[f] = JSON.parse(JSON.stringify(sc[f]));
-              changed = true;
-            }
-          });
-          // Force-update semester from seed data (teacher can override later)
-          if (sc.semester && c.semester !== sc.semester) {
-            c.semester = sc.semester;
-            changed = true;
-          }
-        }
-        if (changed) {
-          await fbDb.ref(key).set(val);
-          console.log('Merged seed data into Firebase courses');
-          if (FIRESTORE_COLLECTIONS.has(key)) {
-            try {
-              await fsCore.writeCollection(key, val);
-              log.info('migrateSeedData', `Synced "${key}" to Firestore`);
-            } catch (e) {
-              log.error('migrateSeedData', `Firestore sync failed for "${key}"`, e.message);
-            }
-          }
-        }
-      }
-    } catch (e) {
-      console.error('migrateSeedData error for', key, e.message);
-    }
-  }
-}
-// Run migration on startup
-migrateSeedData();
+module.exports = { db: fbDb, fbAuth, readData, writeData, updateData, transactionData, readUserById, pushData, fbRead, fbSet, fbPush, fbRemove, restGet, restPut, sendFCM, sendFCMToRole, admin, cacheInvalidate, fsCore, FIRESTORE_COLLECTIONS };

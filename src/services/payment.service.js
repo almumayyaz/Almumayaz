@@ -1,5 +1,6 @@
 const { recordAuditLog, ACTIONS } = require('../utils/auditLog');
 const { paymentRepo, userRepo } = require('../repositories');
+const { getPrisma } = require('../database');
 
 async function listPayments({ userId, status } = {}) {
   const where = {};
@@ -17,14 +18,17 @@ async function getPayment(id) {
 async function approvePayment(id, actor) {
   const existing = await paymentRepo.get(id);
   if (!existing || existing.deletedAt) return null;
-  await paymentRepo.update(id, { status: 'approved', rejectReason: '' });
-  const user = await userRepo.get(existing.userId);
-  if (user) {
-    const endDate = user.subscriptionEnd && new Date(user.subscriptionEnd) > new Date()
-      ? new Date(new Date(user.subscriptionEnd).getTime() + 30 * 86400000)
-      : new Date(Date.now() + 30 * 86400000);
-    await userRepo.update(existing.userId, { subscriptionStatus: 'active', subscriptionStart: new Date(), subscriptionEnd: endDate });
-  }
+  const prisma = getPrisma();
+  await prisma.$transaction(async (tx) => {
+    await tx.payment.update({ where: { id }, data: { status: 'approved', rejectReason: '' } });
+    const user = await tx.user.findUnique({ where: { id: existing.userId } });
+    if (user) {
+      const endDate = user.subscriptionEnd && new Date(user.subscriptionEnd) > new Date()
+        ? new Date(new Date(user.subscriptionEnd).getTime() + 30 * 86400000)
+        : new Date(Date.now() + 30 * 86400000);
+      await tx.user.update({ where: { id: existing.userId }, data: { subscriptionStatus: 'active', subscriptionStart: new Date(), subscriptionEnd: endDate } });
+    }
+  });
   await recordAuditLog({ actorId: actor, action: ACTIONS.PAYMENT_APPROVE, entity: 'Payment', entityId: id, ip: existing._ip, userAgent: existing._ua });
   return { ...existing, status: 'approved' };
 }

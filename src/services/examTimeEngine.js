@@ -1,4 +1,4 @@
-const { readData, writeData } = require('../../firebase-admin');
+const { readData, writeData } = require('../../prisma-bridge');
 
 /**
  * ExamTimeEngine — محرك إدارة وقت الامتحانات

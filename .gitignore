@@ -9,3 +9,5 @@ data/
 nul
 NUL
 *.tgz
+
+/src/generated/prisma

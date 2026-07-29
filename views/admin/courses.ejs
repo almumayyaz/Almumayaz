@@ -337,7 +337,6 @@
     <div class="cmp-title-area">
       <h1 id="cmpActiveTitle"><%= courses.length > 0 ? courses[0].title : 'اختر فرعاً' %></h1>
       <span class="cmp-grade-badge"><%= grade %></span>
-      <button class="btn btn-sm" style="font-size:11px;color:var(--danger);border:1px solid var(--danger);background:transparent;padding:6px 10px;border-radius:8px;cursor:pointer;transition:var(--transition-smooth);font-family:inherit;margin-right:auto;" onclick="migrateSeed()" title="فرض ترحيل كل المحتوى"><i class="fas fa-database"></i></button>
     </div>
 
     <!-- Toolbar -->
@@ -767,6 +766,45 @@
         </label>
         <input id="quizTimer" type="number" min="0" placeholder="15" style="display:none;">
       </div>
+
+      <!-- ⏱️ إعدادات الوقت — Card -->
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px;">
+        <div style="font-size:15px;font-weight:700;color:var(--primary);margin-bottom:12px;display:flex;align-items:center;gap:8px;">⏱️ إعدادات الوقت</div>
+
+        <!-- تفعيل مدة الامتحان -->
+        <div class="form-group" style="margin-bottom:12px;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+            <input id="quizTimeEnableDuration" type="checkbox" onchange="document.getElementById('quizTimeDurationRow').style.display=this.checked?'flex':'none'"> ☑ تفعيل مدة الامتحان
+          </label>
+          <div id="quizTimeDurationRow" style="display:none;align-items:center;gap:8px;margin-top:8px;">
+            <input id="quizTimeDuration" type="number" min="1" placeholder="مدة الامتحان" style="flex:1;max-width:160px;">
+            <span style="font-size:13px;color:var(--text-light);">دقيقة</span>
+          </div>
+        </div>
+
+        <!-- تحديد فترة إتاحة الامتحان -->
+        <div class="form-group" style="margin-bottom:12px;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+            <input id="quizTimeEnableAvailability" type="checkbox" onchange="document.getElementById('quizTimeAvailabilityRow').style.display=this.checked?'block':'none'"> ☑ تحديد فترة إتاحة الامتحان
+          </label>
+          <div id="quizTimeAvailabilityRow" style="display:none;margin-top:8px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+              <div><label style="font-size:11px;color:var(--text-light);display:block;margin-bottom:2px;">تاريخ البداية</label><input id="quizTimeFromDate" type="date" class="form-input" style="width:100%;direction:ltr;"></div>
+              <div><label style="font-size:11px;color:var(--text-light);display:block;margin-bottom:2px;">وقت البداية</label><input id="quizTimeFromTime" type="time" class="form-input" style="width:100%;direction:ltr;"></div>
+              <div><label style="font-size:11px;color:var(--text-light);display:block;margin-bottom:2px;">تاريخ النهاية</label><input id="quizTimeToDate" type="date" class="form-input" style="width:100%;direction:ltr;"></div>
+              <div><label style="font-size:11px;color:var(--text-light);display:block;margin-bottom:2px;">وقت النهاية</label><input id="quizTimeToTime" type="time" class="form-input" style="width:100%;direction:ltr;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- التسليم التلقائي -->
+        <div class="form-group" style="margin-bottom:0;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+            <input id="quizTimeAutoSubmit" type="checkbox" checked> ☑ التسليم التلقائي عند انتهاء الوقت
+          </label>
+        </div>
+      </div>
+
       <div id="questionsContainer">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
           <label>الأسئلة</label>
@@ -953,14 +991,41 @@
       <input type="hidden" id="qbCourseId">
       <div class="form-group"><label>اسم بنك الأسئلة</label><input id="qbTitle" placeholder="مثال: بنك أسئلة الوحدة الأولى"></div>
       <div class="form-group"><label>الوصف</label><textarea id="qbDescription" rows="2" placeholder="وصف بنك الأسئلة"></textarea></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-        <div class="form-group">
-          <label style="display:flex;align-items:center;gap:8px;">
-            <input id="qbTimerEnabled" type="checkbox" onchange="document.getElementById('qbTimer').style.display=this.checked?'':'none'"> تفعيل المؤقت
+      <!-- ⏱️ إعدادات الوقت — Card (بنك الأسئلة) -->
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px;margin-top:12px;">
+        <div style="font-size:15px;font-weight:700;color:var(--primary);margin-bottom:12px;display:flex;align-items:center;gap:8px;">⏱️ إعدادات الوقت</div>
+
+        <div class="form-group" style="margin-bottom:12px;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+            <input id="qbTimeEnableDuration" type="checkbox" onchange="document.getElementById('qbTimeDurationRow').style.display=this.checked?'flex':'none'"> ☑ تفعيل مدة الامتحان
           </label>
-          <input id="qbTimer" type="number" min="0" placeholder="15" style="display:none;">
+          <div id="qbTimeDurationRow" style="display:none;align-items:center;gap:8px;margin-top:8px;">
+            <input id="qbTimeDuration" type="number" min="1" placeholder="مدة الامتحان" style="flex:1;max-width:160px;">
+            <span style="font-size:13px;color:var(--text-light);">دقيقة</span>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom:12px;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+            <input id="qbTimeEnableAvailability" type="checkbox" onchange="document.getElementById('qbTimeAvailabilityRow').style.display=this.checked?'block':'none'"> ☑ تحديد فترة إتاحة الامتحان
+          </label>
+          <div id="qbTimeAvailabilityRow" style="display:none;margin-top:8px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+              <div><label style="font-size:11px;color:var(--text-light);display:block;margin-bottom:2px;">تاريخ البداية</label><input id="qbTimeFromDate" type="date" class="form-input" style="width:100%;direction:ltr;"></div>
+              <div><label style="font-size:11px;color:var(--text-light);display:block;margin-bottom:2px;">وقت البداية</label><input id="qbTimeFromTime" type="time" class="form-input" style="width:100%;direction:ltr;"></div>
+              <div><label style="font-size:11px;color:var(--text-light);display:block;margin-bottom:2px;">تاريخ النهاية</label><input id="qbTimeToDate" type="date" class="form-input" style="width:100%;direction:ltr;"></div>
+              <div><label style="font-size:11px;color:var(--text-light);display:block;margin-bottom:2px;">وقت النهاية</label><input id="qbTimeToTime" type="time" class="form-input" style="width:100%;direction:ltr;"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom:0;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+            <input id="qbTimeAutoSubmit" type="checkbox" checked> ☑ التسليم التلقائي عند انتهاء الوقت
+          </label>
         </div>
       </div>
+
       <div id="qbQuestionsContainer">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;margin-top:12px;">
           <label>الأسئلة</label>
@@ -976,16 +1041,6 @@
 </div>
 
 <script>
-function migrateSeed() {
-  if (!confirm('هل أنت متأكد من ترحيل البيانات من الملفات المحلية إلى قاعدة البيانات؟')) return;
-  var btn = event.target.closest('button');
-  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-  fetch('/api/admin/force-migrate', { method: 'POST' })
-    .then(function(r){ return r.json(); })
-    .then(function(d){ alert(d.success ? 'تم ترحيل البيانات بنجاح' : d.error); if (d.success) location.reload(); })
-    .catch(function(e){ alert('خطأ: ' + e.message); })
-    .finally(function(){ btn.disabled = false; btn.innerHTML = '<i class="fas fa-database"></i>'; });
-}
 </script><script>
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function escAttr(s) { return String(s).replace(/"/g,'&quot;').replace(/&/g,'&amp;'); }
@@ -1242,6 +1297,18 @@ function openQuizModal(course) {
   var hasTimer = course.quiz && course.quiz.timerMinutes;
   document.getElementById('quizTimerEnabled').checked = !!hasTimer;
   document.getElementById('quizTimer').style.display = hasTimer ? '' : 'none';
+  // Populate timeSettings
+  var ts = course.quiz && course.quiz.timeSettings;
+  document.getElementById('quizTimeEnableDuration').checked = ts && ts.enableDuration;
+  document.getElementById('quizTimeDuration').value = ts && ts.enableDuration ? (ts.durationMinutes || '') : '';
+  document.getElementById('quizTimeDurationRow').style.display = ts && ts.enableDuration ? 'flex' : 'none';
+  document.getElementById('quizTimeEnableAvailability').checked = ts && ts.enableAvailability;
+  document.getElementById('quizTimeAvailabilityRow').style.display = ts && ts.enableAvailability ? 'block' : 'none';
+  document.getElementById('quizTimeFromDate').value = ts && ts.availableFrom ? ts.availableFrom.split('T')[0] : '';
+  document.getElementById('quizTimeFromTime').value = ts && ts.availableFrom ? ts.availableFrom.split('T')[1] || '' : '';
+  document.getElementById('quizTimeToDate').value = ts && ts.availableTo ? ts.availableTo.split('T')[0] : '';
+  document.getElementById('quizTimeToTime').value = ts && ts.availableTo ? ts.availableTo.split('T')[1] || '' : '';
+  document.getElementById('quizTimeAutoSubmit').checked = ts ? !!ts.autoSubmit : true;
   var container = document.getElementById('questionsContainer');
   var existing = container.querySelectorAll('.question-block');
   existing.forEach(function(el){ el.remove(); });
@@ -1302,10 +1369,31 @@ function saveQuiz() {
     var wm = b.querySelector('.q-wrong-msg').value;
     if (q && opts.some(function(o){ return o; })) questions.push({ question: q, options: opts, correct: c, wrongAnswerMessage: wm });
   });
+  // Collect timeSettings
+  var enableDuration = document.getElementById('quizTimeEnableDuration').checked;
+  var enableAvailability = document.getElementById('quizTimeEnableAvailability').checked;
+  var fromDate = document.getElementById('quizTimeFromDate').value;
+  var fromTime = document.getElementById('quizTimeFromTime').value;
+  var toDate = document.getElementById('quizTimeToDate').value;
+  var toTime = document.getElementById('quizTimeToTime').value;
+  // Validate availability: end must be > start
+  if (enableAvailability && fromDate && toDate) {
+    var fromVal = fromDate + (fromTime ? 'T' + fromTime : '');
+    var toVal = toDate + (toTime ? 'T' + toTime : '');
+    if (toVal <= fromVal) { alert('تاريخ النهاية يجب أن يكون بعد تاريخ البداية'); return; }
+  }
+  var timeSettings = {
+    enableDuration: enableDuration,
+    durationMinutes: enableDuration ? (parseInt(document.getElementById('quizTimeDuration').value) || null) : null,
+    enableAvailability: enableAvailability,
+    availableFrom: enableAvailability && fromDate ? (fromDate + (fromTime ? 'T' + fromTime : 'T00:00')) : null,
+    availableTo: enableAvailability && toDate ? (toDate + (toTime ? 'T' + toTime : 'T00:00')) : null,
+    autoSubmit: document.getElementById('quizTimeAutoSubmit').checked
+  };
   fetch('/api/admin/courses/' + courseId + '/quiz', {
     method: 'PUT',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ title: title, questions: questions, timerMinutes: timerMinutes })
+    body: JSON.stringify({ title: title, questions: questions, timerMinutes: timerMinutes, timeSettings: timeSettings })
   }).then(function(r){ return r.json(); }).then(function(d){ if (d.success) location.reload(); else alert(d.error); });
 }
 
@@ -1327,6 +1415,21 @@ function switchCourseTab(courseId, tab) {
 }
 
 // ===== NOTES CRUD =====
+function uploadNoteFile(file) {
+  return new Promise(function(resolve, reject) {
+    var fd = new FormData();
+    fd.append('file', file);
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/admin/upload-note-file');
+    xhr.onload = function() {
+      try { var d = JSON.parse(xhr.responseText); } catch(e) { return reject(new Error('خطأ في استجابة الخادم')); }
+      if (xhr.status >= 200 && xhr.status < 300 && d && d.success) resolve(d.url);
+      else reject(new Error(d && d.error || 'فشل رفع الملف'));
+    };
+    xhr.onerror = function() { reject(new Error('خطأ في الاتصال')); };
+    xhr.send(fd);
+  });
+}
 function openNoteModal(courseId, stage, grade, note) {
   document.getElementById('noteModalTitle').textContent = note ? 'تعديل المذكرة' : 'إضافة مذكرة';
   document.getElementById('noteId').value = note ? note.id : '';
@@ -1364,7 +1467,7 @@ function saveNote() {
       .catch(function(e){ if (window.uploadError) window.uploadError((e && e.message) ? e.message : e); });
   };
   if (file) {
-    uploadPdfFile(file, 'notes').then(function(path){ fileReady(path); })
+    uploadNoteFile(file).then(function(path){ fileReady(path); })
       .catch(function(e){ alert('فشل رفع الملف: ' + (e && e.message ? e.message : e)); });
   } else {
     fileReady(existingPath);
@@ -1529,10 +1632,18 @@ function openQuestionBankModal(courseId, bank) {
   document.getElementById('qbCourseId').value = courseId;
   document.getElementById('qbTitle').value = bank ? bank.title : '';
   document.getElementById('qbDescription').value = bank ? (bank.description || '') : '';
-  document.getElementById('qbTimer').value = bank ? (bank.timerMinutes || '') : '';
-  var hasTimer = bank && bank.timerMinutes;
-  document.getElementById('qbTimerEnabled').checked = !!hasTimer;
-  document.getElementById('qbTimer').style.display = hasTimer ? '' : 'none';
+  // Populate timeSettings
+  var ts = bank && bank.timeSettings;
+  document.getElementById('qbTimeEnableDuration').checked = ts && ts.enableDuration;
+  document.getElementById('qbTimeDuration').value = ts && ts.enableDuration ? (ts.durationMinutes || '') : '';
+  document.getElementById('qbTimeDurationRow').style.display = ts && ts.enableDuration ? 'flex' : 'none';
+  document.getElementById('qbTimeEnableAvailability').checked = ts && ts.enableAvailability;
+  document.getElementById('qbTimeAvailabilityRow').style.display = ts && ts.enableAvailability ? 'block' : 'none';
+  document.getElementById('qbTimeFromDate').value = ts && ts.availableFrom ? ts.availableFrom.split('T')[0] : '';
+  document.getElementById('qbTimeFromTime').value = ts && ts.availableFrom ? ts.availableFrom.split('T')[1] || '' : '';
+  document.getElementById('qbTimeToDate').value = ts && ts.availableTo ? ts.availableTo.split('T')[0] : '';
+  document.getElementById('qbTimeToTime').value = ts && ts.availableTo ? ts.availableTo.split('T')[1] || '' : '';
+  document.getElementById('qbTimeAutoSubmit').checked = ts ? !!ts.autoSubmit : true;
   var container = document.getElementById('qbQuestionsContainer');
   var existing = container.querySelectorAll('.question-block');
   existing.forEach(function(el){ el.remove(); });
@@ -1563,11 +1674,32 @@ function saveQuestionBank() {
     var wm = b.querySelector('.qbq-wrong-msg').value;
     if (q && opts.some(function(o){ return o; })) questions.push({ question: q, options: opts, correct: c, wrongAnswerMessage: wm });
   });
+  // Collect timeSettings
+  var qbEnableDuration = document.getElementById('qbTimeEnableDuration').checked;
+  var qbEnableAvailability = document.getElementById('qbTimeEnableAvailability').checked;
+  var qbFromDate = document.getElementById('qbTimeFromDate').value;
+  var qbFromTime = document.getElementById('qbTimeFromTime').value;
+  var qbToDate = document.getElementById('qbTimeToDate').value;
+  var qbToTime = document.getElementById('qbTimeToTime').value;
+  if (qbEnableAvailability && qbFromDate && qbToDate) {
+    var qbFromVal = qbFromDate + (qbFromTime ? 'T' + qbFromTime : '');
+    var qbToVal = qbToDate + (qbToTime ? 'T' + qbToTime : '');
+    if (qbToVal <= qbFromVal) { alert('تاريخ النهاية يجب أن يكون بعد تاريخ البداية'); return; }
+  }
+  var timeSettings = {
+    enableDuration: qbEnableDuration,
+    durationMinutes: qbEnableDuration ? (parseInt(document.getElementById('qbTimeDuration').value) || null) : null,
+    enableAvailability: qbEnableAvailability,
+    availableFrom: qbEnableAvailability && qbFromDate ? (qbFromDate + (qbFromTime ? 'T' + qbFromTime : 'T00:00')) : null,
+    availableTo: qbEnableAvailability && qbToDate ? (qbToDate + (qbToTime ? 'T' + qbToTime : 'T00:00')) : null,
+    autoSubmit: document.getElementById('qbTimeAutoSubmit').checked
+  };
   var data = {
     courseId: courseId,
     title: document.getElementById('qbTitle').value,
     description: document.getElementById('qbDescription').value,
-    timerMinutes: document.getElementById('qbTimerEnabled').checked ? (parseInt(document.getElementById('qbTimer').value) || null) : null,
+    timerMinutes: qbEnableDuration ? (parseInt(document.getElementById('qbTimeDuration').value) || null) : null,
+    timeSettings: timeSettings,
     order: 0,
     questions: questions
   };

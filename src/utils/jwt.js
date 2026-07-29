@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const { getPrisma } = require('../database');
+const { refreshTokenRepo } = require('../repositories');
 
 const ACCESS_SECRET = process.env.JWT_SECRET || 'change-me-dev-access';
 const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'change-me-dev-refresh';
@@ -41,39 +41,33 @@ function parseExpiry(expiryStr) {
 }
 
 async function createRefreshToken(userId) {
-  const prisma = getPrisma();
   const tokenId = generateTokenId();
   const expiresAt = new Date(Date.now() + parseExpiry(REFRESH_EXPIRY));
   const refreshToken = signRefreshToken({ jti: tokenId, sub: userId });
-  await prisma.refreshToken.create({
-    data: { id: tokenId, userId, token: refreshToken, expiresAt }
-  });
+  await refreshTokenRepo.create({ id: tokenId, userId, token: refreshToken, expiresAt });
   return refreshToken;
 }
 
 async function rotateRefreshToken(oldToken, userId) {
-  const prisma = getPrisma();
-  await prisma.refreshToken.updateMany({
-    where: { token: oldToken, userId, revoked: false },
-    data: { revoked: true }
-  });
+  await refreshTokenRepo.updateMany(
+    { token: oldToken, userId, revoked: false },
+    { revoked: true }
+  );
   return createRefreshToken(userId);
 }
 
 async function revokeRefreshToken(token) {
-  const prisma = getPrisma();
-  await prisma.refreshToken.updateMany({
-    where: { token, revoked: false },
-    data: { revoked: true }
-  });
+  await refreshTokenRepo.updateMany(
+    { token, revoked: false },
+    { revoked: true }
+  );
 }
 
 async function revokeAllUserTokens(userId) {
-  const prisma = getPrisma();
-  await prisma.refreshToken.updateMany({
-    where: { userId, revoked: false },
-    data: { revoked: true }
-  });
+  await refreshTokenRepo.updateMany(
+    { userId, revoked: false },
+    { revoked: true }
+  );
 }
 
 function setTokenCookies(res, accessToken, refreshToken) {

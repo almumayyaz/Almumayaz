@@ -1,1093 +1,194 @@
 [
   {
-    "color": "#a07200",
-    "description": "شرح كامل لمنهج النحو للثانوية العامة، يشمل جميع قواعد النحو والإعراب بشكل مبسط ومنظم مع تطبيقات وتمارين شاملة.",
-    "grade": "الثالث الثانوي",
-    "gradient": "linear-gradient(135deg, #A07200 0%, #D4A017 50%, #F6C453 100%)",
-    "icon": "fa-book-open",
-    "id": "1",
-    "active": true,
-    "guestVisible": true,
-    "lessons": [
-      {
-        "description": "شرح المبتدأ والخبر وأنواعهما وعلامات إعرابهما مع أمثلة متنوعة.",
-        "duration": "45:30",
-        "guestVisible": false,
-        "id": "101",
-        "isFree": true,
-        "order": 0,
-        "pdfFiles": [
-          {
-            "path": "lessons/7e4d8131-a96c-4ef5-b5da-f2b40427141d-Certificate.pdf",
-            "title": "ملف"
-          }
-        ],
-        "sectionId": "",
-        "title": "المبتدأ والخبر",
-        "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ?modestbranding=1&rel=0",
-        "videos": [
-          {
-            "title": "فيديو",
-            "url": "https://www.youtube.com/embed/dQw4w9WgXcQ"
-          }
-        ]
-      },
-      {
-        "description": "شرح كان وأخواتها وأحكامها مع تطبيقات على الجمل الاسمية.",
-        "duration": "38:15",
-        "guestVisible": false,
-        "id": "102",
-        "isFree": true,
-        "order": 1,
-        "sectionId": "",
-        "title": "كان وأخواتها",
-        "videos": [
-          {
-            "title": "فيديو",
-            "url": "https://www.youtube.com/embed/dQw4w9WgXcQ?modestbranding=1&rel=0"
-          }
-        ]
-      },
-      {
-        "description": "شرح إن وأخواتها وأثرها في الجملة الاسمية.",
-        "duration": "42:00",
-        "guestVisible": false,
-        "id": "103",
-        "isFree": false,
-        "order": 2,
-        "sectionId": "",
-        "title": "إن وأخواتها",
-        "videos": [
-          {
-            "title": "فيديو",
-            "url": "https://www.youtube.com/embed/dQw4w9WgXcQ?modestbranding=1&rel=0"
-          }
-        ]
-      },
-      {
-        "description": "شرح الفاعل ونائب الفاعل مع التطبيق على آيات قرآنية وأمثلة.",
-        "duration": "50:20",
-        "guestVisible": false,
-        "id": "104",
-        "isFree": false,
-        "order": 3,
-        "pdfFiles": [
-          {
-            "title": "ملف",
-            "url": "/files/nahw-lesson4.pdf"
-          }
-        ],
-        "sectionId": "",
-        "title": "الفاعل ونائب الفاعل",
-        "videos": [
-          {
-            "title": "فيديو",
-            "url": "https://www.youtube.com/embed/dQw4w9WgXcQ?modestbranding=1&rel=0"
-          }
-        ]
-      },
-      {
-        "description": "شرح المفعول به والمفعول المطلق مع أمثلة وتدريبات.",
-        "duration": "41:10",
-        "guestVisible": false,
-        "id": "105",
-        "isFree": false,
-        "order": 4,
-        "pdfFiles": [
-          {
-            "title": "ملف",
-            "url": "/files/nahw-lesson5.pdf"
-          }
-        ],
-        "sectionId": "",
-        "title": "المفعول به والمفعول المطلق",
-        "videos": [
-          {
-            "title": "فيديو",
-            "url": "https://www.youtube.com/embed/dQw4w9WgXcQ?modestbranding=1&rel=0"
-          }
-        ]
-      },
-      {
-        "description": "شرح رائع للحال والتمييز الوحدة الرابعة الصف الثالث الثانوي.",
-        "duration": "36:45",
-        "guestVisible": false,
-        "id": "106",
-        "isFree": false,
-        "order": 5,
-        "pdfFiles": [
-          {
-            "title": "ملف",
-            "url": "/files/nahw-lesson6.pdf"
-          }
-        ],
-        "sectionId": "",
-        "title": "الحال والتمييز",
-        "videos": [
-          {
-            "title": "فيديو",
-            "url": "https://www.youtube.com/embed/NbQNMp38Tvc?modestbranding=1&rel=0"
-          }
-        ]
-      },
-      {
-        "description": "الوحدة الرابعة نحو الصف الثالث الثانوي الجزء الأول.",
-        "duration": "40:00",
-        "guestVisible": false,
-        "id": "107",
-        "isFree": false,
-        "order": 6,
-        "pdfFiles": [
-          {
-            "title": "ملف",
-            "url": "/files/nahw-lesson7.pdf"
-          }
-        ],
-        "sectionId": "",
-        "title": "الوحدة الرابعة نحو ج1",
-        "videos": [
-          {
-            "title": "فيديو",
-            "url": "https://www.youtube.com/embed/2Tg9vAkrhdU?modestbranding=1&rel=0"
-          }
-        ]
-      },
-      {
-        "description": "الوحدة الرابعة نحو الصف الثالث الثانوي الجزء الثاني.",
-        "duration": "40:00",
-        "guestVisible": false,
-        "id": "108",
-        "isFree": false,
-        "order": 7,
-        "pdfFiles": [
-          {
-            "title": "ملف",
-            "url": "/files/nahw-lesson8.pdf"
-          }
-        ],
-        "sectionId": "",
-        "title": "الوحدة الرابعة نحو ج2",
-        "videos": [
-          {
-            "title": "فيديو",
-            "url": "https://www.youtube.com/embed/4xGorof9Zm8?modestbranding=1&rel=0"
-          }
-        ]
-      },
-      {
-        "description": "تكملة شرح التوابع في النحو.",
-        "duration": "35:00",
-        "guestVisible": false,
-        "id": "109",
-        "isFree": false,
-        "order": 8,
-        "pdfFiles": [
-          {
-            "title": "ملف",
-            "url": "/files/nahw-lesson9.pdf"
-          }
-        ],
-        "sectionId": "",
-        "title": "التوابع",
-        "videos": [
-          {
-            "title": "فيديو",
-            "url": "https://www.youtube.com/embed/yy3eqNGvqJ0?modestbranding=1&rel=0"
-          }
-        ]
-      }
-    ],
-    "quiz": {
-      "id": "q1",
-      "questions": [
-        {
-          "correct": 0,
-          "options": [
-            "الطالب",
-            "مجتهد",
-            "ال",
-            "اجتهاد"
-          ],
-          "question": "ما هو المبتدأ في الجملة التالية: 'الطالب مجتهد'؟"
-        },
-        {
-          "correct": 1,
-          "options": [
-            "كتب",
-            "صار",
-            "جلس",
-            "ذهب"
-          ],
-          "question": "أي من الأفعال التالية من أخوات كان؟"
-        },
-        {
-          "correct": 1,
-          "options": [
-            "مرفوع",
-            "منصوب",
-            "مجرور",
-            "مجزوم"
-          ],
-          "question": "ما إعراب كلمة 'الكتاب' في 'إن الكتاب مفيد'؟"
-        },
-        {
-          "correct": 0,
-          "options": [
-            "فعل ماض ناقص",
-            "فعل ماض تام",
-            "فعل مضارع",
-            "فعل أمر"
-          ],
-          "question": "'ظل الطالب مجتهداً' - ما نوع 'ظل'؟"
-        },
-        {
-          "correct": 1,
-          "options": [
-            "الضمة",
-            "الواو",
-            "الألف",
-            "النون"
-          ],
-          "question": "ما علامة رفع جمع المذكر السالم؟"
-        },
-        {
-          "correct": 0,
-          "options": [
-            "مثنى مرفوع",
-            "مثنى منصوب",
-            "مثنى مجرور",
-            "جمع مذكر"
-          ],
-          "question": "'الكتابان مفيدان' - نوع 'الكتابان' من حيث التثنية:"
-        },
-        {
-          "correct": 2,
-          "options": [
-            "فاعل",
-            "مفعول به",
-            "خبر كان منصوب",
-            "نعت"
-          ],
-          "question": "ما إعراب 'سعيداً' في 'كان الطالب سعيداً'؟"
-        }
-      ],
-      "title": "اختبار النحو الشامل"
-    },
-    "sections": [
-      {
-        "id": "sec-nahw-1",
-        "lessons": [
-          "102"
-        ],
-        "name": "المبتدأ والخبر"
-      },
-      {
-        "id": "sec-nahw-2",
-        "lessons": [
-          "103",
-          "104"
-        ],
-        "name": "الأفعال الناقصة"
-      },
-      {
-        "id": "sec-nahw-3",
-        "lessons": [
-          "105",
-          "106"
-        ],
-        "name": "المفعولات"
-      },
-      {
-        "id": "sec-nahw-4",
-        "lessons": [
-          "107",
-          "108",
-          "109"
-        ],
-        "name": "الوحدة الرابعة"
-      }
-    ],
-    "semester": "all",
-    "stage": "ثانوية",
-    "subtitle": "قواعد اللغة العربية",
-    "title": "النحو"
-  },
-  {
-    "color": "#df9c0c",
-    "description": "شرح كامل لعلم البلاغة: المعاني والبيان والبديع، مع تطبيقات على النصوص الأدبية والأمثلة الشعرية.",
-    "grade": "الثالث الثانوي",
-    "gradient": "linear-gradient(135deg, #4A2D9A 0%, #6D4AFF 50%, #8B6FFF 100%)",
+    "id": "1784723670918",
+    "title": "النحو",
+    "subtitle": "",
+    "description": "",
     "icon": "fa-feather",
-    "id": "2",
-    "active": true,
-    "guestVisible": true,
-    "lessons": [
-      {
-        "description": "شرح التشبيه وأركانه وأنواعه مع أمثلة من القرآن والشعر.",
-        "duration": "40:00",
-        "guestVisible": false,
-        "id": "201",
-        "isFree": true,
-        "order": 0,
-        "pdfFiles": [
-          {
-            "title": "ملف",
-            "url": "/files/balaaghah-lesson1.pdf"
-          }
-        ],
-        "sectionId": "",
-        "title": "التشبيه",
-        "videos": [
-          {
-            "title": "فيديو",
-            "url": "https://www.youtube.com/embed/dQw4w9WgXcQ?modestbranding=1&rel=0"
-          }
-        ]
-      },
-      {
-        "description": "شرح الاستعارة التصريحية والمكنية مع التطبيقات.",
-        "duration": "35:45",
-        "guestVisible": false,
-        "id": "202",
-        "isFree": false,
-        "order": 1,
-        "pdfFiles": [
-          {
-            "title": "ملف",
-            "url": "/files/balaaghah-lesson2.pdf"
-          }
-        ],
-        "sectionId": "",
-        "title": "الاستعارة",
-        "videos": [
-          {
-            "title": "فيديو",
-            "url": "https://www.youtube.com/embed/dQw4w9WgXcQ?modestbranding=1&rel=0"
-          }
-        ]
-      },
-      {
-        "description": "شرح الكناية وأنواعها وأغراضها البلاغية.",
-        "duration": "32:20",
-        "guestVisible": false,
-        "id": "203",
-        "isFree": false,
-        "order": 2,
-        "pdfFiles": [
-          {
-            "title": "ملف",
-            "url": "/files/balaaghah-lesson3.pdf"
-          }
-        ],
-        "sectionId": "",
-        "title": "الكناية",
-        "videos": [
-          {
-            "title": "فيديو",
-            "url": "https://www.youtube.com/embed/dQw4w9WgXcQ?modestbranding=1&rel=0"
-          }
-        ]
-      },
-      {
-        "description": "الفرق بين الطباق والمقابلة مع أمثلة من القرآن.",
-        "duration": "28:50",
-        "guestVisible": false,
-        "id": "204",
-        "isFree": false,
-        "order": 3,
-        "pdfFiles": [
-          {
-            "title": "ملف",
-            "url": "/files/balaaghah-lesson4.pdf"
-          }
-        ],
-        "sectionId": "",
-        "title": "الطباق والمقابلة",
-        "videos": [
-          {
-            "title": "فيديو",
-            "url": "https://www.youtube.com/embed/dQw4w9WgXcQ?modestbranding=1&rel=0"
-          }
-        ]
-      },
-      {
-        "description": "مراجعة شاملة للبلاغة ليلة الامتحان - قصة وبلاغة.",
-        "duration": "34:10",
-        "guestVisible": false,
-        "id": "205",
-        "isFree": false,
-        "order": 4,
-        "pdfFiles": [
-          {
-            "title": "ملف",
-            "url": "/files/balaaghah-lesson5.pdf"
-          }
-        ],
-        "sectionId": "",
-        "title": "مراجعة البلاغة",
-        "videos": [
-          {
-            "title": "فيديو",
-            "url": "https://www.youtube.com/embed/9ycG112ZJkI?modestbranding=1&rel=0"
-          }
-        ]
-      }
-    ],
-    "quiz": {
-      "id": "q2",
-      "questions": [
-        {
-          "correct": 0,
-          "options": [
-            "بليغ",
-            "مفصل",
-            "تمثيلي",
-            "عكسي"
-          ],
-          "question": "'زيد كالأسد' - هذا تشبيه:"
-        },
-        {
-          "correct": 1,
-          "options": [
-            "تشبيه",
-            "استعارة",
-            "كناية",
-            "طباق"
-          ],
-          "question": "'رأيت بحراً يعطي المحتاجين' - هذه:"
-        },
-        {
-          "correct": 0,
-          "options": [
-            "طباق",
-            "مقابلة",
-            "جناس",
-            "سجع"
-          ],
-          "question": "'الليل والنهار يتعاقبان' - بين الليل والنهار:"
-        },
-        {
-          "correct": 0,
-          "options": [
-            "تشبيه بليغ",
-            "استعارة تمثيلية",
-            "كناية",
-            "تشبيه تمثيلي"
-          ],
-          "question": "'نحن في روضة أخلاق' - هذه:"
-        }
-      ],
-      "title": "اختبار البلاغة الشامل"
-    },
-    "sections": [
-      {
-        "id": "sec-bal-1",
-        "lessons": [
-          "201",
-          "202",
-          "203"
-        ],
-        "name": "البيان"
-      },
-      {
-        "id": "sec-bal-2",
-        "lessons": [
-          "204",
-          "205"
-        ],
-        "name": "البديع"
-      }
-    ],
-    "semester": "first",
-    "stage": "ثانوية",
-    "subtitle": "البيان والبديع والمعاني",
-    "title": "البلاغة"
-  },
-  {
-    "color": "#7A4E1A",
-    "description": "شرح كامل لمنهج الأدب العربي للثانوية العامة، يشمل العصور الأدبية والشعراء والنقاد وتحليل النصوص.",
-    "grade": "الثالث الثانوي",
-    "gradient": "linear-gradient(135deg, #7A4E1A 0%, #B8860B 50%, #D4A017 100%)",
-    "icon": "fa-pen-fancy",
-    "id": "3",
-    "active": true,
-    "guestVisible": true,
-    "lessons": [
-      {
-        "description": "خصائص الأدب في العصر الجاهلي وأشهر الشعراء.",
-        "duration": "48:10",
-        "guestVisible": false,
-        "id": "301",
-        "isFree": true,
-        "order": 0,
-        "pdfFiles": [
-          {
-            "title": "ملف",
-            "url": "/files/adab-lesson1.pdf"
-          }
-        ],
-        "title": "العصر الجاهلي",
-        "videos": [
-          {
-            "title": "فيديو",
-            "url": "https://www.youtube.com/embed/dQw4w9WgXcQ?modestbranding=1&rel=0"
-          }
-        ]
-      },
-      {
-        "description": "تطور الأدب في صدر الإسلام والعصر الأموي.",
-        "duration": "42:30",
-        "guestVisible": false,
-        "id": "302",
-        "isFree": false,
-        "order": 1,
-        "sectionId": "",
-        "pdfFiles": [
-          {
-            "title": "ملف",
-            "url": "/files/adab-lesson2.pdf"
-          }
-        ],
-        "title": "العصر الإسلامي",
-        "videos": [
-          {
-            "title": "فيديو",
-            "url": "https://www.youtube.com/embed/dQw4w9WgXcQ?modestbranding=1&rel=0"
-          }
-        ]
-      },
-      {
-        "description": "ازدهار الأدب في العصر العباسي وأبرز الشعراء.",
-        "duration": "55:00",
-        "guestVisible": false,
-        "id": "303",
-        "isFree": false,
-        "order": 2,
-        "pdfFiles": [
-          {
-            "title": "ملف",
-            "url": "/files/adab-lesson3.pdf"
-          }
-        ],
-        "sectionId": "",
-        "title": "العصر العباسي",
-        "videos": [
-          {
-            "title": "فيديو",
-            "url": "https://www.youtube.com/embed/dQw4w9WgXcQ?modestbranding=1&rel=0"
-          }
-        ]
-      },
-      {
-        "description": "اتجاهات الأدب في العصر الحديث وأعلامه.",
-        "duration": "44:20",
-        "guestVisible": false,
-        "id": "304",
-        "isFree": false,
-        "order": 3,
-        "pdfFiles": [
-          {
-            "title": "ملف",
-            "url": "/files/adab-lesson4.pdf"
-          }
-        ],
-        "sectionId": "",
-        "title": "العصر الحديث",
-        "videos": [
-          {
-            "title": "فيديو",
-            "url": "https://www.youtube.com/embed/dQw4w9WgXcQ?modestbranding=1&rel=0"
-          }
-        ]
-      },
-      {
-        "description": "خصائص المدرسة الكلاسيكية وأهم شعرائها.",
-        "duration": "37:40",
-        "guestVisible": false,
-        "id": "305",
-        "isFree": false,
-        "order": 4,
-        "pdfFiles": [
-          {
-            "title": "ملف",
-            "url": "/files/adab-lesson5.pdf"
-          }
-        ],
-        "sectionId": "",
-        "title": "المدرسة الكلاسيكية",
-        "videos": [
-          {
-            "title": "فيديو",
-            "url": "https://www.youtube.com/embed/dQw4w9WgXcQ?modestbranding=1&rel=0"
-          }
-        ]
-      },
-      {
-        "description": "مدرسة المهجر في الأدب العربي للصف الثالث الثانوي الجزء الأول.",
-        "duration": "39:15",
-        "guestVisible": false,
-        "id": "306",
-        "isFree": false,
-        "order": 5,
-        "pdfFiles": [
-          {
-            "title": "ملف",
-            "url": "/files/adab-lesson6.pdf"
-          }
-        ],
-        "sectionId": "",
-        "title": "مدرسة المهجر ج1",
-        "videos": [
-          {
-            "title": "فيديو",
-            "url": "https://www.youtube.com/embed/UOILZyxPLxE?modestbranding=1&rel=0"
-          }
-        ]
-      },
-      {
-        "description": "مدرسة المهجر في الأدب العربي للصف الثالث الثانوي الجزء الثاني.",
-        "duration": "35:00",
-        "guestVisible": false,
-        "id": "307",
-        "isFree": false,
-        "order": 6,
-        "pdfFiles": [
-          {
-            "title": "ملف",
-            "url": "/files/adab-lesson7.pdf"
-          }
-        ],
-        "sectionId": "",
-        "title": "مدرسة المهجر ج2",
-        "videos": [
-          {
-            "title": "فيديو",
-            "url": "https://www.youtube.com/embed/zNY1JuBpRsM?modestbranding=1&rel=0"
-          }
-        ]
-      }
-    ],
-    "quiz": {
-      "id": "q3",
-      "questions": [
-        {
-          "correct": 1,
-          "options": [
-            "المتنبي",
-            "امرؤ القيس",
-            "أبو تمام",
-            "بشار بن برد"
-          ],
-          "question": "أشهر شعراء العصر الجاهلي؟"
-        },
-        {
-          "correct": 1,
-          "options": [
-            "عنترة",
-            "امرؤ القيس",
-            "زهير بن أبي سلمى",
-            "لبيد"
-          ],
-          "question": "صاحب معلقة 'قفا نبك' هو:"
-        },
-        {
-          "correct": 0,
-          "options": [
-            "الجاهلي",
-            "الإسلامي",
-            "العباسي",
-            "الحديث"
-          ],
-          "question": "أي العصور الأدبية تميز بازدهار الشعر?"
-        },
-        {
-          "correct": 2,
-          "options": [
-            "أحمد شوقي",
-            "حافظ إبراهيم",
-            "علي محمود طه",
-            "أبو تمام"
-          ],
-          "question": "من رواد المدرسة الرومانسية?"
-        },
-        {
-          "correct": 1,
-          "options": [
-            "الغزل",
-            "الموضوعات",
-            "الرثاء",
-            "الهجاء"
-          ],
-          "question": "خصائص العصر العباسي: كثرة:"
-        }
-      ],
-      "title": "اختبار الأدب الشامل"
-    },
-    "sections": [
-      {
-        "id": "sec-adab-1",
-        "lessons": [
-          "301"
-        ],
-        "name": "العصر الجاهلي"
-      },
-      {
-        "id": "sec-adab-2",
-        "lessons": [
-          "302"
-        ],
-        "name": "العصر الإسلامي"
-      },
-      {
-        "id": "sec-adab-3",
-        "lessons": [
-          "303"
-        ],
-        "name": "العصر العباسي"
-      },
-      {
-        "id": "sec-adab-4",
-        "lessons": [
-          "304",
-          "305"
-        ],
-        "name": "العصر الحديث"
-      },
-      {
-        "id": "sec-adab-5",
-        "lessons": [
-          "306",
-          "307"
-        ],
-        "name": "مدرسة المهجر"
-      }
-    ],
-    "semester": "first",
-    "stage": "ثانوية",
-    "subtitle": "تاريخ الأدب والنصوص",
-    "title": "الأدب"
-  },
-  {
-    "color": "#0a5c6a",
-    "description": "شرح وتحليل النصوص الأدبية المقررة على الثانوية العامة مع التدريبات والأسئلة المتوقعة.",
-    "grade": "الثالث الثانوي",
-    "gradient": "linear-gradient(135deg, #0A5C6A 0%, #0D9488 50%, #14B8A6 100%)",
-    "icon": "fa-quote-right",
-    "id": "4",
-    "active": true,
-    "guestVisible": true,
-    "lessons": [
-      {
-        "description": "شرح وتحليل نص غربة وحنين وحفظ الأبيات.",
-        "duration": "36:40",
-        "guestVisible": false,
-        "id": "401",
-        "isFree": true,
-        "order": 0,
-        "pdfFiles": [
-          {
-            "title": "ملف",
-            "url": "/files/nusoos-lesson1.pdf"
-          }
-        ],
-        "sectionId": "",
-        "title": "نص: غربة وحنين",
-        "videos": [
-          {
-            "title": "فيديو",
-            "url": "https://www.youtube.com/embed/dQw4w9WgXcQ?modestbranding=1&rel=0"
-          }
-        ]
-      },
-      {
-        "description": "شرح وتحليل نص من قصيدة الكولونيل.",
-        "duration": "40:15",
-        "guestVisible": false,
-        "id": "402",
-        "isFree": false,
-        "order": 1,
-        "pdfFiles": [
-          {
-            "title": "ملف",
-            "url": "/files/nusoos-lesson2.pdf"
-          }
-        ],
-        "sectionId": "",
-        "title": "نص: من قصيدة الكولونيل",
-        "videos": [
-          {
-            "title": "فيديو",
-            "url": "https://www.youtube.com/embed/dQw4w9WgXcQ?modestbranding=1&rel=0"
-          }
-        ]
-      },
-      {
-        "description": "شرح وتحليل نص المساء مع المعاني والأفكار.",
-        "duration": "34:50",
-        "guestVisible": false,
-        "id": "403",
-        "isFree": false,
-        "order": 2,
-        "pdfFiles": [
-          {
-            "title": "ملف",
-            "url": "/files/nusoos-lesson3.pdf"
-          }
-        ],
-        "sectionId": "",
-        "title": "نص: المساء",
-        "videos": [
-          {
-            "title": "فيديو",
-            "url": "https://www.youtube.com/embed/dQw4w9WgXcQ?modestbranding=1&rel=0"
-          }
-        ]
-      },
-      {
-        "description": "شرح وتحليل نص رثاء مع الصور البلاغية.",
-        "duration": "38:30",
-        "guestVisible": false,
-        "id": "404",
-        "isFree": false,
-        "order": 3,
-        "pdfFiles": [
-          {
-            "title": "ملف",
-            "url": "/files/nusoos-lesson4.pdf"
-          }
-        ],
-        "sectionId": "",
-        "title": "نص: رثاء",
-        "videos": [
-          {
-            "title": "فيديو",
-            "url": "https://www.youtube.com/embed/dQw4w9WgXcQ?modestbranding=1&rel=0"
-          }
-        ]
-      },
-      {
-        "description": "مراجعة شاملة لجميع النصوص المقررة.",
-        "duration": "55:20",
-        "guestVisible": false,
-        "id": "405",
-        "isFree": false,
-        "order": 4,
-        "pdfFiles": [
-          {
-            "title": "ملف",
-            "url": "/files/nusoos-lesson5.pdf"
-          }
-        ],
-        "sectionId": "",
-        "title": "مراجعة النصوص",
-        "videos": [
-          {
-            "title": "فيديو",
-            "url": "https://www.youtube.com/embed/dQw4w9WgXcQ?modestbranding=1&rel=0"
-          }
-        ]
-      },
-      {
-        "description": "أفضل طريقة مبسطة لشرح المسرحية كاملة الصف الثالث الثانوي.",
-        "duration": "45:00",
-        "guestVisible": false,
-        "id": "406",
-        "isFree": false,
-        "order": 5,
-        "pdfFiles": [
-          {
-            "title": "ملف",
-            "url": "/files/nusoos-lesson6.pdf"
-          }
-        ],
-        "sectionId": "",
-        "title": "شرح المسرحية",
-        "videos": [
-          {
-            "title": "فيديو",
-            "url": "https://www.youtube.com/embed/0l8CPbmjyn4?modestbranding=1&rel=0"
-          }
-        ]
-      }
-    ],
-    "quiz": {
-      "id": "q4",
-      "questions": [
-        {
-          "correct": 3,
-          "options": [
-            "المتنبي",
-            "أبو العتاهية",
-            "علي بن أبي طالب",
-            "الشافعي"
-          ],
-          "question": "قائل 'أنا إن عشت لست أعدم رزقاً' هو:"
-        },
-        {
-          "correct": 2,
-          "options": [
-            "صدر البيت",
-            "عجز البيت",
-            "البيت كله",
-            "القصيدة"
-          ],
-          "question": "تائية الشاعر: تشير إلى:"
-        },
-        {
-          "correct": 1,
-          "options": [
-            "الفخر",
-            "الحنين",
-            "الرثاء",
-            "المدح"
-          ],
-          "question": "الغرض الشعري لنص 'غربة وحنين':"
-        },
-        {
-          "correct": 1,
-          "options": [
-            "تشبيه",
-            "استعارة",
-            "كناية",
-            "طباق"
-          ],
-          "question": "الصورة البلاغية في 'والدهر يومان' هي:"
-        },
-        {
-          "correct": 2,
-          "options": [
-            "مرفوع",
-            "منصوب",
-            "مجزوم",
-            "مبني"
-          ],
-          "question": "'لا تؤخر الغد' الفعل المضارع هنا:"
-        },
-        {
-          "correct": 0,
-          "options": [
-            "الوحدة الموضوعية",
-            "طول القصيدة",
-            "البديع المتكلف",
-            "الغزل الصريح"
-          ],
-          "question": "من خصائص الشعر في العصر الحديث:"
-        }
-      ],
-      "title": "اختبار النصوص الشامل"
-    },
-    "sections": [
-      {
-        "id": "sec-nus-1",
-        "lessons": [
-          "401",
-          "402"
-        ],
-        "name": "النصوص الشعرية"
-      },
-      {
-        "id": "sec-nus-2",
-        "lessons": [
-          "403",
-          "404"
-        ],
-        "name": "النصوص النثرية"
-      },
-      {
-        "id": "sec-nus-3",
-        "lessons": [
-          "405",
-          "406"
-        ],
-        "name": "المراجعات"
-      }
-    ],
-    "semester": "second",
-    "stage": "ثانوية",
-    "subtitle": "النصوص الأدبية المقررة",
-    "title": "النصوص"
-  },
-  {
-    "color": "#00459e",
-    "description": "وصف الوحدة",
-    "grade": "الأول الإعدادي",
+    "color": "#0091ff",
     "gradient": "linear-gradient(135deg, #A07200 0%, #D4A017 50%, #F6C453 100%)",
-    "icon": "fa-book",
-    "id": "1783652697899",
+    "image": null,
+    "stage": "ثانوية",
+    "grade": "الثالث الثانوي",
+    "semester": "first",
+    "price": null,
+    "guestVisible": false,
     "active": true,
-    "guestVisible": true,
+    "order": 0,
+    "unitIds": [],
+    "lessonIds": [],
+    "quizId": null,
+    "legacyMigratedAt": "2026-07-27T03:12:22.701Z",
     "lessons": [
       {
+        "id": "1785127445144",
+        "title": "المبتدأ والخبر",
         "description": "",
-        "duration": "00:00",
-        "guestVisible": false,
-        "id": "1783653430466",
-        "isFree": true,
-        "order": 0,
-        "sectionId": "",
-        "title": "الدرس الأول"
-      }
-    ],
-    "quiz": {
-      "id": "q1783653382619",
-      "questions": [
-        {
-          "correct": 0,
-          "options": [
-            "1",
-            "2",
-            "3",
-            "4"
-          ],
-          "question": "سؤال"
-        }
-      ],
-      "title": "اختبار شامل"
-    },
-    "stage": "إعدادية",
-    "subtitle": "عنوان الوحدة",
-    "title": "الوحدة الاولي"
-  },
-  {
-    "color": "#00359e",
-    "description": "وصفها ومحتوياتها",
-    "grade": "الثاني الإعدادي",
-    "gradient": "linear-gradient(135deg, #A07200 0%, #D4A017 50%, #F6C453 100%)",
-    "icon": "fa-book-open",
-    "id": "1783898121091",
-    "active": true,
-    "guestVisible": true,
-    "lessons": [
-      {
-        "description": "وصف الدرس ومحتوياته",
-        "duration": "00:00",
-        "guestVisible": false,
-        "id": "1783898183848",
-        "isFree": false,
-        "order": 0,
-        "sectionId": "",
-        "title": "الدرس الأول",
         "videos": [
           {
             "title": "فيديو",
             "url": "https://www.youtube.com/embed/O-tLaUAqRZY"
           }
-        ]
+        ],
+        "pdfFiles": [],
+        "duration": "00:00",
+        "order": 0,
+        "isFree": true,
+        "guestVisible": true,
+        "sectionId": "",
+        "quiz": {
+          "enabled": true,
+          "passPercentage": 60,
+          "questions": [
+            {
+              "question": "الاول",
+              "options": [
+                "1",
+                "2",
+                "3",
+                "4"
+              ],
+              "correct": 1
+            },
+            {
+              "question": "لماذا نتعلم",
+              "options": [
+                "لنرقي",
+                "لنتخلف",
+                "لنتطور",
+                "لنعلوا"
+              ],
+              "correct": 0
+            },
+            {
+              "question": "لماذا نتعلم",
+              "options": [
+                "لنرقي",
+                "لنتخلف",
+                "لنتطور",
+                "لنعلوا"
+              ],
+              "correct": 3
+            }
+          ]
+        }
       },
       {
-        "description": "اسم الدرس",
+        "id": "1785158004701",
+        "title": "كان واخواتها",
+        "description": "",
+        "videos": [
+          {
+            "title": "اسم المحاضرة",
+            "url": "https://www.youtube.com/embed/O-tLaUAqRZY"
+          }
+        ],
+        "pdfFiles": [],
         "duration": "00:00",
-        "guestVisible": false,
-        "id": "1783899100950",
+        "order": 0,
         "isFree": false,
-        "order": 1,
+        "guestVisible": false,
         "sectionId": "",
-        "title": "الدرس الثاني"
+        "quiz": {
+          "enabled": true,
+          "passPercentage": 60,
+          "questions": [
+            {
+              "question": "الاول",
+              "options": [
+                "1",
+                "2",
+                "3",
+                "4"
+              ],
+              "correct": 1
+            },
+            {
+              "question": "لماذا نتعلم",
+              "options": [
+                "لنرقي",
+                "لنتخلف",
+                "لنتطور",
+                "لنعلوا"
+              ],
+              "correct": 0
+            },
+            {
+              "question": "لماذا نتعلم",
+              "options": [
+                "لنرقي",
+                "لنتخلف",
+                "لنتطور",
+                "لنعلوا"
+              ],
+              "correct": 3
+            }
+          ]
+        }
       }
-    ],
+    ]
+  },
+  {
+    "id": "1784754107108",
+    "title": "البلاغة",
+    "subtitle": "",
+    "description": "",
+    "icon": "fa-quote-right",
+    "color": "#f42525",
+    "gradient": "linear-gradient(135deg, #A07200 0%, #D4A017 50%, #F6C453 100%)",
+    "image": null,
+    "stage": "ثانوية",
+    "grade": "الثالث الثانوي",
     "semester": "first",
-    "stage": "إعدادية",
-    "subtitle": "عنوان فرعي",
-    "title": "قراءة"
+    "price": null,
+    "guestVisible": false,
+    "active": true,
+    "order": 0,
+    "unitIds": [],
+    "lessonIds": [],
+    "quizId": null,
+    "legacyMigratedAt": "2026-07-27T03:12:22.709Z"
+  },
+  {
+    "id": "1784754140885",
+    "title": "القصة",
+    "subtitle": "",
+    "description": "",
+    "icon": "fa-book-open",
+    "color": "#9931c9",
+    "gradient": "linear-gradient(135deg, #A07200 0%, #D4A017 50%, #F6C453 100%)",
+    "image": null,
+    "stage": "ثانوية",
+    "grade": "الثالث الثانوي",
+    "semester": "first",
+    "price": null,
+    "guestVisible": false,
+    "active": true,
+    "order": 0,
+    "unitIds": [],
+    "lessonIds": [],
+    "quizId": "q1784754371024",
+    "legacyMigratedAt": "2026-07-27T03:12:22.710Z"
+  },
+  {
+    "id": "1784812099809",
+    "title": "الوحدة الاولي",
+    "subtitle": "",
+    "description": "",
+    "icon": "fa-gem",
+    "color": "#a07200",
+    "gradient": "linear-gradient(135deg, #A07200 0%, #D4A017 50%, #F6C453 100%)",
+    "image": null,
+    "stage": "ثانوية",
+    "grade": "الثالث الثانوي",
+    "semester": "first",
+    "price": null,
+    "guestVisible": false,
+    "active": true,
+    "order": 0,
+    "unitIds": [],
+    "lessonIds": [],
+    "quizId": "q1785009349962",
+    "legacyMigratedAt": "2026-07-27T03:12:22.712Z"
   }
 ]

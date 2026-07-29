@@ -13,15 +13,38 @@
 
   <div class="quiz-section">
     <% if (quizDone) { %>
-    <div style="text-align:center;padding:40px 20px;background:rgba(22,163,74,0.06);border:1px solid rgba(22,163,74,0.2);border-radius:var(--radius-lg);">
-      <i class="fas fa-check-circle" style="font-size:48px;color:var(--success);display:block;margin-bottom:12px;"></i>
-      <h3 style="font-size:18px;color:var(--success);margin-bottom:8px;">لقد أجبت على هذا الاختبار من قبل</h3>
-      <p style="color:var(--text-muted);font-size:13px;">يمكنك مراجعة الدرس أو الانتقال للدرس التالي</p>
-      <div style="display:flex;gap:12px;justify-content:center;margin-top:16px;flex-wrap:wrap;">
-        <a href="/student/lesson/<%= course.id %>/<%= lesson.id %>" class="btn" style="background:var(--card);border:1px solid var(--border);"><i class="fas fa-book"></i> العودة للدرس</a>
-        <% if (nextLesson) { %><a href="/student/lesson/<%= course.id %>/<%= nextLesson.id %>" class="btn btn-primary"><i class="fas fa-arrow-left"></i> الدرس التالي</a><% } %>
-        <a href="/student/course/<%= course.id %>" class="btn" style="background:var(--card);border:1px solid var(--border);"><i class="fas fa-list"></i> كل الدروس</a>
+    <p style="color:var(--text-light);font-size:14px;margin-bottom:24px;">مراجعة إجاباتك السابقة</p>
+    <% (lesson.quiz.questions||[]).forEach(function(q, qi) { %>
+    <div class="quiz-question" data-correct="<%= q.correct %>">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <span style="background:var(--accent);color:var(--primary);width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;"><%= qi + 1 %></span>
+        <h3 style="margin-bottom:0;font-size:16px;"><%= q.question %></h3>
       </div>
+      <div class="quiz-options">
+        <% q.options.forEach(function(o, oi) {
+          var savedAns = quizResult && quizResult.answers && quizResult.answers[qi];
+          var isCorrect = oi === q.correct;
+          var isSelected = savedAns === oi;
+          var borderColor = isCorrect ? '#059669' : (isSelected ? '#DC2626' : '');
+          var bgColor = isCorrect ? 'rgba(5,150,105,0.08)' : (isSelected ? 'rgba(220,38,38,0.08)' : '');
+        %>
+        <label class="quiz-option" style="border-color:<%= borderColor %>;background:<%= bgColor %>;">
+          <input type="radio" name="review_lq_<%= qi %>" value="<%= oi %>" <%= savedAns === oi ? 'checked' : '' %> disabled>
+          <span><%= o %></span>
+          <% if (isCorrect) { %><span style="color:#059669;margin-right:auto;font-size:13px;"><i class="fas fa-check"></i> الإجابة الصحيحة</span><% } %>
+          <% if (isSelected && !isCorrect) { %><span style="color:#DC2626;margin-right:auto;font-size:13px;"><i class="fas fa-times"></i> إجابتك</span><% } %>
+        </label>
+        <% }) %>
+      </div>
+      <% if (quizResult && quizResult.answers && quizResult.answers[qi] === -1) { %>
+      <p style="color:#DC2626;font-size:12px;margin-top:4px;">لم تجب على هذا السؤال</p>
+      <% } %>
+    </div>
+    <% }) %>
+    <div style="display:flex;gap:12px;justify-content:center;margin-top:24px;flex-wrap:wrap;">
+      <a href="/student/lesson/<%= course.id %>/<%= lesson.id %>" class="btn" style="background:var(--card);border:1px solid var(--border);"><i class="fas fa-book"></i> العودة للدرس</a>
+      <% if (nextLesson) { %><a href="/student/lesson/<%= course.id %>/<%= nextLesson.id %>" class="btn btn-primary"><i class="fas fa-arrow-left"></i> الدرس التالي</a><% } %>
+      <a href="/student/course/<%= course.id %>" class="btn" style="background:var(--card);border:1px solid var(--border);"><i class="fas fa-list"></i> كل الدروس</a>
     </div>
     <% } else { %>
     <p style="color:var(--text-light);font-size:14px;margin-bottom:24px;">أجب عن جميع الأسئلة التالية ثم اضغط على "تقييم الإجابات"</p>
@@ -59,77 +82,98 @@
   var passPct = <%= (lesson.quiz && lesson.quiz.passPercentage) || 60 %>;
   var nextLessonUrl = '<%= nextLesson ? "/student/lesson/" + course.id + "/" + nextLesson.id : "" %>';
   var nextLessonTitle = <%- JSON.stringify(nextLesson ? nextLesson.title : '') %>;
+  var lessonTitle = <%- JSON.stringify(lesson.title) %>;
 
-  document.querySelector('.btn-submit-quiz').addEventListener('click', async function() {
+  var submitBtn = document.querySelector('.btn-submit-quiz');
+  if (!submitBtn) return;
+  submitBtn.addEventListener('click', async function() {
     var quiz = this.closest('.quiz-section');
     if (!quiz) return;
     var questions = quiz.querySelectorAll('.quiz-question');
-    var score = 0, total = questions.length, allAnswered = true;
+    var total = questions.length, allAnswered = true;
+    var answers = [], score = 0;
 
-    questions.forEach(function(q, idx) {
+    questions.forEach(function(q) {
       var selected = q.querySelector('input[type="radio"]:checked');
-      var options = q.querySelectorAll('.quiz-option');
       var correct = parseInt(q.dataset.correct);
       if (!selected) { allAnswered = false; return; }
       var selIdx = parseInt(selected.value);
-      options.forEach(function(o, oi) {
-        o.style.borderColor = oi === correct ? '#059669' : '';
-        o.style.background = oi === correct ? 'rgba(5,150,105,0.08)' : '';
-      });
-      if (selIdx === correct) { score++; }
-      else { selected.closest('.quiz-option').style.borderColor = '#DC2626'; }
+      answers.push(selIdx);
+      if (selIdx === correct) score++;
     });
-
     if (!allAnswered) { alert('يرجى الإجابة على جميع الأسئلة أولاً'); return; }
 
-    var pct = Math.round((score / total) * 100);
-    var passed = pct >= passPct;
-    var grade = passed ? 'ناجح ✓' : 'لم تحقق نسبة النجاح';
-    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-    var resTextColor = isDark ? '#111' : '#fff';
-
-    this.style.display = 'none';
+    var btn = this;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري التقييم...';
     var existing = quiz.querySelector('.quiz-results');
     if (existing) existing.remove();
 
-    // Submit quiz to server (server marks lesson complete if passed)
+    var result;
     try {
-      await fetch('/api/analytics/quiz/submit', {
+      var resp = await fetch('/api/analytics/quiz/submit', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ courseId: courseId, quizId: lessonId, quizTitle: '<%= lesson.title %>', score: score, total: total, correct: score, wrong: total - score, timeTaken: 0 })
+        body: JSON.stringify({ courseId: courseId, quizId: lessonId, quizTitle: lessonTitle, score: score, total: total, correct: score, wrong: total - score, timeTaken: 0, answers: answers })
       });
-    } catch(e) {}
+      result = await resp.json();
+    } catch(e) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-check-circle"></i> تقييم الإجابات';
+      return;
+    }
 
-    var results =
-      '<div class="quiz-results" style="margin-top:20px;padding:24px;background:var(--card);border-radius:12px;border:1px solid var(--border);">' +
-        '<div style="text-align:center;padding:24px;background:var(--gold-gradient);border-radius:12px;color:' + resTextColor + ';margin-bottom:16px;">' +
-          '<div style="font-size:48px;font-weight:900;line-height:1;">' + score + '/' + total + '</div>' +
-          '<div style="font-size:20px;opacity:0.85;">' + pct + '%</div>' +
-          '<div style="font-size:26px;font-weight:700;margin-top:8px;">' + grade + '</div>' +
-        '</div>';
-
-    // Mark lesson as completed after passing quiz
-    if (passed) {
-      try {
-        await fetch('/api/student/progress', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ courseId: courseId, lessonId: lessonId, completed: true })
+    if (result.passed) {
+      // Color answers (correct green, wrong red)
+      questions.forEach(function(q, idx) {
+        var selected = q.querySelector('input[type="radio"]:checked');
+        var options = q.querySelectorAll('.quiz-option');
+        var correct = parseInt(q.dataset.correct);
+        options.forEach(function(o, oi) {
+          o.style.borderColor = oi === correct ? '#059669' : '';
+          o.style.background = oi === correct ? 'rgba(5,150,105,0.08)' : '';
         });
-      } catch(e) {}
+        if (selected && parseInt(selected.value) !== correct) {
+          selected.closest('.quiz-option').style.borderColor = '#DC2626';
+        }
+      });
+      // Disable all inputs
+      questions.forEach(function(q) {
+        q.querySelectorAll('input[type="radio"]').forEach(function(inp) { inp.disabled = true; });
+      });
+      btn.style.display = 'none';
+      // Lesson completion message — celebration 🎉
+      var successMsg = document.createElement('div');
+      successMsg.style.cssText = 'position:relative;overflow:hidden;background:linear-gradient(135deg,#059669,#10B981);border-radius:var(--radius);padding:32px 20px;text-align:center;margin-top:16px;color:#fff;';
+      successMsg.className = 'quiz-celebrate';
+      var confetti = '';
+      for (var ci = 0; ci < 12; ci++) {
+        var left = 10 + Math.random() * 80;
+        var delay = Math.random() * 0.6;
+        var bg = ['#FCD34D','#F59E0B','#34D399','#60A5FA','#F472B6','#A78BFA'][Math.floor(Math.random()*6)];
+        confetti += '<div class="confetti-piece" style="left:'+left+'%;bottom:-10px;background:'+bg+';animation-delay:'+delay+'s;"></div>';
+      }
+      successMsg.innerHTML = confetti + '<div style="font-size:48px;margin-bottom:8px;position:relative;z-index:1;">🎉</div><div style="font-size:18px;font-weight:700;position:relative;z-index:1;">تم اكتمال الدرس بنجاح!</div><div style="font-size:14px;opacity:0.9;margin-top:4px;position:relative;z-index:1;">درجتك: ' + Math.round((score / total) * 100) + '%</div>';
+      quiz.insertBefore(successMsg, quiz.querySelector('.btn-submit-quiz').parentElement);
+      // Navigation buttons
+      var nav = '<div style="display:flex;gap:12px;margin-top:24px;flex-wrap:wrap;">';
+      if (nextLessonUrl) {
+        nav += '<a href="' + nextLessonUrl + '" class="btn btn-primary" style="flex:1;padding:14px;border-radius:12px;font-size:15px;"><i class="fas fa-arrow-left"></i> الدرس التالي: ' + nextLessonTitle + '</a>';
+      } else {
+        nav += '<a href="/student/course/' + courseId + '" class="btn" style="flex:1;padding:14px;border-radius:12px;font-size:15px;background:var(--card);border:1px solid var(--border);"><i class="fas fa-check-circle"></i> العودة للمادة</a>';
+      }
+      nav += '<a href="/student/lesson/' + courseId + '/' + lessonId + '" class="btn" style="padding:14px;border-radius:12px;font-size:15px;background:var(--card);border:1px solid var(--border);"><i class="fas fa-book"></i> العودة للدرس</a>';
+      nav += '</div>';
+      quiz.insertAdjacentHTML('beforeend', nav);
+    } else {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-check-circle"></i> تقييم الإجابات';
+      var failMsg = document.createElement('div');
+      failMsg.className = 'quiz-results quiz-fail';
+      failMsg.style.cssText = 'background:linear-gradient(135deg,#DC2626,#EF4444);border-radius:var(--radius);padding:32px 20px;text-align:center;margin-top:16px;color:#fff;';
+      failMsg.innerHTML = '<div style="font-size:48px;margin-bottom:8px;">😠</div><div style="font-size:18px;font-weight:700;">لم تحقق نسبة النجاح!</div><div style="font-size:14px;opacity:0.9;margin-top:4px;">نسبة النجاح المطلوبة: ' + (result.required || passPct) + '%<br>درجتك: ' + Math.round((score / total) * 100) + '%</div><div style="margin-top:16px;font-size:13px;opacity:0.8;">يمكنك المحاولة مرة أخرى 💪</div>';
+      quiz.insertBefore(failMsg, btn.parentElement);
     }
-
-    if (passed && nextLessonUrl) {
-      results += '<a href="' + nextLessonUrl + '" class="btn btn-primary" style="width:100%;padding:14px;border-radius:12px;font-size:15px;">' +
-        '<i class="fas fa-arrow-left"></i> الانتقال للدرس التالي: ' + nextLessonTitle + '</a>';
-    } else if (passed && !nextLessonUrl) {
-      results += '<a href="/student/course/' + courseId + '" class="btn" style="width:100%;padding:14px;border-radius:12px;font-size:15px;background:var(--card);border:1px solid var(--border);">' +
-        '<i class="fas fa-check-circle"></i> العودة للمادة</a>';
-    }
-    results += '</div>';
-
-    quiz.insertAdjacentHTML('beforeend', results);
   });
 })();
 </script>

@@ -1,5 +1,5 @@
-const { Firestore, FieldValue, FieldPath } = require('firebase-admin/firestore');
-const { getFirestore, initializeApp, getApps, cert } = require('firebase-admin/app');
+const { Firestore, FieldValue, FieldPath, getFirestore } = require('firebase-admin/firestore');
+const { initializeApp, getApps, cert } = require('firebase-admin/app');
 const admin = require('firebase-admin');
 const log = require('./logger');
 const { cacheGet, cacheSet, cacheInvalidate } = require('./cache');
@@ -108,8 +108,15 @@ async function writeCollection(collectionName, array) {
     const existing = await colRef.get();
     const existingIds = new Set();
     existing.forEach(d => existingIds.add(d.id));
-    const batch = db.batch();
+    let batch = db.batch();
     let opCount = 0;
+    let batchCount = 0;
+    function commitBatch() {
+      if (opCount > 0) {
+        batchCount++;
+        return batch.commit();
+      }
+    }
     array.forEach((item, idx) => {
       const id = docIdFor(item, idx);
       const ref = colRef.doc(id);
@@ -119,7 +126,9 @@ async function writeCollection(collectionName, array) {
       existingIds.delete(id);
       opCount++;
       if (opCount >= BATCH_LIMIT) {
-        log.warn('writeCollection', 'Batch limit reached', collectionName);
+        batch.commit();
+        batch = db.batch();
+        opCount = 0;
       }
     });
     existingIds.forEach(id => {
@@ -127,7 +136,7 @@ async function writeCollection(collectionName, array) {
       batch.delete(ref);
       opCount++;
     });
-    if (opCount > 0) await batch.commit();
+    await commitBatch();
     cacheInvalidate(collectionName);
     log.info('writeCollection', collectionName, { items: array.length, deleted: existingIds.size });
   } catch (e) {

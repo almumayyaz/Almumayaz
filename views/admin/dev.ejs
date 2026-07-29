@@ -105,6 +105,27 @@
     <div id="mmMsg" style="display:none;margin-top:12px;padding:10px;border-radius:8px;font-weight:600;"></div>
   </div>
 
+  <!-- ========== قسم تشخيص FCM ========== -->
+  <div class="dev-card">
+    <div class="dev-card-head">
+      <h3><i class="fas fa-stethoscope"></i> تشخيص FCM (الإشعارات)</h3>
+      <span id="fcmStatusBadge" class="dev-badge dev-badge-pending"><i class="fas fa-spinner fa-spin"></i> جاري الفحص...</span>
+    </div>
+    <div class="dev-grid">
+      <div class="dev-info">
+        <div class="dev-info-row"><span>Firebase Admin</span><code id="fcmAdminInit">-</code></div>
+        <div class="dev-info-row"><span>Project ID</span><code id="fcmProjectId">-</code></div>
+        <div class="dev-info-row"><span>Admin Token</span><code id="fcmAdminToken">-</code></div>
+        <div class="dev-info-row"><span>مستخدمين بـ Token</span><code id="fcmTotalTokens">-</code></div>
+      </div>
+      <div class="dev-form">
+        <a href="/admin/fcm-debug" class="btn btn-primary" style="text-align:center;text-decoration:none;"><i class="fas fa-external-link-alt"></i> فتح تشخيص FCM الكامل</a>
+        <button type="button" class="btn btn-outline" onclick="testFcmFromDev()"><i class="fas fa-paper-plane"></i> إرسال إشعار اختبار</button>
+        <div id="fcmMsg" style="display:none;margin-top:8px;padding:10px;border-radius:8px;font-weight:600;font-size:13px;"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- ========== قسم إرسال إشعار للمدرس ========== -->
   <div class="dev-card">
     <div class="dev-card-head">
@@ -188,6 +209,17 @@ function loadStatus(){
     if(mm.enabled){mb.className='dev-badge dev-badge-err';mb.innerHTML='<i class="fas fa-power-off"></i> المنصة متوقفة (صيانة)';}
     else{mb.className='dev-badge dev-badge-ok';mb.innerHTML='<i class="fas fa-check-circle"></i> المنصة تعمل';}
     var mmToggle=document.getElementById('mmToggle'); if(mmToggle) mmToggle.checked=!!mm.enabled;
+    // FCM — load from the same api/fcm/debug
+    if(s.fcm){
+      var f=s.fcm;
+      document.getElementById('fcmAdminInit').innerHTML=f.firebaseAdmin&&f.firebaseAdmin.initialized?'<span style="color:#16a34a">✅ initialized</span>':'<span style="color:#ef4444">❌ غير initialized</span>';
+      document.getElementById('fcmProjectId').textContent=f.firebaseAdmin&&f.firebaseAdmin.projectId?f.firebaseAdmin.projectId:'-';
+      document.getElementById('fcmAdminToken').innerHTML=f.admin&&f.admin.hasToken?'<span style="color:#16a34a">✅ موجود</span>':'<span style="color:#ef4444">❌ غير مسجل</span>';
+      document.getElementById('fcmTotalTokens').textContent=f.totalUsersWithToken||'0';
+      var fb=document.getElementById('fcmStatusBadge');
+      if(f.admin&&f.admin.hasToken){fb.className='dev-badge dev-badge-ok';fb.innerHTML='<i class="fas fa-check-circle"></i> يعمل';}
+      else{fb.className='dev-badge dev-badge-err';fb.innerHTML='<i class="fas fa-times-circle"></i> لا يوجد Token';}
+    }
   }).catch(function(){
     var fail=function(id){var el=document.getElementById(id);if(el){el.className='dev-badge dev-badge-err';el.innerHTML='<i class="fas fa-times-circle"></i> فشل التحميل';}};
     fail('zoomStatusBadge'); fail('cronStatusBadge'); fail('mmStatusBadge');
@@ -208,6 +240,21 @@ function setMaintenance(enabled){
     .catch(function(){setMsg('mmMsg',false,'فشل الاتصال بالخادم');});
 }
 
+function testFcmFromDev(){
+  var fcmMsg = document.getElementById('fcmMsg');
+  fcmMsg.style.display = 'block';
+  fcmMsg.style.background = 'rgba(251,191,36,0.1)';
+  fcmMsg.style.color = '#f59e0b';
+  fcmMsg.style.border = '1px solid rgba(251,191,36,0.2)';
+  fcmMsg.textContent = '⏳ جاري إرسال إشعار اختبار...';
+  fetch('/api/fcm/test', {method:'POST'})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d.success){fcmMsg.style.background='rgba(22,163,74,0.1)';fcmMsg.style.color='var(--success)';fcmMsg.style.border='1px solid rgba(22,163,74,0.2)';fcmMsg.textContent='✅ تم إرسال الإشعار بنجاح (Message ID: '+(d.messageId||'?')+')';}
+      else{fcmMsg.style.background='rgba(239,68,68,0.1)';fcmMsg.style.color='var(--danger)';fcmMsg.style.border='1px solid rgba(239,68,68,0.2)';fcmMsg.textContent='❌ فشل: '+(d.error||'خطأ غير معروف');}
+    })
+    .catch(function(){fcmMsg.style.background='rgba(239,68,68,0.1)';fcmMsg.style.color='var(--danger)';fcmMsg.style.border='1px solid rgba(239,68,68,0.2)';fcmMsg.textContent='❌ فشل الاتصال بالخادم';});
+}
 function notifyTeacher(){
   var title=document.getElementById('ntTitle').value.trim();
   var body=document.getElementById('ntBody').value.trim();

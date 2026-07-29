@@ -1,11 +1,44 @@
-const { readData, writeData, fbRemove } = require('./firebase-admin');
+const { getPrisma } = require('./src/database');
+const { readData, writeData, fbRemove } = require('./prisma-bridge');
 
 function now() { return new Date().toISOString(); }
 
-// Build a lessonProgress-like object from user.progress (courseId_lessonId → { status, watchTime })
-function buildLessonProgress(u, courses) {
+async function buildLegacyProgress(studentId) {
+  if (!studentId) return {};
+  const prisma = getPrisma();
+  const [lps, vps] = await Promise.all([
+    prisma.lessonProgress.findMany({ where: { studentId, deletedAt: null } }),
+    prisma.videoProgress.findMany({ where: { studentId, deletedAt: null } })
+  ]);
+  const map = {};
+  lps.forEach(lp => {
+    const cid = lp.courseId;
+    if (!map[cid]) map[cid] = { completedLessons: [], lessons: {}, positions: {}, watchTime: 0, updatedAt: '' };
+    map[cid].watchTime += lp.watchTime || 0;
+    if (lp.completed) map[cid].completedLessons.push(lp.lessonId);
+    if (!map[cid].lessons[lp.lessonId]) map[cid].lessons[lp.lessonId] = { watchTime: 0 };
+    map[cid].lessons[lp.lessonId].watchTime += lp.watchTime || 0;
+    const ts = lp.lastAccess || lp.completedAt || '';
+    if (ts && ts > (map[cid].updatedAt || '')) map[cid].updatedAt = ts;
+  });
+  vps.forEach(vp => {
+    const cid = vp.courseId;
+    if (!map[cid]) map[cid] = { completedLessons: [], lessons: {}, positions: {}, watchTime: 0, updatedAt: '' };
+    map[cid].positions[vp.lessonId] = vp.lastPosition || 0;
+  });
+  return map;
+}
+
+async function buildLegacyAttempts(userId) {
+  if (!userId) return [];
+  const prisma = getPrisma();
+  return prisma.examAttempt.findMany({ where: { userId, deletedAt: null } });
+}
+
+// Build a lessonProgress-like object from progressMap (courseId_lessonId → { status, watchTime })
+function buildLessonProgress(progressMap, courses) {
   const lp = {};
-  const p = (u && u.progress) || {};
+  const p = progressMap || {};
   Object.keys(p).forEach(cid => {
     const cp = p[cid];
     if (!cp) return;
@@ -26,8 +59,8 @@ function buildLessonProgress(u, courses) {
   return lp;
 }
 
-function buildWatchHistory(u, courses) {
-  const p = (u && u.progress) || {};
+function buildWatchHistory(progressMap, courses) {
+  const p = progressMap || {};
   const lessons = {};
   Object.keys(p).forEach(cid => {
     const cp = p[cid];
@@ -52,9 +85,9 @@ function buildWatchHistory(u, courses) {
   return { totalSeconds, lessons };
 }
 
-function buildCourseProgress(u, courses) {
+function buildCourseProgress(progressMap, courses) {
   const cp = {};
-  const p = (u && u.progress) || {};
+  const p = progressMap || {};
   (courses || []).forEach(c => {
     const pc = p[c.id];
     if (!pc || !c.lessons) return;
@@ -70,10 +103,9 @@ function buildCourseProgress(u, courses) {
   return cp;
 }
 
-function buildQuizHistory(u) {
+function buildQuizHistory(attempts) {
   const qh = {};
-  const results = (u && u.examResults) || [];
-  results.forEach(r => {
+  (attempts || []).forEach(r => {
     const qid = r.examId || r.quizId || r.id || '';
     if (!qid) return;
     qh[qid] = qh[qid] || { quizId: qid, courseId: r.courseId || '', quizTitle: r.examName || r.quizTitle || '', attempts: [] };
@@ -86,26 +118,24 @@ function buildQuizHistory(u) {
   return qh;
 }
 
-function makeSummaryFromUser(u, courses) {
-  const p = (u && u.progress) || {};
+function makeSummaryFromUser(progressMap, attempts, courses) {
   let totalWatchSeconds = 0, completedLessons = 0;
-  Object.keys(p).forEach(cid => {
-    const cp = p[cid];
+  Object.keys(progressMap).forEach(cid => {
+    const cp = progressMap[cid];
     if (!cp) return;
     totalWatchSeconds += (cp.watchTime || 0);
     if (cp.completedLessons) completedLessons += cp.completedLessons.length;
   });
-  const examResults = (u && u.examResults) || [];
   let avgQuiz = 0;
-  if (examResults.length) {
-    const scores = examResults.map(r => r.percentage || (r.total > 0 ? Math.round((r.score / r.total) * 100) : 0) || r.score || 0);
+  if (attempts.length) {
+    const scores = attempts.map(r => r.percentage || (r.total > 0 ? Math.round((r.score / r.total) * 100) : 0) || r.score || 0);
     avgQuiz = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
   }
   const activityScore = calcActivityScore({ totalWatchTime: totalWatchSeconds, completedLessons, averageQuizScore: avgQuiz, currentStreak: 0 });
   return {
     totalWatchTime: totalWatchSeconds, completedLessons, completedCourses: 0,
     averageQuizScore: avgQuiz, overallProgress: 0, activityScore,
-    totalPDFsOpened: 0, totalQuizzes: examResults.length, currentStreak: 0, longestStreak: 0
+    totalPDFsOpened: 0, totalQuizzes: attempts.length, currentStreak: 0, longestStreak: 0
   };
 }
 
@@ -122,11 +152,13 @@ async function getAnalytics(uid) {
   const users = await readData('users');
   const u = (users || []).find(u => u.uid === uid || u.id === uid) || {};
   const courses = await readData('courses') || [];
-  const lp = buildLessonProgress(u, courses);
-  const cp = buildCourseProgress(u, courses);
-  const qh = buildQuizHistory(u);
-  const wh = buildWatchHistory(u, courses);
-  const sm = makeSummaryFromUser(u, courses);
+  const progressMap = await buildLegacyProgress(u ? (u.id || u.uid) : null);
+  const attempts = await buildLegacyAttempts(u ? (u.id || u.uid) : null);
+  const lp = buildLessonProgress(progressMap, courses);
+  const cp = buildCourseProgress(progressMap, courses);
+  const qh = buildQuizHistory(attempts);
+  const wh = buildWatchHistory(progressMap, courses);
+  const sm = makeSummaryFromUser(progressMap, attempts, courses);
   const pf = {
     name: u.name || '', email: u.email || '', phone: u.phone || '',
     stage: u.stage || '', grade: u.grade || '', governorate: u.governorate || '',
@@ -148,11 +180,13 @@ async function getAnalyticsFresh(uid) {
   const users = await readData('users', true);
   const u = (users || []).find(u => u.uid === uid || u.id === uid) || {};
   const courses = await readData('courses') || [];
-  const lp = buildLessonProgress(u, courses);
-  const cp = buildCourseProgress(u, courses);
-  const qh = buildQuizHistory(u);
-  const wh = buildWatchHistory(u, courses);
-  const sm = makeSummaryFromUser(u, courses);
+  const progressMap = await buildLegacyProgress(u ? (u.id || u.uid) : null);
+  const attempts = await buildLegacyAttempts(u ? (u.id || u.uid) : null);
+  const lp = buildLessonProgress(progressMap, courses);
+  const cp = buildCourseProgress(progressMap, courses);
+  const qh = buildQuizHistory(attempts);
+  const wh = buildWatchHistory(progressMap, courses);
+  const sm = makeSummaryFromUser(progressMap, attempts, courses);
   const pf = {
     name: u.name || '', email: u.email || '', phone: u.phone || '',
     stage: u.stage || '', grade: u.grade || '', governorate: u.governorate || '',
@@ -219,9 +253,11 @@ async function getStudentDashboardData(uid) {
   const users = await readData('users');
   const u = (users || []).find(u => u.uid === uid || u.id === uid) || {};
   const courses = await readData('courses') || [];
-  const lp = buildLessonProgress(u, courses);
-  const cp = buildCourseProgress(u, courses);
-  const sm = makeSummaryFromUser(u, courses);
+  const progressMap = await buildLegacyProgress(u ? (u.id || u.uid) : null);
+  const attempts = await buildLegacyAttempts(u ? (u.id || u.uid) : null);
+  const lp = buildLessonProgress(progressMap, courses);
+  const cp = buildCourseProgress(progressMap, courses);
+  const sm = makeSummaryFromUser(progressMap, attempts, courses);
   const courseList = (courses || []).filter(c => c.stage === u.stage || !c.stage);
   let lastLessonTitle = '', currentLessonTitle = '';
   const courseProgress = courseList.map(c => {
@@ -233,8 +269,7 @@ async function getStudentDashboardData(uid) {
   });
   const achievements = [];
   const quizResults = [];
-  const results = (u && u.examResults) || [];
-  results.forEach(r => {
+  attempts.forEach(r => {
     quizResults.push({
       quizTitle: r.examName || r.quizTitle || '',
       score: r.score || 0,
@@ -244,18 +279,16 @@ async function getStudentDashboardData(uid) {
     });
   });
   const recentActivity = [];
-  if (u && u.progress) {
-    Object.keys(u.progress).forEach(cid => {
-      const p = u.progress[cid];
-      if (!p) return;
-      if (p.completedLessons) {
-        p.completedLessons.forEach(lid => {
-          recentActivity.push({ action: 'lesson_completed', timestamp: p.updatedAt || now(), courseId: cid, lessonId: lid, date: p.updatedAt || '' });
-        });
-      }
-    });
-  }
-  results.forEach(r => {
+  Object.keys(progressMap).forEach(cid => {
+    const p = progressMap[cid];
+    if (!p) return;
+    if (p.completedLessons) {
+      p.completedLessons.forEach(lid => {
+        recentActivity.push({ action: 'lesson_completed', timestamp: p.updatedAt || now(), courseId: cid, lessonId: lid, date: p.updatedAt || '' });
+      });
+    }
+  });
+  attempts.forEach(r => {
     recentActivity.push({ action: 'quiz_submitted', timestamp: r.date || now(), metadata: { quizTitle: r.examName || '', percentage: r.percentage || (r.total > 0 ? Math.round((r.score / r.total) * 100) : 0) || r.score || 0 }, date: r.date || '' });
   });
   recentActivity.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
@@ -272,10 +305,53 @@ async function getStudentDashboardData(uid) {
 async function computeAdminAnalytics() {
   const users = await readData('users', true);
   const courses = await readData('courses') || [];
+
+  const prisma = getPrisma();
+  const [allAttempts, allLps, allVps] = await Promise.all([
+    prisma.examAttempt.findMany({ where: { deletedAt: null } }),
+    prisma.lessonProgress.findMany({ where: { deletedAt: null } }),
+    prisma.videoProgress.findMany({ where: { deletedAt: null } })
+  ]);
+
+  const attemptsByUser = {};
+  allAttempts.forEach(a => {
+    if (!attemptsByUser[a.userId]) attemptsByUser[a.userId] = [];
+    attemptsByUser[a.userId].push(a);
+  });
+
+  const progressByUser = {};
+  allLps.forEach(lp => {
+    const sid = lp.studentId;
+    if (!progressByUser[sid]) progressByUser[sid] = {};
+    const cid = lp.courseId;
+    if (!progressByUser[sid][cid]) {
+      progressByUser[sid][cid] = { completedLessons: [], lessons: {}, positions: {}, watchTime: 0, updatedAt: '' };
+    }
+    const cp = progressByUser[sid][cid];
+    cp.watchTime += lp.watchTime || 0;
+    if (lp.completed) cp.completedLessons.push(lp.lessonId);
+    if (!cp.lessons[lp.lessonId]) cp.lessons[lp.lessonId] = { watchTime: 0 };
+    cp.lessons[lp.lessonId].watchTime += lp.watchTime || 0;
+    const ts = lp.lastAccess || lp.completedAt || '';
+    if (ts && ts > (cp.updatedAt || '')) cp.updatedAt = ts;
+  });
+  allVps.forEach(vp => {
+    const sid = vp.studentId;
+    if (!progressByUser[sid]) progressByUser[sid] = {};
+    const cid = vp.courseId;
+    if (!progressByUser[sid][cid]) {
+      progressByUser[sid][cid] = { completedLessons: [], lessons: {}, positions: {}, watchTime: 0, updatedAt: '' };
+    }
+    progressByUser[sid][cid].positions[vp.lessonId] = vp.lastPosition || 0;
+  });
+
   const rows = [];
   (users || []).forEach(u => {
     if (!u || !u.uid || u.role !== 'student') return;
-    const sm = makeSummaryFromUser(u, courses);
+    const sid = u.uid || u.id;
+    const progressMap = progressByUser[sid] || {};
+    const attempts = attemptsByUser[sid] || [];
+    const sm = makeSummaryFromUser(progressMap, attempts, courses);
     rows.push({
       uid: u.uid, name: u.name || '', email: u.email || '',
       summary: sm,
@@ -316,9 +392,7 @@ async function computeAdminAnalytics() {
     let opens = 0, completed = 0, totalWatchSecs = 0, watchers = 0;
     const studentSecs = [];
     rows.forEach(r => {
-      const u = (users || []).find(x => x.uid === r.uid);
-      if (!u) return;
-      const p = u.progress && u.progress[c.id];
+      const p = progressByUser[r.uid] && progressByUser[r.uid][c.id];
       if (!p) return;
       const watchTime = p.lessons && p.lessons[l.id] && p.lessons[l.id].watchTime;
       const hasPos = p.positions && p.positions[l.id] != null;
@@ -339,9 +413,9 @@ async function computeAdminAnalytics() {
   // Exam analytics
   const examMap = {};
   rows.forEach(r => {
-    const u = (users || []).find(x => x.uid === r.uid);
-    if (!u || !u.examResults) return;
-    u.examResults.forEach(e => {
+    const examAttempts = attemptsByUser[r.uid];
+    if (!examAttempts || !examAttempts.length) return;
+    examAttempts.forEach(e => {
       const qk = e.examId || e.quizId || e.id || '';
       if (!qk) return;
       examMap[qk] = examMap[qk] || { examId: qk, examTitle: e.examName || e.quizTitle || qk, courseId: e.courseId || '', students: 0, totalAttempts: 0, lastScores: [], passCount: 0 };
@@ -375,9 +449,7 @@ async function computeAdminAnalytics() {
     (courses || []).forEach(c => {
       if (c.stage !== r.profile.stage && c.stage) return;
       available += (c.lessons || []).length;
-      const u = (users || []).find(x => x.uid === r.uid);
-      if (!u) return;
-      const p = u.progress && u.progress[c.id];
+      const p = progressByUser[r.uid] && progressByUser[r.uid][c.id];
       if (p && p.completedLessons) completed += p.completedLessons.length;
     });
     const pct = available > 0 ? clampPct((completed / available) * 100) : 0;
@@ -405,10 +477,12 @@ async function getAdminStudentDetail(studentId) {
   const users = await readData('users', true);
   const u = (users || []).find(u => u.uid === studentId || u.id === studentId);
   const courses = await readData('courses') || [];
-  const lp = buildLessonProgress(u, courses);
-  const cp = buildCourseProgress(u, courses);
-  const qh = buildQuizHistory(u);
-  const sm = makeSummaryFromUser(u, courses);
+  const progressMap = await buildLegacyProgress(u ? (u.id || u.uid) : null);
+  const attempts = await buildLegacyAttempts(u ? (u.id || u.uid) : null);
+  const lp = buildLessonProgress(progressMap, courses);
+  const cp = buildCourseProgress(progressMap, courses);
+  const qh = buildQuizHistory(attempts);
+  const sm = makeSummaryFromUser(progressMap, attempts, courses);
   // Lesson details
   const lessonDetails = [];
   Object.keys(lp).forEach(k => {

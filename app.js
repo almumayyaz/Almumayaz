@@ -4,19 +4,26 @@ require('express-async-errors');
 
 const express = require('express');
 const session = require('cookie-session');
+const cookieParser = require('cookie-parser');
 const bodyParser = require('body-parser');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
-const { readData, writeData, readUserById, fbAuth, sendFCM, sendFCMToRole, admin, fbDb, updateData, cacheInvalidate } = require('./firebase-admin');
+const { readData, writeData, readUserById, fbAuth, sendFCM, sendFCMToRole, admin, fbDb, updateData, cacheInvalidate, fsCore, FIRESTORE_COLLECTIONS } = require('./prisma-bridge');
 const emailService = require('./email-service');
 const localStore = require('./data-store');
 const fcmLog = require('./fcm-log');
 const supabaseStorage = require('./supabase-storage');
+const storageConfig = require('./src/config/storage');
+const { getStorageService, validateUpload } = require('./src/infrastructure/storage');
 const crypto = require('crypto');
 const zlib = require('zlib');
 const https = require('https');
 const zoom = require('./zoom-oauth');
 const analytics = require('./analytics-engine');
+const settingService = require('./src/services/setting.service');
+const { buildLegacyUser } = require('./src/services/legacyUser.service');
+const { getPrisma } = require('./src/database');
+const { getFirebaseErrorMessage } = require('./src/utils/firebaseErrorMessages');
 const perf = require('./perf');
 const usageTracker = require('./usage-tracker');
 
@@ -114,12 +121,12 @@ app.use((req, res, next) => {
   }
   res.setHeader('Content-Security-Policy',
     "default-src 'self'; " +
-    "script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://cdnjs.cloudflare.com https://www.youtube.com https://www.youtube-nocookie.com https://source.zoom.us https://*.zoom.us https://zoom.us https://*.firebaseio.com https://js.puter.com; " +
+    "script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://cdnjs.cloudflare.com https://cdn.plyr.io https://www.youtube.com https://www.youtube-nocookie.com https://source.zoom.us https://*.zoom.us https://zoom.us https://*.firebaseio.com https://js.puter.com; " +
     "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.plyr.io https://fonts.googleapis.com https://source.zoom.us https://*.zoom.us https://zoom.us; " +
     "img-src 'self' data: https: blob:; " +
     "font-src 'self' data: https://cdnjs.cloudflare.com https://fonts.gstatic.com https://source.zoom.us; " +
     "media-src 'self' https: blob:; " +
-    "connect-src 'self' https://www.gstatic.com https://*.supabase.co https://*.firebaseio.com https://*.googleapis.com https://*.google.com https://firebasestorage.googleapis.com https://*.firebase.com wss://*.firebaseio.com https://source.zoom.us https://*.zoom.us https://zoom.us wss://*.zoom.us https://*.cloudfront.net https://js.puter.com https://api.puter.com; " +
+    "connect-src 'self' https://www.gstatic.com https://*.supabase.co https://*.firebaseio.com https://*.googleapis.com https://*.google.com https://firebasestorage.googleapis.com https://*.firebase.com wss://*.firebaseio.com https://source.zoom.us https://*.zoom.us https://zoom.us wss://*.zoom.us https://*.cloudfront.net https://js.puter.com https://api.puter.com https://noembed.com https://cdn.plyr.io; " +
     "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://www.google.com https://source.zoom.us https://*.zoom.us https://zoom.us; " +
     "worker-src 'self' blob:; child-src 'self' blob:; object-src 'none'; frame-ancestors 'none'; base-uri 'self'");
   next();
@@ -252,6 +259,8 @@ app.use(session({
   secure: isProd
 }));
 
+app.use(cookieParser());
+
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
@@ -294,7 +303,7 @@ function escHtml(s) {
 function sessionUser(u) {
   if (!u || typeof u !== 'object') return u;
   const c = {};
-  ['id','uid','name','email','role','stage','grade','governorate','phone','parentPhone','parentId','parentName','parentEmail','subscribedStage','planName','planPeriod','subscriptionStatus','subscriptionStart','subscriptionEnd','referralCode','referralDiscount','referralUsedAt','emailVerified','fcmToken','isStudent'].forEach(function(k){
+  ['id','uid','name','email','role','stage','grade','governorate','phone','parentPhone','parentId','parentName','parentEmail','subscribedStage','planName','planPeriod','subscriptionStatus','subscriptionStart','subscriptionEnd','referralCode','referralDiscount','referralUsedAt','emailVerified','isStudent'].forEach(function(k){
     if (k in u) c[k] = u[k];
   });
   return c;
@@ -303,22 +312,6 @@ function sessionUser(u) {
 // ===== Email (Brevo Transactional API) =====
 function genEmailCode() { return String(crypto.randomInt(100000, 1000000)); }
 const EMAIL_CODE_TTL = 30 * 60 * 1000;
-
-// Quick test: GET /api/debug/test-email?to=you@gmail.com
-app.get('/api/debug/test-email', requireAdmin, async (req, res) => {
-  var to = req.query.to || req.session?.user?.email;
-  if (!to) return res.json({ error: 'provide ?to=email' });
-  var ok = await emailService.sendVerificationEmail(to, 'Test', '123456');
-  res.json({ sent: ok, brevoConfigured: !!process.env.BREVO_API_KEY });
-});
-
-// Debug: detailed email diagnostic (requires admin)
-app.get('/api/debug/test-email-detail', requireAdmin, async (req, res) => {
-  var to = req.query.to || req.session?.user?.email;
-  if (!to) return res.json({ error: 'provide ?to=email' });
-  var result = await emailService.sendMailDebug(to, '🧪 تشخيص Brevo', '<p>test</p>', 'test');
-  res.json(result);
-});
 
 function requireAuth(req, res, next) {
   if (!req.session.user) return res.redirect('/login');
@@ -336,6 +329,14 @@ function requireDevAccess(req, res, next) {
   if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'Unauthorized' });
   return res.redirect('/dev');
 }
+
+// V2 API (Phase 7) — Service layer routes
+const v2Api = require('./src/api/v2');
+app.use('/api/v2', v2Api);
+
+// V3 API — Prisma + Neon with Clean Architecture
+const v3Routes = require('./src/routes');
+app.use('/api/v3', v3Routes);
 
 function checkSubscription(req, res, next) {
   const user = req.session.user;
@@ -364,7 +365,7 @@ async function refreshSession(req, res, next) {
     const users = await readData('users');
     const fresh = users.find(u => u.id === user.id);
     if (fresh) {
-      ['subscriptionStatus','subscriptionEnd','subscriptionStart','name','phone','parentPhone','stage','grade','governorate','referralCode','referralDiscount','fcmToken'].forEach(k => {
+      ['subscriptionStatus','subscriptionEnd','subscriptionStart','name','phone','parentPhone','stage','grade','governorate','referralCode','referralDiscount'].forEach(k => {
         req.session.user[k] = fresh[k];
       });
       req.session.user._lastSync = now;
@@ -392,6 +393,9 @@ app.use(async (req, res, next) => {
         const _full = _list.find(u => u.uid === res.locals.user.uid);
         if (_full) {
           res.locals.user.avatar = _full.avatar || '';
+          if (res.locals.user.avatar && !res.locals.user.avatar.startsWith('data:') && storageConfig.isR2Enabled()) {
+            try { res.locals.user.avatar = await getStorageService().createPublicUrl(res.locals.user.avatar); } catch (_) {}
+          }
           res.locals.user.progress = _full.progress || {};
           res.locals.user.referrals = _full.referrals || [];
         }
@@ -702,7 +706,8 @@ res.locals.firebaseConfig = {
   };
   res.locals.vapidKey = stripBOM(process.env.FIREBASE_VAPID_KEY || '');
   try {
-    var appSettings = await readData('settings');
+    // Dual-read: V2 Firestore first, legacy RTDB fallback (Phase 2)
+    var appSettings = await settingService.getSettings();
     if (appSettings && typeof appSettings === 'object' && !Array.isArray(appSettings)) {
       res.locals.vodafoneCash = appSettings.vodafoneCash || stripBOM(process.env.VODAFONE_CASH || '01000000000');
       res.locals.instaPay = appSettings.instaPay || stripBOM(process.env.INSTAPAY || 'example@instapay.com');
@@ -781,7 +786,7 @@ app.use(refreshSession);
     if (usersChanged) await writeData('users', users);
     // Delete lughati-chat if it exists
     try {
-      const { fbRemove } = require('./firebase-admin');
+const { fbRemove } = require('./prisma-bridge');
       await fbRemove('chats/student-lughati-chat');
     } catch(e) {}
     // Fix settings if stored as array (from migration bug)
@@ -803,39 +808,73 @@ app.use(refreshSession);
 
 app.post('/api/auth/firebase-login', async (req, res) => {
   try {
-    if (!fbAuth) return res.status(503).json({ error: 'خدمة المصادقة غير متاحة حالياً' });
     const { idToken } = req.body;
-    const decoded = await fbAuth.verifyIdToken(idToken);
+    let decoded;
+    if (fbAuth) {
+      decoded = await fbAuth.verifyIdToken(idToken);
+    } else {
+      // Fallback: verify idToken via Firebase REST API when Admin SDK not available
+      const apiKey = process.env.FIREBASE_API_KEY;
+      if (!apiKey) return res.status(503).json({ error: 'خدمة المصادقة غير متاحة حالياً' });
+      const verifyResp = await fetch('https://www.googleapis.com/identitytoolkit/v3/relyingparty/getAccountInfo?key=' + apiKey, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken })
+      });
+      const verifyData = await verifyResp.json();
+      if (verifyData.error) return res.status(503).json({ error: 'خدمة المصادقة غير متاحة حالياً' });
+      const account = verifyData.users && verifyData.users[0];
+      if (!account) return res.status(503).json({ error: 'خدمة المصادقة غير متاحة حالياً' });
+      decoded = { uid: account.localId, email: account.email, displayName: account.displayName };
+    }
     const uid = decoded.uid;
     let users = await readData('users');
     if (!Array.isArray(users)) users = users ? Object.values(users) : [];
     let user = users.find(u => u && u.uid === uid);
 
     if (!user) {
-      user = {
-        id: uid,
-        uid,
-        name: decoded.displayName || 'طالب',
-        email: decoded.email || '',
-        phone: '',
-        parentPhone: '',
-        grade: '',
-        stage: '',
-        governorate: '',
-        role: 'student',
-        subscriptionStatus: 'inactive',
-        subscriptionStart: null,
-        subscriptionEnd: null,
-        referralCode: '',
-        referredBy: '',
-        fcmToken: '',
-        referralDiscount: 0,
-        createdAt: new Date().toISOString(),
-        lastLogin: new Date().toISOString(),
-        progress: {}
-      };
-      users.push(user);
-      await writeData('users', users);
+      // Fallback: check RTDB for user data before creating a new user
+      if (fbDb) {
+        try {
+          const snap = await fbDb.ref('users').orderByChild('uid').equalTo(uid).once('value');
+          const rtdbVal = snap.val();
+          if (rtdbVal) {
+            const rtdbUser = Object.values(rtdbVal).find(u => u && u.uid === uid);
+            if (rtdbUser) {
+              user = rtdbUser;
+              user.lastLogin = new Date().toISOString();
+              users.push(user);
+              await writeData('users', users);
+            }
+          }
+        } catch (e) { console.error('RTDB fallback error:', e.message); }
+      }
+      if (!user) {
+        user = {
+          id: uid,
+          uid,
+          name: decoded.displayName || 'طالب',
+          email: decoded.email || '',
+          phone: '',
+          parentPhone: '',
+          grade: '',
+          stage: '',
+          governorate: '',
+          role: 'student',
+          subscriptionStatus: 'inactive',
+          subscriptionStart: null,
+          subscriptionEnd: null,
+          referralCode: '',
+          referredBy: '',
+          fcmToken: '',
+          referralDiscount: 0,
+          createdAt: new Date().toISOString(),
+          lastLogin: new Date().toISOString(),
+          progress: {}
+        };
+        users.push(user);
+        await writeData('users', users);
+      }
     } else {
       // Ensure fields exist for existing users
       if (user.referralDiscount === undefined) user.referralDiscount = 0;
@@ -855,9 +894,8 @@ app.post('/api/auth/firebase-login', async (req, res) => {
     analytics.trackLogin(user.uid, { device: req.headers['user-agent'] || '', browser: req.headers['user-agent'] || '', ip: req.ip || req.connection.remoteAddress || '' }).catch(function(){});
   }
     res.json({ success: true, redirect: user.role === 'admin' ? '/admin' : '/student' }); } catch (e) {
-      console.error('Firebase login error:', e.message);
-      if (e.message && e.message.includes('Firebase')) res.status(401).json({ error: 'تعذر إتمام تسجيل الدخول. تأكد من صحة بريدك الإلكتروني وكلمة المرور، أو حاول مرة أخرى لاحقاً.' });
-      else res.status(503).json({ error: 'خدمة المصادقة غير متاحة حالياً، حاول مرة أخرى' });
+      console.error('[Firebase Login Error]', e.message || e);
+      res.status(401).json({ error: getFirebaseErrorMessage(e) });
     }
   });
 
@@ -920,8 +958,8 @@ app.post('/api/auth/firebase-register', async (req, res) => {
     const sent = await emailService.sendVerificationEmail(email, name, newUser.emailCode);
     res.json({ success: true, emailSent: sent, email });
   } catch (e) {
-    console.error('Firebase register error:', e);
-    res.status(401).json({ error: 'فشل إنشاء الحساب' });
+    console.error('[Firebase Register Error]', e);
+    res.status(401).json({ error: getFirebaseErrorMessage(e) });
   }
 });
 
@@ -1017,7 +1055,8 @@ app.post('/api/auth/firebase-admin-login', async (req, res) => {
     req.session.user = sessionUser(user);
     res.json({ success: true, redirect: '/admin' });
   } catch (e) {
-    res.status(401).json({ error: 'تعذر تسجيل دخول المسؤول. حاول مرة أخرى.' });
+    console.error('[Firebase Admin Login Error]', e);
+    res.status(401).json({ error: getFirebaseErrorMessage(e) });
   }
 });
 
@@ -1312,6 +1351,27 @@ function requireSupport(req, res, next) {
 
 // GET /support — public ticket form
 app.get('/support', function(req, res) {
+  var u = req.session && req.session.user;
+  var isStudent = u && u.role === 'student';
+  var name = u && (u.name || '');
+  var email = u && (u.email || '');
+  var phone = u && (u.phone || '');
+  var infoRow = isStudent
+    ? '<div style="background:var(--input-bg);border:1px solid var(--input-border);border-radius:12px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:var(--text-light);">' +
+      '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><strong>' + escHtml(name) + '</strong>' +
+      (email ? '<span style="color:var(--text-muted);">|</span> <span dir="ltr">' + escHtml(email) + '</span>' : '') +
+      (phone ? '<span style="color:var(--text-muted);">|</span> <span dir="ltr">' + escHtml(phone) + '</span>' : '') +
+      '</div><div style="font-size:12px;color:var(--text-muted);margin-top:4px;"><i class="fas fa-check-circle" style="color:#4ade80;font-size:11px;"></i> سيتم إرفاق بيانات حسابك تلقائيًا</div></div>' +
+      '<input type="hidden" id="tName" value="' + escHtml(name) + '">' +
+      '<input type="hidden" id="tEmail" value="' + escHtml(email) + '">' +
+      '<input type="hidden" id="tPhone" value="' + escHtml(phone) + '">'
+    : '';
+  var nameField = isStudent ? '' :
+    '<div class="form-group"><label>الاسم</label><input type="text" id="tName" required placeholder="الاسم الثلاثي"></div>';
+  var emailField = isStudent ? '' :
+    '<div class="form-group"><label>البريد الإلكتروني</label><input type="email" id="tEmail" required placeholder="example@mail.com" dir="ltr"></div>';
+  var phoneField = isStudent ? '' :
+    '<div class="form-group"><label>رقم الهاتف (اختياري)</label><input type="tel" id="tPhone" placeholder="0100 000 0000" dir="ltr"></div>';
   res.send(
     '<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8">' +
     '<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">' +
@@ -1369,9 +1429,10 @@ app.get('/support', function(req, res) {
     '<p>تواصل مع فريق الدعم الفني — سنرد عليك في أقرب وقت ممكن</p>' +
     '<div id="msgBox" class="msg"></div>' +
     '<form id="ticketForm" onsubmit="return submitTicket(event)">' +
-    '<div class="form-group"><label>الاسم</label><input type="text" id="tName" required placeholder="الاسم الثلاثي"></div>' +
-    '<div class="form-group"><label>البريد الإلكتروني</label><input type="email" id="tEmail" required placeholder="example@mail.com" dir="ltr"></div>' +
-    '<div class="form-group"><label>رقم الهاتف (اختياري)</label><input type="tel" id="tPhone" placeholder="0100 000 0000" dir="ltr"></div>' +
+    infoRow +
+    nameField +
+    emailField +
+    phoneField +
     '<div class="form-group"><label>الموضوع</label><input type="text" id="tSubject" required placeholder="مشكلة في تسجيل الدخول..."></div>' +
     '<div class="form-group"><label>الرسالة</label><textarea id="tMessage" required placeholder="اشرح مشكلتك بالتفصيل..."></textarea></div>' +
     '<button type="submit" class="btn btn-primary" id="tBtn"><i class="fas fa-paper-plane"></i> إرسال التذكرة</button>' +
@@ -1398,8 +1459,15 @@ app.get('/support', function(req, res) {
 // POST /support/submit — create ticket
 app.post('/support/submit', async (req, res) => {
   try {
-    var { name, email, phone, subject, message } = req.body;
-    if (!name || !email || !subject || !message) return res.json({ success: false, error: 'يرجى ملء جميع الحقول المطلوبة' });
+    var u = req.session && req.session.user;
+    var isStudent = u && u.role === 'student';
+    var name = isStudent ? (u.name || '') : req.body.name;
+    var email = isStudent ? (u.email || '') : req.body.email;
+    var phone = isStudent ? (u.phone || '') : (req.body.phone || '');
+    var subject = req.body.subject;
+    var message = req.body.message;
+    if (!subject || !message) return res.json({ success: false, error: 'يرجى ملء جميع الحقول المطلوبة' });
+    if (!isStudent && (!name || !email)) return res.json({ success: false, error: 'يرجى ملء جميع الحقول المطلوبة' });
     var tickets = await readData('supportTickets') || [];
     var ticket = {
       id: 'ticket-' + Date.now() + '-' + Math.random().toString(36).slice(2,7),
@@ -2152,6 +2220,19 @@ app.get('/student/courses', requireStudentOrGuest, async (req, res) => {
   // Teacher's setting (currentSemester) controls which term is visible to the student (no manual student selection)
   var currentSemester = res.locals.currentSemester || 'all';
   if (currentSemester !== 'all') courses = courses.filter(function(c) { return c.semester === currentSemester || c.semester === 'all'; });
+  // Plan-based branch filtering: if the user's subscription plan restricts branches, apply filter
+  var isSubActive = user && user.subscriptionStatus === 'active' && (!user.subscriptionEnd || new Date(user.subscriptionEnd) > new Date());
+  if (isSubActive && user.planName) {
+    try {
+      var allPlans = await readData('subscriptions') || [];
+      var userPlan = allPlans.find(function(p) {
+        return p.name === user.planName && p.period === user.planPeriod && (!p.stage || p.stage === user.subscribedStage);
+      });
+      if (userPlan && userPlan.allowedBranches && Array.isArray(userPlan.allowedBranches) && userPlan.allowedBranches.length > 0 && userPlan.allowedBranches[0] !== '*') {
+        courses = courses.filter(function(c) { return userPlan.allowedBranches.indexOf(c.id) !== -1; });
+      }
+    } catch(e) { console.error('[branch filter]', e.message); }
+  }
   res.render('student/courses', { courses: courses, userStage: userStage, userGrade: userGrade, currentSemester: currentSemester, title: 'المحاضرات - المُميز' });
 });
 
@@ -2240,6 +2321,16 @@ app.get('/student/lesson/:courseId/:lessonId', requireStudentOrGuest, async (req
             await writeData('users', freshUserData);
           }
         }
+        // Also write to normalized LessonProgress table
+        try {
+          const prisma = getPrisma();
+          const lpId = `${user.id}_${lesson.id}`;
+          await prisma.lessonProgress.upsert({
+            where: { id: lpId },
+            create: { id: lpId, studentId: user.id, lessonId: lesson.id, courseId: course.id, completed: true, completedAt: new Date(), watchTime: 0, lastAccess: new Date(), createdAt: new Date(), updatedAt: new Date() },
+            update: { completed: true, completedAt: new Date(), updatedAt: new Date() },
+          });
+        } catch(e2) {}
       }
     } catch(e) {}
   }
@@ -2295,10 +2386,9 @@ app.get('/student/lesson-quiz/:courseId/:lessonId', requireStudentOrGuest, async
   // Load saved quiz result for review (passed quiz = show answers, failed = retry)
   let quizResult = null;
   try {
-    const users = await readData('users', true);
-    const u = (users || []).find(u => u.uid === user.uid || u.id === user.uid);
-    if (u && u.quizResults && u.quizResults[course.id] && u.quizResults[course.id][lesson.id]) {
-      quizResult = u.quizResults[course.id][lesson.id];
+    const legacyUser = await buildLegacyUser(user.id);
+    if (legacyUser && legacyUser.quizResults && legacyUser.quizResults[course.id] && legacyUser.quizResults[course.id][lesson.id]) {
+      quizResult = legacyUser.quizResults[course.id][lesson.id];
     }
   } catch(e) {}
   const quizPassed = quizResult && quizResult.passed === true;
@@ -2330,6 +2420,7 @@ app.get('/student/lesson-quiz/:courseId/:lessonId', requireStudentOrGuest, async
 
   res.render('student/lesson-quiz', {
     course, lesson, nextLesson, isGuest, quizPassed, quizFailed, quizResult,
+    quizDone: quizResult != null,
     title: `اختبار ${lesson.title} - المُميز`
   });
 });
@@ -2453,7 +2544,11 @@ function makePdfToken(kind, authMiddleware, requireSubscription) {
         const sub = u && u.subscriptionStatus === 'active' && (!u.subscriptionEnd || new Date(u.subscriptionEnd) > new Date());
         if (!sub) return res.status(403).json({ error: 'Forbidden: active subscription required' });
       }
-      if (!supabaseStorage.isConfigured()) return res.status(503).json({ error: 'Storage not configured' });
+      if ((kind === 'note' || kind === 'lesson' || kind === 'review') && storageConfig.isR2Enabled()) {
+        /* ok — R2 handles note/lesson/review file storage */
+      } else if (!supabaseStorage.isConfigured()) {
+        return res.status(503).json({ error: 'Storage not configured' });
+      }
       const { path } = await getPdfTarget(kind, req);
       const streamUrl = '/api/student/pdf-stream/' + kind + '/' +
         (kind === 'note'
@@ -2480,9 +2575,15 @@ function makePdfStream(kind, authMiddleware, requireSubscription) {
         const sub = u && u.subscriptionStatus === 'active' && (!u.subscriptionEnd || new Date(u.subscriptionEnd) > new Date());
         if (!sub) return res.status(403).end('Forbidden: active subscription required');
       }
-      if (!supabaseStorage.isConfigured()) return res.status(503).end('Storage not configured');
+      if ((kind === 'note' || kind === 'lesson' || kind === 'review') && storageConfig.isR2Enabled()) {
+        /* ok — R2 handles note/lesson/review file storage */
+      } else if (!supabaseStorage.isConfigured()) {
+        return res.status(503).end('Storage not configured');
+      }
       const { path } = await getPdfTarget(kind, req);
-      const signed = await supabaseStorage.createSignedUrl(path, 60);
+      const signed = (kind === 'note' || kind === 'lesson' || kind === 'review') && storageConfig.isR2Enabled()
+        ? await getStorageService().createSignedUrl(path, 300)
+        : await supabaseStorage.createSignedUrl(path, 60);
       // Stage 11: forward any client Range header to the upstream so the browser can
       // seek/stream large PDFs without downloading the whole file through the server.
       const headers = {};
@@ -2529,53 +2630,7 @@ app.get('/api/student/pdf-stream/lesson/:c/:l/:i', ...makePdfStream('lesson', re
 app.get('/api/student/pdf-stream/review/:id/:i', ...makePdfStream('review', requireStudent, false));
 app.get('/api/student/pdf-stream/note/:id', ...makePdfStream('note', requireStudent, true));
 
-/* ===== TEMP DIAGNOSTIC ONLY (remove after root-cause found) ===== */
-app.get('/api/admin/diag-pdf', requireAdmin, async (req, res) => {
-  const out = { note: 'TEMP DIAGNOSTIC - remove after use' };
-  try {
-    const ss = require('./supabase-storage');
-    out.env = {
-      SUPABASE_URL: process.env.SUPABASE_URL ? ('SET len=' + String(process.env.SUPABASE_URL).length) : 'MISSING',
-      SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SET' : 'MISSING'
-    };
-    out.bucketName = ss.BUCKET;
-    out.isConfigured = ss.isConfigured();
-    const { createClient } = require('@supabase/supabase-js');
-    const client = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
-      { auth: { persistSession: false, autoRefreshToken: false } }
-    );
-    // 1) bucket exists?
-    try { const b = await client.storage.getBucket(ss.BUCKET); out.bucket = { exists: !!(b && (b.name || b.id)), raw: b }; }
-    catch (e) { out.bucket = { error: e.message, status: e.status, code: e.code }; }
-    // 2) list objects actually stored (to compare against the DB path)
-    try {
-      const { data, error } = await client.storage.from(ss.BUCKET).list('', { limit: 200 });
-      out.bucketObjects = error ? { error: error.message } : (data || []).map(o => o.name);
-    } catch (e) { out.bucketObjects = { error: e.message }; }
-    // 3) the stored DB path for lesson 1/101/0
-    const courses = await readData('courses');
-    const course = courses.find(c => c.id === '1');
-    const lesson = course && (course.lessons || []).find(l => l.id === '101');
-    const pf = lesson && lesson.pdfFiles && lesson.pdfFiles[0];
-    out.dbPdfFilesShape = lesson ? (Array.isArray(lesson.pdfFiles) ? ('array[' + lesson.pdfFiles.length + ']') : typeof lesson.pdfFiles) : '(no lesson 1/101)';
-    out.dbPath = pf ? pf.path : '(no pdfFiles[0])';
-    out.dbPathType = pf ? typeof pf.path : 'n/a';
-    // 4) run the EXACT module fn the app uses
-    if (pf && pf.path) {
-      try {
-        const url = await ss.createSignedUrl(pf.path, 45);
-        out.createSignedUrl = { ok: true, returned: url ? ('len=' + String(url).length) : 'EMPTY' };
-      } catch (e) {
-        out.createSignedUrl = { threw: true, message: e && e.message, status: e && e.status, code: e && e.code };
-      }
-    }
-    res.json(out);
-  } catch (e) {
-    res.json({ fatal: e.message, stack: e.stack });
-  }
-});
+
 
 /* ===================== ADMIN: upload PDF to private Supabase bucket ===================== */
 /* Flow (avoids Vercel's ~4.5MB serverless body limit / HTTP 413):
@@ -2597,10 +2652,16 @@ function _buildPdfPath(folder, originalName) {
 }
 app.post('/api/admin/upload-pdf/sign', requireAdmin, express.json(), async (req, res) => {
   try {
+    const folder = (req.body.folder || 'misc').toString().replace(/[^a-z]/gi, '').toLowerCase() || 'misc';
+    if (storageConfig.isR2Enabled()) {
+      const storage = getStorageService();
+      const objectKey = storage.generateObjectKey(folder, crypto.randomUUID(), 'file', req.body.fileName || 'file.pdf');
+      const result = await storage.createSignedUploadUrl(objectKey, 'application/pdf');
+      return res.json({ success: true, path: objectKey, signedUrl: result.signedUrl, token: null });
+    }
     if (!supabaseStorage.isConfigured()) {
       return res.status(503).json({ error: 'نظام التخزين غير مهيأ. أضف متغيرات Supabase في إعدادات المشروع.' });
     }
-    const folder = (req.body.folder || 'misc').toString().replace(/[^a-z]/gi, '').toLowerCase() || 'misc';
     const path = _buildPdfPath(folder, req.body.fileName || 'file.pdf');
     const data = await supabaseStorage.createSignedUploadUrl(path);
     res.json({ success: true, path: path, signedUrl: data.signedUrl, token: data.token });
@@ -2610,12 +2671,17 @@ app.post('/api/admin/upload-pdf/sign', requireAdmin, express.json(), async (req,
 });
 app.post('/api/admin/upload-pdf', requireAdmin, express.json(), async (req, res) => {
   try {
+    const path = req.body.path;
+    if (!path) return res.status(400).json({ error: 'لم يتم تحديد مسار الملف' });
+    if (storageConfig.isR2Enabled()) {
+      const storage = getStorageService();
+      const exists = await storage.exists(path);
+      if (!exists) return res.status(400).json({ error: 'الملف لم يُرفع بعد إلى التخزين. حاول مرة أخرى.' });
+      return res.json({ success: true, path: path });
+    }
     if (!supabaseStorage.isConfigured()) {
       return res.status(503).json({ error: 'نظام التخزين غير مهيأ. أضف متغيرات Supabase في إعدادات المشروع.' });
     }
-    const path = req.body.path;
-    if (!path) return res.status(400).json({ error: 'لم يتم تحديد مسار الملف' });
-    // Verify the object was actually uploaded to the private bucket.
     try {
       await supabaseStorage.createSignedUrl(path, 1);
     } catch (e) {
@@ -2629,15 +2695,125 @@ app.post('/api/admin/upload-pdf', requireAdmin, express.json(), async (req, res)
 // Local-dev fallback: server receives the file directly (bypassed in prod by direct upload).
 app.post('/api/admin/upload-pdf-legacy', requireAdmin, upload.single('file'), async (req, res) => {
   try {
+    if (!req.file) return res.status(400).json({ error: 'لم يتم إرفاق ملف' });
+    const folder = (req.body.folder || 'misc').toString().replace(/[^a-z]/gi, '').toLowerCase() || 'misc';
+    if (storageConfig.isR2Enabled()) {
+      const storage = getStorageService();
+      const objectKey = storage.generateObjectKey(folder, crypto.randomUUID(), 'file', req.file.originalname);
+      await storage.upload({ key: objectKey, body: req.file.buffer, contentType: req.file.mimetype || 'application/octet-stream' });
+      return res.json({ success: true, path: objectKey });
+    }
     if (!supabaseStorage.isConfigured()) {
       return res.status(503).json({ error: 'نظام التخزين غير مهيأ.' });
     }
-    if (!req.file) return res.status(400).json({ error: 'لم يتم إرفاق ملف' });
-    const folder = (req.body.folder || 'misc').toString().replace(/[^a-z]/gi, '').toLowerCase() || 'misc';
     const path = await supabaseStorage.uploadPdf(folder, req.file.originalname, req.file.buffer, req.file.mimetype);
     res.json({ success: true, path: path });
   } catch (e) {
     res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' });
+  }
+});
+
+/* ===================== EXAM TIME ENGINE API ===================== */
+const ExamTimeEngine = require('./src/services/examTimeEngine');
+
+app.post('/api/exam/start', requireAuth, async (req, res) => {
+  try {
+    const { examId, examType, courseId, timeSettings } = req.body;
+    const attempt = await ExamTimeEngine.getOrCreateAttempt(
+      req.session.user.uid, examId, examType, courseId, timeSettings
+    );
+    res.json({
+      success: true,
+      attempt: {
+        id: attempt.id,
+        startedAt: attempt.startedAt,
+        realEndTime: attempt.realEndTime,
+        status: attempt.status,
+        answers: attempt.answers || {}
+      },
+      serverTime: Date.now()
+    });
+  } catch (e) {
+    if (e.code === 'AVAILABILITY') {
+      return res.json({ success: false, error: e.message, code: 'AVAILABILITY' });
+    }
+    res.status(500).json({ success: false, error: 'تعذر بدء الامتحان، حاول مرة أخرى.' });
+  }
+});
+
+app.post('/api/exam/sync', requireAuth, async (req, res) => {
+  try {
+    const { attemptId } = req.body;
+    const attempts = (await readData('examAttempts')) || [];
+    const attempt = attempts.find(a => a.id === attemptId && a.userId === req.session.user.uid);
+    if (!attempt) return res.json({ success: false, error: 'المحاولة غير موجودة' });
+
+    const remaining = ExamTimeEngine.calculateRemaining(attempt.realEndTime);
+    res.json({
+      success: true,
+      serverTime: Date.now(),
+      remaining: remaining,
+      status: attempt.status,
+      realEndTime: attempt.realEndTime
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, error: 'خطأ في المزامنة' });
+  }
+});
+
+app.post('/api/exam/save-answers', requireAuth, async (req, res) => {
+  try {
+    const { attemptId, answers } = req.body;
+    const attempt = await ExamTimeEngine.saveAnswers(attemptId, req.session.user.uid, answers);
+    res.json({ success: true });
+  } catch (e) {
+    res.json({ success: false, error: e.message });
+  }
+});
+
+app.post('/api/exam/submit', requireAuth, async (req, res) => {
+  try {
+    const { attemptId, answers } = req.body;
+    const attempt = await ExamTimeEngine.submitAttempt(attemptId, req.session.user.uid, answers, false);
+    res.json({
+      success: true,
+      status: attempt.status,
+      submittedAt: attempt.submittedAt
+    });
+  } catch (e) {
+    res.json({ success: false, error: e.message });
+  }
+});
+
+app.post('/api/exam/grade', requireAuth, async (req, res) => {
+  try {
+    const { attemptId, score, total } = req.body;
+    await ExamTimeEngine.saveGrade(attemptId, req.session.user.uid, score, total);
+
+    // Also save to legacy examResults for backward compatibility
+    const users = await readData('users');
+    const uidx = users.findIndex(u => u.uid === req.session.user.uid);
+    if (uidx !== -1) {
+      users[uidx].examResults = users[uidx].examResults || [];
+      users[uidx].examResults.push({
+        examId: attemptId,
+        courseId: '',
+        examName: '',
+        score: score,
+        total: total,
+        correct: score,
+        wrong: total - score,
+        timeTaken: 0,
+        percentage: total > 0 ? Math.round((score / total) * 100) : 0,
+        date: new Date().toISOString(),
+        completedAt: new Date().toISOString()
+      });
+      await writeData('users', users);
+    }
+
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ success: false, error: 'تعذر حفظ النتيجة' });
   }
 });
 
@@ -2717,7 +2893,7 @@ app.get('/student/subscription', requireAuth, async (req, res) => {
   const filtered = subscriptions.filter(s => !s.stage || s.stage === userStage);
   var settingsSub = await readData('settings') || {};
   var refDiscSetting = settingsSub.referralDiscount != null ? settingsSub.referralDiscount : 25;
-  res.render('student/subscription', { subscriptions: filtered, user, isGuest, refDiscSetting, fawaterkStatus: req.query.fawaterk || '', title: 'الاشتراك - المُميز' });
+  res.render('student/subscription', { subscriptions: filtered, user, isGuest, refDiscSetting, shakeoutEnabled: shakeout.isConfigured(), title: 'الاشتراك - المُميز' });
 });
 
 app.get('/student/payment', requireAuth, async (req, res) => {
@@ -2733,12 +2909,35 @@ app.post('/api/student/submit-payment', requireAuth, async (req, res) => {
       if (imgErr) return res.status(400).json({ error: imgErr });
     }
     const payments = await readData('payments') || [];
+    const paymentId = 'PAY-' + Date.now();
+    var r2ReceiptImage = receiptImage || '';
+    if (receiptImage && storageConfig.isR2Enabled()) {
+      try {
+        const storage = getStorageService();
+        var mime = receiptImage.split(';')[0].split(':')[1] || 'image/jpeg';
+        var extMap = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' };
+        var ext = extMap[mime] || '.jpg';
+        var raw = Buffer.from(receiptImage.split(',')[1] || receiptImage, 'base64');
+        var objectKey = storage.generateObjectKey('payments', paymentId, 'receipt', 'receipt' + ext);
+        await storage.upload({
+          key: objectKey,
+          body: raw,
+          contentType: mime,
+          visibility: 'private',
+          metadata: { type: 'payment_receipt', entityId: paymentId, uploadedBy: req.session.user.id }
+        });
+        r2ReceiptImage = objectKey;
+      } catch (e) {
+        console.error('R2 upload error for payment receipt:', e.message);
+        return res.status(500).json({ error: 'تعذر رفع الصورة، حاول مرة أخرى.' });
+      }
+    }
     const payment = {
-      id: 'PAY-' + Date.now(),
+      id: paymentId,
       userId: req.session.user.id,
       userName: req.session.user.name,
       transactionId, amount, method,
-      receiptImage: receiptImage || '',
+      receiptImage: r2ReceiptImage,
       status: 'pending',
       date: new Date().toISOString(),
       rejectReason: ''
@@ -2751,97 +2950,49 @@ app.post('/api/student/submit-payment', requireAuth, async (req, res) => {
   }
 });
 
-// ===================== FAWATERK PAYMENT GATEWAY =====================
-const fawaterk = require('./services/fawaterk.service');
-const fawalog = require('./services/firestore/logger');
+// ===================== SHAKE OUT PAYMENT GATEWAY =====================
+const shakeout = require('./services/shakeout.service');
 
-// POST /api/payments/fawaterk/webhook — Fawaterk payment callback
-app.post('/api/payments/fawaterk/webhook', async (req, res) => {
+// ===================== SHAKE OUT ROUTES =====================
+
+// POST /api/student/pay-subscription-shakeout — Create Shake Out invoice
+app.post('/api/student/pay-subscription-shakeout', requireStudent, async (req, res) => {
   try {
-    const signature = req.headers['x-fawaterk-signature'] || req.headers['x-webhook-signature'] || '';
-    const body = req.body;
-    if (!fawaterk.isEnabled()) return res.status(503).json({ error: 'Fawaterk not configured' });
-    if (!fawaterk.verifyWebhookHash(body, signature)) return res.status(401).json({ error: 'Invalid signature' });
-    const event = fawaterk.parseWebhookEvent(body);
-    if (!event.depositRef) return res.status(400).json({ error: 'Missing deposit reference' });
-    const isPaid = event.status === 'paid' || event.status === 'completed' || event.event === 'payment_success';
-    if (event.depositRef.startsWith('SUBPAY-')) {
-      const subPayments = await readData('subscriptionPayments') || [];
-      const sIdx = subPayments.findIndex(p => p.payId === event.depositRef);
-      if (sIdx === -1) return res.status(404).json({ error: 'Subscription payment not found' });
-      if (subPayments[sIdx].status === 'paid') return res.json({ success: true, message: 'Already processed' });
-      if (isPaid) {
-        subPayments[sIdx].status = 'paid';
-        subPayments[sIdx].paidAt = new Date().toISOString();
-        subPayments[sIdx].paymentTransactionId = event.transactionId;
-        await writeData('subscriptionPayments', subPayments);
-        const users = await readData('users');
-        const uIdx = users.findIndex(u => u.id === subPayments[sIdx].userId || u.uid === subPayments[sIdx].userId);
-        if (uIdx !== -1) {
-          users[uIdx].subscriptionStatus = 'active';
-          users[uIdx].subscriptionStart = new Date().toISOString();
-          const dur = subPayments[sIdx].durationDays || 30;
-          users[uIdx].subscriptionEnd = new Date(Date.now() + dur * 86400000).toISOString();
-          users[uIdx].planName = subPayments[sIdx].planName;
-          users[uIdx].planPeriod = subPayments[sIdx].period;
-          await writeData('users', users);
-        }
-        fawalog.info('Fawaterk.Webhook', 'Subscription activated ' + event.depositRef, { plan: subPayments[sIdx].planName });
-      }
-      return res.json({ success: true });
-    }
-    return res.status(400).json({ error: 'Unknown payment type' });
+    if (!shakeout.isConfigured()) return res.status(503).json({ error: 'Shake Out غير متاح حالياً' });
+    var planName = req.body.planName;
+    var price = parseInt(req.body.price);
+    var planId = req.body.planId || '';
+    if (!planName || !price) return res.status(400).json({ error: 'بيانات الخطة غير مكتملة' });
+    var invoice = await shakeout.createInvoice(
+      req.session.user.id,
+      req.session.user.name,
+      req.session.user.email,
+      req.session.user.phone,
+      { name: planName, price: price, durationDays: 30, stage: req.session.user.stage || '', period: 'شهرياً' },
+      planId
+    );
+    res.json({ success: true, paymentUrl: invoice.paymentUrl });
   } catch (e) {
-    fawalog.error('Fawaterk.Webhook', 'Error', e.message);
-    res.status(500).json({ error: e.message });
+    console.error('[ShakeOut] createInvoice error:', e.message);
+    res.status(500).json({ error: 'تعذر إنشاء عملية الدفع' });
   }
 });
 
-// POST /api/student/pay-subscription-fawaterk — direct Fawaterk payment for subscription
-app.post('/api/student/pay-subscription-fawaterk', requireStudent, async (req, res) => {
+// POST /api/payments/shakeout/webhook — Shake Out payment webhook
+app.post('/api/payments/shakeout/webhook', async (req, res) => {
   try {
-    if (!fawaterk.isEnabled()) return res.status(503).json({ error: 'Fawaterk غير متاح حالياً' });
-    const { planName, price } = req.body;
-    if (!planName || !price) return res.status(400).json({ error: 'بيانات الخطة غير مكتملة' });
-    const subs = await readData('subscriptions') || [];
-    const sub = subs.find(s => s.name === planName);
-    const numPrice = parseInt(price);
-    if (!numPrice || numPrice < 1) return res.status(400).json({ error: 'سعر غير صالح' });
-    const payId = 'SUBPAY-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
-    const payment = {
-      payId, planName, price: numPrice,
-      userId: req.session.user.id, userName: req.session.user.name,
-      userPhone: req.session.user.phone || '',
-      userEmail: req.session.user.email || '',
-      planId: sub ? sub.id : '',
-      planStage: req.session.user.stage || (sub ? (sub.stage || '') : ''),
-      period: sub ? (sub.period || '') : '',
-      durationDays: sub ? (sub.durationDays || 30) : 30,
-      discount: req.session.user.referralDiscount || 0,
-      status: 'pending', type: 'subscription',
-      createdAt: new Date().toISOString()
-    };
-    const result = await fawaterk.createTransaction({
-      customerRef: payId,
-      depositId: payId,
-      amount: numPrice,
-      customerName: req.session.user.name || '',
-      customerEmail: req.session.user.email || '',
-      customerPhone: req.session.user.phone || '',
-      successUrl: (process.env.APP_URL || 'https://almumayaz.online') + '/student/subscription?fawaterk=success',
-      failUrl: (process.env.APP_URL || 'https://almumayaz.online') + '/student/subscription?fawaterk=fail',
-      pendingUrl: (process.env.APP_URL || 'https://almumayaz.online') + '/student/subscription?fawaterk=pending',
-    });
-    payment.intentKey = result.intentKey;
-    payment.transactionId = result.transactionId;
-    const payments = await readData('subscriptionPayments') || [];
-    payments.push(payment);
-    await writeData('subscriptionPayments', payments);
-    res.json({ success: true, payment, paymentUrl: result.paymentUrl });
+    var result = await shakeout.handleWebhook(req.body);
+    res.json(result);
   } catch (e) {
-    fawalog.error('Fawaterk.SubPay', 'Error', e.message);
-    res.status(500).json({ error: 'تعذر إنشاء عملية الدفع' });
+    var code = e.statusCode || 500;
+    console.error('[ShakeOut] webhook error:', e.message);
+    res.status(code).json({ error: e.message });
   }
+});
+
+// GET /student/shakeout-redirect — Shake Out redirect landing page
+app.get('/student/shakeout-redirect', requireAuth, async (req, res) => {
+  res.render('student/shakeout-redirect', { status: req.query.status || 'pending', title: 'الدفع - المُميز' });
 });
 
 app.get('/student/profile', requireStudent, async (req, res) => {
@@ -2869,14 +3020,39 @@ app.put('/api/student/profile', requireAuth, async (req, res) => {
       if (req.body.grade !== undefined) allowed.grade = req.body.grade;
     }
     allowed.lastLogin = new Date().toISOString();
+    if (allowed.avatar !== undefined && storageConfig.isR2Enabled()) {
+      try {
+        if (allowed.avatar) {
+          var raw = Buffer.from(allowed.avatar.split(',')[1] || allowed.avatar, 'base64');
+          var mime = allowed.avatar.split(';')[0].split(':')[1] || 'image/jpeg';
+          var extMap = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' };
+          var ext = extMap[mime] || '.jpg';
+          var validation = validateUpload({ buffer: raw, originalName: 'avatar' + ext, declaredMime: mime, type: 'avatar' });
+          if (!validation.valid) return res.status(400).json({ error: validation.error });
+          var storage = getStorageService();
+          var objectKey = storage.generateObjectKey('avatars', req.session.user.id, 'avatar', 'avatar' + ext);
+          await storage.upload({ key: objectKey, body: raw, contentType: mime, visibility: 'public', metadata: { type: 'avatar', entityId: req.session.user.id, uploadedBy: req.session.user.id, uploadedAt: new Date().toISOString() } });
+          allowed.avatar = objectKey;
+        }
+        if (u.avatar && !u.avatar.startsWith('data:')) {
+          try { await getStorageService().delete(u.avatar); } catch (_) {}
+        }
+      } catch (e) {
+        console.error('R2 upload error for avatar:', e.message);
+        return res.status(500).json({ error: 'تعذر رفع الصورة، حاول مرة أخرى.' });
+      }
+    }
     Object.assign(u, allowed);
     users[idx] = u;
     req.session.user = sessionUser(users[idx]);
     var safeUser = {};
-    var safeFields = ['id','name','email','phone','role','stage','grade','governorate','subscriptionStatus','subscriptionEnd','referralCode','parentName','parentPhone','parentEmail','fcmEnabled','phoneVerified'];
+    var safeFields = ['id','name','email','phone','role','stage','grade','governorate','avatar','subscriptionStatus','subscriptionEnd','referralCode','parentName','parentPhone','parentEmail','fcmEnabled','phoneVerified'];
     safeFields.forEach(function(k) { if (users[idx][k] !== undefined) safeUser[k] = users[idx][k]; });
+    if (safeUser.avatar && !safeUser.avatar.startsWith('data:') && storageConfig.isR2Enabled()) {
+      try { safeUser.avatar = await getStorageService().createPublicUrl(safeUser.avatar); } catch (_) {}
+    }
+    await writeData('users', users);
     res.json({ success: true, user: safeUser });
-    updateData('users/' + (users[idx] && (users[idx].id || users[idx].uid) || idx), allowed).catch(function(e) { console.error('async profile persist error:', e.message); });
   } catch (e) {
     if (!res.headersSent) res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' });
   }
@@ -3230,13 +3406,36 @@ app.post('/api/student/subscribe', requireAuth, async (req, res) => {
     const subs = await readData('subscriptions') || [];
     const sub = subs.find(s => s.name === planName);
     const subRequests = await readData('subRequests') || [];
+    const requestId = 'SUB-' + Date.now();
+    var r2ReceiptImage = receiptImage || '';
+    if (receiptImage && storageConfig.isR2Enabled()) {
+      try {
+        const storage = getStorageService();
+        var mime = receiptImage.split(';')[0].split(':')[1] || 'image/jpeg';
+        var extMap = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' };
+        var ext = extMap[mime] || '.jpg';
+        var raw = Buffer.from(receiptImage.split(',')[1] || receiptImage, 'base64');
+        var objectKey = storage.generateObjectKey('subrequests', requestId, 'receipt', 'receipt' + ext);
+        await storage.upload({
+          key: objectKey,
+          body: raw,
+          contentType: mime,
+          visibility: 'private',
+          metadata: { type: 'subscription-receipt', entityId: requestId, uploadedBy: req.session.user.id, uploadedAt: new Date().toISOString() }
+        });
+        r2ReceiptImage = objectKey;
+      } catch (e) {
+        console.error('R2 upload error for subscription receipt:', e.message);
+        return res.status(500).json({ error: 'تعذر رفع الصورة، حاول مرة أخرى.' });
+      }
+    }
     const request = {
-      id: 'SUB-' + Date.now(),
+      id: requestId,
       userId: req.session.user.id,
       userName: req.session.user.name,
       userPhone: req.session.user.phone || '',
       planName, price, transactionId, paymentMethod: paymentMethod || 'vodafone-cash',
-      receiptImage: receiptImage || '',
+      receiptImage: r2ReceiptImage,
       planId: sub ? sub.id : '',
       planStage: req.session.user.stage || (sub ? (sub.stage || '') : ''),
       period: sub ? (sub.period || '') : '',
@@ -3245,8 +3444,7 @@ app.post('/api/student/subscribe', requireAuth, async (req, res) => {
       date: new Date().toISOString(),
       discount: req.session.user.referralDiscount || 0
     };
-    subRequests.push(request);
-    await writeData('subRequests', subRequests);
+    await fsCore.setDocument('subRequests/' + request.id, request);
     // Notify all admins via FCM + email
     try {
       var allUsers = await readData('users') || [];
@@ -3291,6 +3489,14 @@ app.post('/api/student/subscribe', requireAuth, async (req, res) => {
 app.get('/api/admin/sub-requests', requireAdmin, async (req, res) => {
   try {
     const subRequests = await readData('subRequests') || [];
+    if (storageConfig.isR2Enabled()) {
+      const storage = getStorageService();
+      for (const sr of subRequests) {
+        if (sr.receiptImage && !sr.receiptImage.startsWith('data:')) {
+          try { sr.receiptImage = await storage.createSignedUrl(sr.receiptImage, 300); } catch (_) {}
+        }
+      }
+    }
     const users = await readData('users') || [];
     const userList = Array.isArray(users) ? users : Object.values(users);
     const enriched = subRequests.reverse().map(function(sr) {
@@ -3367,7 +3573,7 @@ app.put('/api/admin/sub-requests/:id', requireAdmin, async (req, res) => {
 app.get('/api/admin/sub-requests/sync', requireAdmin, async (req, res) => {
   try {
     var data = await require('./data-store').readData('subRequests');
-    var fbAdmin = require('./firebase-admin');
+    var fbAdmin = require('./prisma-bridge');
     await fbAdmin.fbSet('subRequests', data || []);
     await fbAdmin.writeData('subRequests', data || []);
     res.json({ success: true, count: (data || []).length });
@@ -3379,11 +3585,17 @@ app.delete('/api/admin/sub-requests/:id', requireAdmin, async (req, res) => {
     const subRequests = await readData('subRequests') || [];
     const idx = subRequests.findIndex(r => r.id === req.params.id);
     if (idx === -1) return res.status(404).json({ error: 'الطلب غير موجود' });
+    if (storageConfig.isR2Enabled()) {
+      var deleted = subRequests[idx];
+      if (deleted.receiptImage && !deleted.receiptImage.startsWith('data:')) {
+        try { await getStorageService().delete(deleted.receiptImage); } catch (_) {}
+      }
+    }
     subRequests.splice(idx, 1);
     // Write to local + Firebase
     await writeData('subRequests', subRequests);
     // Force direct Firebase write as backup
-    var fbAdmin = require('./firebase-admin');
+    var fbAdmin = require('./prisma-bridge');
     if (fbAdmin.fbSet) {
       try { await fbAdmin.fbSet('subRequests', subRequests); } catch(e) { console.error('Direct fbSet failed:', e.message); }
     }
@@ -3395,7 +3607,7 @@ app.delete('/api/admin/sub-requests/:id', requireAdmin, async (req, res) => {
 
 /* ===================== CHAT API (SERVER-SIDE) ===================== */
 
-const { fbRead, fbSet, fbPush, fbRemove } = require('./firebase-admin');
+const { fbRead, fbSet, fbPush, fbRemove } = require('./prisma-bridge');
 
 function chatId(req) {
   if (req.session.demoMode) {
@@ -3412,6 +3624,14 @@ app.get('/api/student/chat/messages', requireStudent, async (req, res) => {
     const cid = chatId(req);
     const data = await fbRead('chats/' + cid + '/messages');
     const msgs = data ? Object.keys(data).map(function(k) { var m=data[k]; m._key=k; return m; }).sort(function(a,b){return (a.timestamp||0)-(b.timestamp||0)}) : [];
+    if (storageConfig.isR2Enabled()) {
+      const storage = getStorageService();
+      for (var i = 0; i < msgs.length; i++) {
+        if (msgs[i].image && msgs[i].image.startsWith('chat-images/')) {
+          msgs[i].image = await storage.createSignedUrl(msgs[i].image, 3600);
+        }
+      }
+    }
     res.json({ success: true, messages: msgs });
   } catch (e) { res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' }); }
 });
@@ -3435,7 +3655,26 @@ app.post('/api/student/chat/send', requireStudent, async (req, res) => {
     const cid = chatId(req);
     const { text, image } = req.body;
     if (!text && !image) return res.status(400).json({ error: 'لا يمكن إرسال رسالة فارغة' });
-    const msg = { senderId: senderId(req), senderName: req.session.user.name || 'زائر', timestamp: Date.now(), read: false, text: text || '', image: image || '' };
+    const msgId = 'msg-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6);
+    var r2Image = image || '';
+    if (image && storageConfig.isR2Enabled()) {
+      try {
+        const raw = Buffer.from(image.split(',')[1] || image, 'base64');
+        const mime = image.split(';')[0].split(':')[1] || 'image/jpeg';
+        const extMap = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' };
+        const ext = extMap[mime] || '.jpg';
+        const validation = validateUpload({ buffer: raw, originalName: 'chat' + ext, declaredMime: mime, type: 'chatImage' });
+        if (!validation.valid) return res.status(400).json({ error: validation.error });
+        const storage = getStorageService();
+        const objectKey = storage.generateObjectKey('chat-images', cid.replace('student-', ''), msgId, 'chat' + ext);
+        await storage.upload({ key: objectKey, body: raw, contentType: mime, visibility: 'private', metadata: { type: 'chat-image', entityId: msgId, conversationId: cid, uploadedBy: req.session.user.id, uploadedAt: new Date().toISOString() } });
+        r2Image = objectKey;
+      } catch (e) {
+        console.error('R2 upload error for chat image:', e.message);
+        return res.status(500).json({ error: 'تعذر رفع الصورة، حاول مرة أخرى.' });
+      }
+    }
+    const msg = { senderId: senderId(req), senderName: req.session.user.name || 'زائر', timestamp: Date.now(), read: false, text: text || '', image: r2Image };
     const key = await fbPush('chats/' + cid + '/messages', msg);
     const studentId = req.session.user.id || (req.session.guestChatId || '');
     const preview = text ? (text.length > 80 ? text.slice(0,80) + '...' : text) : '📷 صورة';
@@ -3445,16 +3684,9 @@ app.post('/api/student/chat/send', requireStudent, async (req, res) => {
     adminUsers.forEach(async function(adminUser) {
       if (adminUser.fcmToken) {
         try {
-          var msg = { token: adminUser.fcmToken, notification: { title: 'رسالة جديدة من ' + (req.session.user.name || 'طالب'), body: preview }, data: { url: '/admin/chat/' + encodeURIComponent(studentId) } };
-          const resp = await admin.messaging().send(msg);
-          fcmLog.add({ userId: adminUser.id, title: 'رسالة جديدة', messageId: resp || 'unknown', success: true, error: null });
+          await sendFCM(adminUser.id, 'رسالة جديدة من ' + (req.session.user.name || 'طالب'), preview, '/admin/chat/' + encodeURIComponent(studentId));
         } catch(e) {
           console.error('Chat push error for', adminUser.id, ':', e.code || e.message);
-          fcmLog.add({ userId: adminUser.id, title: 'رسالة جديدة', messageId: null, success: false, error: e.code || e.message });
-          if (e.code === 'messaging/invalid-registration-token' || e.code === 'messaging/registration-token-not-registered') {
-            var idx = allUsers.findIndex(u => u.id === adminUser.id);
-            if (idx !== -1) { allUsers[idx].fcmToken = ''; await writeData('users', allUsers); }
-          }
         }
       } else {
         console.log("[CHAT PUSH] no fcmToken for admin", adminUser.id);
@@ -3473,6 +3705,14 @@ app.get('/api/admin/chat/:studentId/messages', requireAdmin, async (req, res) =>
     const chatId = 'student-' + studentId;
     const data = await fbRead('chats/' + chatId + '/messages');
     const msgs = data ? Object.keys(data).map(function(k) { var m=data[k]; m._key=k; return m; }).sort(function(a,b){return (a.timestamp||0)-(b.timestamp||0)}) : [];
+    if (storageConfig.isR2Enabled()) {
+      const storage = getStorageService();
+      for (var i = 0; i < msgs.length; i++) {
+        if (msgs[i].image && msgs[i].image.startsWith('chat-images/')) {
+          msgs[i].image = await storage.createSignedUrl(msgs[i].image, 3600);
+        }
+      }
+    }
     res.json({ success: true, messages: msgs });
   } catch (e) { res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' }); }
 });
@@ -3486,7 +3726,26 @@ app.post('/api/admin/chat/:studentId/send', requireAdmin, async (req, res) => {
     const actualUserId = rawId.indexOf('student-') === 0 ? rawId.slice(8) : rawId;
     const { text, image } = req.body;
     if (!text && !image) return res.status(400).json({ error: 'لا يمكن إرسال رسالة فارغة' });
-    const msg = { senderId: 'teacher', senderName: 'محمد عفيفي', timestamp: Date.now(), read: false, text: text || '', image: image || '' };
+    const msgId = 'msg-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6);
+    var r2Image = image || '';
+    if (image && storageConfig.isR2Enabled()) {
+      try {
+        const raw = Buffer.from(image.split(',')[1] || image, 'base64');
+        const mime = image.split(';')[0].split(':')[1] || 'image/jpeg';
+        const extMap = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' };
+        const ext = extMap[mime] || '.jpg';
+        const validation = validateUpload({ buffer: raw, originalName: 'chat' + ext, declaredMime: mime, type: 'chatImage' });
+        if (!validation.valid) return res.status(400).json({ error: validation.error });
+        const storage = getStorageService();
+        const objectKey = storage.generateObjectKey('chat-images', chatId.replace('student-', ''), msgId, 'chat' + ext);
+        await storage.upload({ key: objectKey, body: raw, contentType: mime, visibility: 'private', metadata: { type: 'chat-image', entityId: msgId, conversationId: chatId, uploadedBy: req.session.user.id, uploadedAt: new Date().toISOString() } });
+        r2Image = objectKey;
+      } catch (e) {
+        console.error('R2 upload error for admin chat image:', e.message);
+        return res.status(500).json({ error: 'تعذر رفع الصورة، حاول مرة أخرى.' });
+      }
+    }
+    const msg = { senderId: 'teacher', senderName: 'محمد عفيفي', timestamp: Date.now(), read: false, text: text || '', image: r2Image };
     const key = await fbPush('chats/' + chatId + '/messages', msg);
     const preview = text ? (text.length > 80 ? text.slice(0,80) + '...' : text) : '📷 صورة';
     // Send push to student
@@ -3503,6 +3762,14 @@ app.delete('/api/admin/chat/:studentId', requireAdmin, async (req, res) => {
     var studentId = req.params.studentId;
     if (!/^[a-zA-Z0-9_\-]+$/.test(studentId)) return res.status(400).json({ error: 'Invalid student ID' });
     const chatId = 'student-' + studentId;
+    if (storageConfig.isR2Enabled()) {
+      const data = await fbRead('chats/' + chatId + '/messages');
+      if (data) {
+        const storage = getStorageService();
+        var keys = Object.values(data).filter(function(m) { return m.image && m.image.startsWith('chat-images/'); }).map(function(m) { return m.image; });
+        await Promise.all(keys.map(function(k) { return storage.delete(k).catch(function(e) { console.error('R2 delete error for ' + k + ':', e.message); }); }));
+      }
+    }
     await fbRemove('chats/' + chatId);
     res.json({ success: true });
   } catch (e) { res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' }); }
@@ -3539,6 +3806,7 @@ app.post('/api/student/progress', requireAuth, async (req, res) => {
     const { courseId, lessonId, completed, percentage, position } = req.body;
     const uid = req.session.user.uid || req.session.user.id;
     const users = await readData('users') || [];
+    if (typeof users !== 'object' || !Array.isArray(users)) console.error('readData users type:', typeof users, Array.isArray(users), users && typeof users === 'object' && Object.keys(users).slice(0,5));
     const idx = users.findIndex(u => u.uid === uid || u.id === uid);
     if (idx === -1) return res.status(404).json({ error: 'المستخدم غير موجود' });
 
@@ -3563,13 +3831,14 @@ app.post('/api/student/progress', requireAuth, async (req, res) => {
     req.session.user = sessionUser(users[idx]);
     res.json({ success: true, progress: cp });
   } catch (e) {
+    console.error('progress save error:', e.message, e.stack);
     res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' });
   }
 });
 
 app.get('/api/student/progress/:courseId', requireAuth, async (req, res) => {
   try {
-    const users = await readData('users');
+    const users = await readData('users', true);
     const user = users.find(u => u.id === req.session.user.id);
     if (!user) return res.status(404).json({ error: 'المستخدم غير موجود' });
     const progress = (user.progress && user.progress[req.params.courseId]) || { completedLessons: [], percentage: 0 };
@@ -3610,7 +3879,7 @@ app.post('/api/analytics/video/heartbeat', requireAuth, async (req, res) => {
           const cl = users[idx].progress[courseId].completedLessons;
           if (!cl.includes(lessonId)) cl.push(lessonId);
         }
-        // Atomic per-user update — avoid race conditions from rewriting the entire users array
+        // Atomic per-user update — avoids race conditions from rewriting the entire users array
         await updateData('users/' + (users[idx] && (users[idx].id || users[idx].uid) || idx) + '/progress/' + courseId, users[idx].progress[courseId]);
       }
     } catch (pe) { console.error('heartbeat progress sync error:', pe.message); }
@@ -3657,57 +3926,93 @@ app.post('/api/analytics/pdf/open', requireAuth, async (req, res) => {
 // Quiz submit — save attempt results
 app.post('/api/analytics/quiz/submit', requireAuth, async (req, res) => {
   try {
-    const { courseId, quizId, quizTitle, score, total, correct, wrong, timeTaken, answers, passPercentage } = req.body;
+    const { courseId, quizId, quizTitle, score, total, correct, wrong, timeTaken, answers } = req.body;
     const result = await analytics.trackQuizSubmit(req.session.user.uid, courseId, quizId, quizTitle, score, total, correct, wrong, timeTaken);
+    // Calculate pass/fail BEFORE any DB writes (avoids scope/hoisting issues)
+    let lessonPassPct = 60;
     try {
-      const users = await readData('users');
-      const idx = users.findIndex(u => u.uid === req.session.user.uid || u.id === req.session.user.uid);
-      if (idx !== -1) {
-        if (!users[idx].examResults) users[idx].examResults = [];
-        users[idx].examResults.push({
-          examId: quizId, courseId, examName: quizTitle, score: Number(score) || 0,
-          total: Number(total) || 0, correct: Number(correct) || 0, wrong: Number(wrong) || 0,
-          timeTaken: Number(timeTaken) || 0, percentage: result.percentage,
-          date: new Date().toISOString(), completedAt: new Date().toISOString()
-        });
-        // Get pass percentage from lesson quiz data (or use default 60%)
-        var pct = Number(passPercentage) || (result && result.percentage) || 60;
-        var passed = (Number(score) || 0) >= (Number(total) || 1) * (pct / 100);
-        // Save quiz result with answers for review
-        if (!users[idx].quizResults) users[idx].quizResults = {};
-        if (!users[idx].quizResults[courseId]) users[idx].quizResults[courseId] = {};
-        users[idx].quizResults[courseId][quizId] = {
-          answers: Array.isArray(answers) ? answers : [],
-          score: Number(score) || 0,
-          total: Number(total) || 0,
+      const courses = await readData('courses');
+      const course = (courses || []).find(c => c.id === courseId);
+      const lesson = course ? (course.lessons || []).find(l => l.id === quizId) : null;
+      lessonPassPct = (lesson && lesson.quiz && lesson.quiz.passPercentage) || 60;
+    } catch(e) {}
+    const nScore = Number(score) || 0;
+    const nTotal = Number(total) || 1;
+    const pct = Math.round(nScore / nTotal * 100);
+    const passed = pct >= lessonPassPct;
+    // Save results to normalized Prisma tables
+    try {
+      const prisma = getPrisma();
+      const userId = req.session.user.id;
+      const attemptId = `${userId}_${quizId}_${Date.now()}`;
+      // Create exam attempt in normalized table
+      await prisma.examAttempt.upsert({
+        where: { id: attemptId },
+        create: {
+          id: attemptId,
+          userId,
+          quizId,
+          courseId,
+          examName: quizTitle,
+          score: nScore,
+          total: nTotal,
+          correct: Number(correct) || 0,
+          wrong: Number(wrong) || 0,
           percentage: result.percentage,
-          passed: passed,
-          completedAt: new Date().toISOString()
-        };
-        // Only mark lesson completed if quiz is PASSED
-        const courses = await readData('courses');
-        const course = (courses || []).find(c => c.id === courseId);
-        const lesson = course ? (course.lessons || []).find(l => l.id === quizId) : null;
-        if (lesson && passed) {
-          if (!users[idx].progress) users[idx].progress = {};
-          if (!users[idx].progress[courseId]) users[idx].progress[courseId] = { completedLessons: [], percentage: 0, positions: {} };
-          if (!users[idx].progress[courseId].completedLessons.includes(quizId)) {
-            users[idx].progress[courseId].completedLessons.push(quizId);
-          }
+          passed,
+          answers: Array.isArray(answers) ? answers : [],
+          completedAt: new Date(),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        update: {
+          score: nScore,
+          total: nTotal,
+          correct: Number(correct) || 0,
+          wrong: Number(wrong) || 0,
+          percentage: result.percentage,
+          passed,
+          answers: Array.isArray(answers) ? answers : [],
+          completedAt: new Date(),
+          updatedAt: new Date(),
+        },
+      });
+      if (passed) {
+        // Mark lesson as completed in LessonProgress
+        const existingLp = await prisma.lessonProgress.findFirst({
+          where: { studentId: userId, lessonId: quizId, deletedAt: null },
+        });
+        if (!existingLp) {
+          await prisma.lessonProgress.create({
+            data: {
+              id: `${userId}_${quizId}`,
+              studentId: userId,
+              lessonId: quizId,
+              courseId,
+              completed: true,
+              completedAt: new Date(),
+              watchTime: 0,
+              lastAccess: new Date(),
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            },
+          });
+        } else if (!existingLp.completed) {
+          await prisma.lessonProgress.update({
+            where: { id: existingLp.id },
+            data: { completed: true, completedAt: new Date(), updatedAt: new Date() },
+          });
         }
-        // Full array write (safe — quiz submit is low frequency, avoids index drift in array)
-        await writeData('users', users);
-        req.session.user = sessionUser(users[idx]);
-        // Session-level one-time guard — only if passed
-        if (passed) {
-          if (!req.session.quizDoneLessons) req.session.quizDoneLessons = [];
-          if (!req.session.quizDoneLessons.includes(quizId)) {
-            req.session.quizDoneLessons.push(quizId);
-          }
+        if (!req.session.quizDoneLessons) req.session.quizDoneLessons = [];
+        if (!req.session.quizDoneLessons.includes(quizId)) {
+          req.session.quizDoneLessons.push(quizId);
         }
       }
+      // Refresh session user from legacy adapter (preserves backward-compatible fields)
+      const fresh = await buildLegacyUser(userId);
+      if (fresh) req.session.user = sessionUser(fresh);
     } catch (pe) { console.error('quiz submit save error:', pe.message); }
-    res.json({ success: true, passed: passed, ...result });
+    res.json({ success: true, passed: passed, percentage: pct, required: lessonPassPct, score: nScore, total: nTotal });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -3786,7 +4091,7 @@ app.get('/api/admin/analytics/v2/student/:studentId', requireAdmin, async (req, 
 // Admin: reset all analytics (delete studentAnalytics RTDB path + clear users progress/examResults)
 app.post('/api/admin/analytics/reset-all', requireAdmin, async (req, res) => {
   try {
-    const { fbRemove } = require('./firebase-admin');
+    const { fbRemove } = require('./prisma-bridge');
     // 1. Delete old studentAnalytics store in RTDB
     try { await fbRemove('studentAnalytics'); } catch (e) {}
     // 2. Clear progress and examResults for all students
@@ -4333,11 +4638,11 @@ app.get('/admin/student-progress', requireAdmin, async (req, res) => {
 
 app.get('/admin', requireAdmin, async (req, res) => {
   try {
-    const users = await readData('users');
-    const courses = await readData('courses');
+    const users = (await readData('users')) || [];
+    const courses = (await readData('courses')) || [];
     const students = users.filter(u => u.role === 'student');
-    const announcements = await readData('announcements');
-    const subscriptions = await readData('subscriptions');
+    const announcements = (await readData('announcements')) || [];
+    const subscriptions = (await readData('subscriptions')) || [];
     const reviews = (await readData('reviews')) || [];
     const payments = await readData('payments') || [];
     let analyticsOverview = null;
@@ -4353,6 +4658,14 @@ app.get('/admin/students', requireAdmin, async (req, res) => {
   try {
     const users = await readData('users') || [];
     const students = users.filter(u => u.role === 'student');
+    if (storageConfig.isR2Enabled()) {
+      var storage = getStorageService();
+      for (var si = 0; si < students.length; si++) {
+        if (students[si].avatar && !students[si].avatar.startsWith('data:')) {
+          try { students[si].avatar = await storage.createPublicUrl(students[si].avatar); } catch (_) {}
+        }
+      }
+    }
     res.render('admin/students', { students, title: 'الطلاب - الإدارة' });
   } catch(e) {
     res.render('admin/students', { students: [], title: 'الطلاب - الإدارة' });
@@ -4380,13 +4693,27 @@ app.get('/admin/courses', requireAdmin, async (req, res) => {
 });
 
 app.get('/admin/subscriptions', requireAdmin, async (req, res) => {
-  const subscriptions = await readData('subscriptions');
-  res.render('admin/subscriptions', { subscriptions, title: 'الاشتراكات - الإدارة' });
+  try {
+    const subscriptions = await readData('subscriptions') || [];
+    const courses = await readData('courses') || [];
+    res.render('admin/subscriptions', { subscriptions, courses, title: 'الاشتراكات - الإدارة' });
+  } catch (e) {
+    console.error('Admin subscriptions error:', e);
+    res.status(500).send('خطأ في تحميل الاشتراكات');
+  }
 });
 
 app.get('/admin/payments', requireAdmin, async (req, res) => {
   try {
     const payments = await readData('payments') || [];
+    if (storageConfig.isR2Enabled()) {
+      const storage = getStorageService();
+      for (const p of payments) {
+        if (p.receiptImage && !p.receiptImage.startsWith('data:')) {
+          try { p.receiptImage = await storage.createSignedUrl(p.receiptImage, 300); } catch (_) {}
+        }
+      }
+    }
     var totalRevenue = payments.filter(p => p.status === 'approved').reduce(function(sum, p) { return sum + (Number(p.amount) || 0); }, 0);
     res.render('admin/payments', { payments, totalRevenue, title: 'المدفوعات - الإدارة' });
   } catch(e) {
@@ -4407,8 +4734,6 @@ app.get('/admin/settings', requireAdmin, async (req, res) => {
     contactWhatsapp: settings.contactWhatsapp || '0100 000 0000',
     announcementsEnabled: settings.announcementsEnabled !== false,
     referralDiscount: settings.referralDiscount != null ? settings.referralDiscount : 25,
-    themeAccent: settings.themeAccent || '#F59E0B',
-    themeBtnShape: settings.themeBtnShape || 'rounded',
     title: 'الإعدادات - الإدارة'
   });
 });
@@ -4427,7 +4752,33 @@ app.post('/api/admin/theme', requireDevAccess, async (req, res) => {
     var current = await readData('themeConfig') || {};
     var fontData = current.fontData || null;
     if (fontData) fontData.name = fontName;
-    var theme = { accent: accent, btnShape: btnShape, fontName: fontName, fontData: fontData, updatedAt: new Date().toISOString(), updatedBy: req.session.user ? (req.session.user.name || req.session.user.id) : 'admin' };
+    var light = req.body.light;
+    var dark = req.body.dark;
+    if (light && typeof light === 'object') {
+      var lt = {};
+      if (light.bg && /^#[0-9a-fA-F]{6}$/.test(light.bg)) lt.bg = light.bg;
+      if (light.card && /^#[0-9a-fA-F]{6}$/.test(light.card)) lt.card = light.card;
+      if (light.text && /^#[0-9a-fA-F]{6}$/.test(light.text)) lt.text = light.text;
+      if (light.sidebarTextHover && /^#[0-9a-fA-F]{6}$/.test(light.sidebarTextHover)) lt.sidebarTextHover = light.sidebarTextHover;
+      if (light.sidebarTextActive && /^#[0-9a-fA-F]{6}$/.test(light.sidebarTextActive)) lt.sidebarTextActive = light.sidebarTextActive;
+      if (light.sidebarIconHover && /^#[0-9a-fA-F]{6}$/.test(light.sidebarIconHover)) lt.sidebarIconHover = light.sidebarIconHover;
+      if (light.sidebarIconActive && /^#[0-9a-fA-F]{6}$/.test(light.sidebarIconActive)) lt.sidebarIconActive = light.sidebarIconActive;
+      if (light.sidebarLogout && /^#[0-9a-fA-F]{6}$/.test(light.sidebarLogout)) lt.sidebarLogout = light.sidebarLogout;
+      if (Object.keys(lt).length) current.light = lt;
+    }
+    if (dark && typeof dark === 'object') {
+      var dk = {};
+      if (dark.bg && /^#[0-9a-fA-F]{6}$/.test(dark.bg)) dk.bg = dark.bg;
+      if (dark.card && /^#[0-9a-fA-F]{6}$/.test(dark.card)) dk.card = dark.card;
+      if (dark.text && /^#[0-9a-fA-F]{6}$/.test(dark.text)) dk.text = dark.text;
+      if (dark.sidebarTextHover && /^#[0-9a-fA-F]{6}$/.test(dark.sidebarTextHover)) dk.sidebarTextHover = dark.sidebarTextHover;
+      if (dark.sidebarTextActive && /^#[0-9a-fA-F]{6}$/.test(dark.sidebarTextActive)) dk.sidebarTextActive = dark.sidebarTextActive;
+      if (dark.sidebarIconHover && /^#[0-9a-fA-F]{6}$/.test(dark.sidebarIconHover)) dk.sidebarIconHover = dark.sidebarIconHover;
+      if (dark.sidebarIconActive && /^#[0-9a-fA-F]{6}$/.test(dark.sidebarIconActive)) dk.sidebarIconActive = dark.sidebarIconActive;
+      if (dark.sidebarLogout && /^#[0-9a-fA-F]{6}$/.test(dark.sidebarLogout)) dk.sidebarLogout = dark.sidebarLogout;
+      if (Object.keys(dk).length) current.dark = dk;
+    }
+    var theme = { accent: accent, btnShape: btnShape, fontName: fontName, fontData: fontData, light: current.light, dark: current.dark, updatedAt: new Date().toISOString(), updatedBy: req.session.user ? (req.session.user.name || req.session.user.id) : 'admin' };
     await writeData('themeConfig', theme);
     await getThemeCss(true);
     res.json({ success: true, theme: theme });
@@ -4447,18 +4798,33 @@ var fontUpload = multer({
   }
 });
 
-// POST /api/admin/upload-font — Upload a custom font file (stored as base64 in Firebase)
+// POST /api/admin/upload-font — Upload a custom font file
 app.post('/api/admin/upload-font', requireDevAccess, fontUpload.single('fontFile'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'لم يتم رفع ملف' });
     var ext = (req.file.originalname || '').split('.').pop().toLowerCase();
     var mime = ext === 'woff2' ? 'font/woff2' : ext === 'woff' ? 'font/woff' : ext === 'ttf' ? 'font/ttf' : 'font/otf';
     var cssFormat = ext === 'ttf' ? 'truetype' : ext === 'otf' ? 'opentype' : ext;
-    var b64 = req.file.buffer.toString('base64');
     var displayName = (req.body.fontName || '').trim() || req.file.originalname.replace(/\.[^.]+$/, '');
     var current = await readData('themeConfig') || {};
     current.fontName = displayName;
-    current.fontData = { name: displayName, data: b64, format: cssFormat, mime: mime, ext: ext, fileName: req.file.originalname, size: req.file.buffer.length };
+    var fontData = { name: displayName, format: cssFormat, mime: mime, ext: ext, fileName: req.file.originalname, size: req.file.buffer.length };
+    if (storageConfig.isR2Enabled()) {
+      if (current.fontData && current.fontData.r2 && current.fontData.data) {
+        try { await getStorageService().delete(current.fontData.data); } catch (_) {}
+      }
+      var validation = validateUpload({ buffer: req.file.buffer, originalName: req.file.originalname, declaredMime: mime, type: 'font' });
+      if (!validation.valid) return res.status(400).json({ error: validation.error });
+      var storage = getStorageService();
+      var safeName = displayName.replace(/\s+/g, '_').replace(/[^\w.\-]/g, '') || 'font';
+      var objectKey = storage.generateObjectKey('fonts', safeName, 'font', req.file.originalname);
+      await storage.upload({ key: objectKey, body: req.file.buffer, contentType: mime, visibility: 'public', metadata: { type: 'font', entityId: safeName, uploadedBy: req.session.user.id, uploadedAt: new Date().toISOString() } });
+      fontData.data = objectKey;
+      fontData.r2 = true;
+    } else {
+      fontData.data = req.file.buffer.toString('base64');
+    }
+    current.fontData = fontData;
     await writeData('themeConfig', current);
     await getThemeCss(true);
     res.json({ success: true, fontName: displayName, fileName: req.file.originalname });
@@ -4471,6 +4837,9 @@ app.post('/api/admin/upload-font', requireDevAccess, fontUpload.single('fontFile
 app.post('/api/admin/remove-font', requireDevAccess, async (req, res) => {
   try {
     var current = await readData('themeConfig') || {};
+    if (current.fontData && current.fontData.r2 && current.fontData.data && storageConfig.isR2Enabled()) {
+      try { await getStorageService().delete(current.fontData.data); } catch (_) {}
+    }
     delete current.fontData;
     await writeData('themeConfig', current);
     await getThemeCss(true);
@@ -4797,7 +5166,10 @@ app.put('/api/admin/courses/:id/sections/:sectionId', requireAdmin, async (req, 
     if (!course) return res.status(404).json({ error: 'المادة غير موجودة' });
     const section = (course.sections || []).find(s => s.id === req.params.sectionId);
     if (!section) return res.status(404).json({ error: 'الفرع غير موجود' });
-    Object.assign(section, req.body);
+    const allowedFields = ['name'];
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) section[field] = req.body[field];
+    }
     await writeData('courses', courses);
     res.json({ success: true, section });
   } catch (e) {
@@ -4827,7 +5199,7 @@ app.post('/api/admin/courses/:id/lessons', requireAdmin, async (req, res) => {
     const courses = await readData('courses');
     const course = courses.find(c => c.id === req.params.id);
     if (!course) return res.status(404).json({ error: 'المادة غير موجودة' });
-    const { title, description, videos, pdfFiles, duration, order, isFree, guestVisible, sectionId } = req.body;
+    const { title, description, videos, pdfFiles, duration, order, isFree, guestVisible, sectionId, quiz } = req.body;
     const newLesson = {
       id: Date.now().toString(),
       title: title || 'محاضرة جديدة',
@@ -4838,7 +5210,8 @@ app.post('/api/admin/courses/:id/lessons', requireAdmin, async (req, res) => {
       order: order !== undefined ? order : 0,
       isFree: isFree || false,
       guestVisible: guestVisible || false,
-      sectionId: sectionId || ''
+      sectionId: sectionId || '',
+      quiz: quiz || null
     };
     if (!course.lessons) course.lessons = [];
     course.lessons.push(newLesson);
@@ -4888,47 +5261,9 @@ app.put('/api/admin/courses/:id/lessons/:lessonId', requireAdmin, async (req, re
 
 /* ===================== ADMIN: FORCE SEED MIGRATION ===================== */
 
-app.post('/api/admin/migrate-seed', requireAdmin, async (req, res) => {
-  try {
-    const { migrateSeedData, fbDb } = require('./firebase-admin');
-    await migrateSeedData();
-    res.json({ success: true, message: 'تم ترحيل البيانات بنجاح' });
-  } catch (e) {
-    res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' });
-  }
-});
-
-app.post('/api/admin/force-migrate', requireAdmin, async (req, res) => {
-  try {
-    const { fbDb, writeData } = require('./firebase-admin');
-    const localStore = require('./data-store');
-    const keys = ['courses', 'announcements', 'subscriptions', 'reviews'];
-    const results = {};
-    for (const key of keys) {
-      const local = await localStore.readData(key);
-      if (local && fbDb) {
-        const data = Array.isArray(local) ? local : Object.values(local);
-        // Use writeData so the in-memory cache is invalidated consistently.
-        await writeData(key, data);
-        results[key] = Array.isArray(local) ? local.length : Object.keys(local).length;
-        console.log('Force-migrated', key, 'to Firebase');
-      }
-    }
-    // Also migrate courses one by one to ensure lessons are included
-    const localCourses = await localStore.readData('courses');
-    if (Array.isArray(localCourses) && fbDb) {
-      await writeData('courses', localCourses);
-      results.courses = localCourses.length + ' courses with lessons';
-    }
-    res.json({ success: true, message: 'تم فرض الترحيل', results });
-  } catch (e) {
-    res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' });
-  }
-});
-
 app.get('/api/admin/diagnose', requireAdmin, async (req, res) => {
   try {
-    const { fbDb } = require('./firebase-admin');
+    const { fbDb } = require('./prisma-bridge');
     if (!fbDb) return res.json({ firebase: 'غير متاح' });
     const snap = await fbDb.ref('courses').once('value');
     const val = snap.val();
@@ -4974,12 +5309,13 @@ app.put('/api/admin/courses/:id/quiz', requireAdmin, async (req, res) => {
     const courses = await readData('courses');
     const course = courses.find(c => c.id === req.params.id);
     if (!course) return res.status(404).json({ error: 'المادة غير موجودة' });
-    const { title, questions, timerMinutes } = req.body;
+    const { title, questions, timerMinutes, timeSettings } = req.body;
     course.quiz = {
       id: course.quiz ? course.quiz.id : 'q' + Date.now(),
       title: title || (course.quiz ? course.quiz.title : 'اختبار شامل'),
       questions: questions || [],
-      timerMinutes: timerMinutes || null
+      timerMinutes: timerMinutes || null,
+      timeSettings: timeSettings || null
     };
     await writeData('courses', courses);
     res.json({ success: true, quiz: course.quiz });
@@ -5030,7 +5366,10 @@ app.put('/api/admin/notes/:id', requireAdmin, async (req, res) => {
     const notes = await readData('notes');
     const idx = notes.findIndex(n => n.id === req.params.id);
     if (idx === -1) return res.status(404).json({ error: 'المذكرة غير موجودة' });
-    Object.assign(notes[idx], req.body);
+    const noteAllowed = ['title', 'description', 'filePath', 'stage', 'grade', 'type', 'icon', 'active', 'order'];
+    for (const field of noteAllowed) {
+      if (req.body[field] !== undefined) notes[idx][field] = req.body[field];
+    }
     await writeData('notes', notes);
     res.json({ success: true, note: notes[idx] });
   } catch (e) {
@@ -5043,6 +5382,10 @@ app.delete('/api/admin/notes/:id', requireAdmin, async (req, res) => {
     const notes = await readData('notes');
     const idx = notes.findIndex(n => n.id === req.params.id);
     if (idx === -1) return res.status(404).json({ error: 'المذكرة غير موجودة' });
+    const note = notes[idx];
+    if (note.filePath && storageConfig.isR2Enabled()) {
+      try { await getStorageService().delete(note.filePath); } catch (_) {}
+    }
     notes.splice(idx, 1);
     await writeData('notes', notes);
     res.json({ success: true });
@@ -5056,7 +5399,7 @@ app.delete('/api/admin/notes/:id', requireAdmin, async (req, res) => {
 app.post('/api/admin/question-banks', requireAdmin, async (req, res) => {
   try {
     const banks = (await readData('questionBanks')) || [];
-    const { courseId, title, description, timerMinutes, order, questions } = req.body;
+    const { courseId, title, description, timerMinutes, timeSettings, order, questions } = req.body;
     var courses = await readData('courses');
     var course = courses.find(function(c) { return c.id === courseId; });
     const newBank = {
@@ -5067,6 +5410,7 @@ app.post('/api/admin/question-banks', requireAdmin, async (req, res) => {
       title: title || 'بنك أسئلة جديد',
       description: description || '',
       timerMinutes: timerMinutes || null,
+      timeSettings: timeSettings || null,
       order: order || 0,
       questions: questions || [],
       createdAt: new Date().toISOString()
@@ -5084,7 +5428,10 @@ app.put('/api/admin/question-banks/:id', requireAdmin, async (req, res) => {
     const banks = (await readData('questionBanks')) || [];
     const idx = banks.findIndex(b => b.id === req.params.id);
     if (idx === -1) return res.status(404).json({ error: 'بنك الأسئلة غير موجود' });
-    Object.assign(banks[idx], req.body);
+    const bankAllowed = ['title', 'courseId', 'questions', 'description', 'active'];
+    for (const field of bankAllowed) {
+      if (req.body[field] !== undefined) banks[idx][field] = req.body[field];
+    }
     await writeData('questionBanks', banks);
     res.json({ success: true, bank: banks[idx] });
   } catch (e) {
@@ -5110,7 +5457,7 @@ app.delete('/api/admin/question-banks/:id', requireAdmin, async (req, res) => {
 app.post('/api/admin/subscriptions', requireAdmin, async (req, res) => {
   try {
     const subscriptions = await readData('subscriptions');
-    const { name, price, currency, period, features, popular, stage, durationDays } = req.body;
+    const { name, price, currency, period, features, popular, stage, durationDays, allowedBranches } = req.body;
     const newSub = {
       id: Date.now().toString(),
       name: name || 'باقة جديدة',
@@ -5122,6 +5469,7 @@ app.post('/api/admin/subscriptions', requireAdmin, async (req, res) => {
       stage: stage || '',
       durationDays: parseInt(durationDays) || 30
     };
+    if (allowedBranches !== undefined) newSub.allowedBranches = allowedBranches;
     subscriptions.push(newSub);
     await writeData('subscriptions', subscriptions);
     res.json({ success: true, subscription: newSub });
@@ -5135,7 +5483,13 @@ app.put('/api/admin/subscriptions/:id', requireAdmin, async (req, res) => {
     const subscriptions = await readData('subscriptions');
     const idx = subscriptions.findIndex(s => s.id === req.params.id);
     if (idx === -1) return res.status(404).json({ error: 'الباقة غير موجودة' });
-    Object.assign(subscriptions[idx], req.body);
+    const allowed = ['name','price','currency','period','features','popular','stage','durationDays','allowedBranches'];
+    for (const field of allowed) {
+      if (req.body[field] !== undefined) subscriptions[idx][field] = req.body[field];
+    }
+    if (!Array.isArray(subscriptions[idx].features)) subscriptions[idx].features = [];
+    subscriptions[idx].popular = !!subscriptions[idx].popular;
+    subscriptions[idx].price = String(subscriptions[idx].price || '0');
     await writeData('subscriptions', subscriptions);
     res.json({ success: true, subscription: subscriptions[idx] });
   } catch (e) {
@@ -5199,7 +5553,10 @@ app.put('/api/admin/announcements/:id', requireAdmin, async (req, res) => {
     const announcements = await readData('announcements');
     const idx = announcements.findIndex(a => a.id === req.params.id);
     if (idx === -1) return res.status(404).json({ error: 'الإعلان غير موجود' });
-    Object.assign(announcements[idx], req.body);
+    const announcementAllowed = ['title', 'content', 'type', 'active', 'important', 'expiresAt'];
+    for (const field of announcementAllowed) {
+      if (req.body[field] !== undefined) announcements[idx][field] = req.body[field];
+    }
     await writeData('announcements', announcements);
     res.json({ success: true, announcement: announcements[idx] });
   } catch (e) {
@@ -5571,7 +5928,10 @@ app.put('/api/admin/reviews/:id', requireAdmin, async (req, res) => {
     const reviews = (await readData('reviews')) || [];
     const idx = reviews.findIndex(r => r.id === req.params.id);
     if (idx === -1) return res.status(404).json({ error: 'المراجعة غير موجودة' });
-    Object.assign(reviews[idx], req.body);
+    const reviewAllowed = ['title', 'description', 'courseId', 'stage', 'grade', 'icon', 'color', 'active', 'order'];
+    for (const field of reviewAllowed) {
+      if (req.body[field] !== undefined) reviews[idx][field] = req.body[field];
+    }
     await writeData('reviews', reviews);
     res.json({ success: true, review: reviews[idx] });
   } catch (e) {
@@ -5629,9 +5989,9 @@ app.delete('/api/admin/reviews/:id', requireAdmin, async (req, res) => {
 app.post('/api/fcm/verify', requireAuth, async (req, res) => {
   try {
     const { fcmToken } = req.body;
-    const users = await readData('users');
-    const idx = users.findIndex(u => u.id === req.session.user.id);
-    const stored = idx !== -1 ? (users[idx].fcmToken || '') : '';
+    const prisma = getPrisma();
+    const user = await prisma.user.findUnique({ where: { id: req.session.user.id }, select: { fcmToken: true } });
+    const stored = (user && user.fcmToken) || '';
     res.json({
       matches: !!fcmToken && fcmToken === stored,
       storedLen: stored.length,
@@ -5652,24 +6012,19 @@ app.post('/api/fcm/register', requireAuth, async (req, res) => {
     }
     fcmToken = fcmToken.trim();
     console.log('FCM register: user', req.session.user.id, 'token length:', fcmToken.length);
-    const users = await readData('users');
     const uid = req.session.user.id;
-    for (const u of users) {
-      if (u.id !== uid && u.fcmToken === fcmToken) {
-        u.fcmToken = null;
-      }
+    // Remove token from any other user (duplicate)
+    const prisma = getPrisma();
+    const dups = await prisma.user.findMany({ where: { fcmToken, id: { not: uid } }, select: { id: true } });
+    for (const dup of dups) {
+      await prisma.user.update({ where: { id: dup.id }, data: { fcmToken: '' } });
     }
-    const idx = users.findIndex(u => u.id === uid);
-    if (idx !== -1) {
-      users[idx].fcmToken = fcmToken;
-      users[idx].fcmTokenSavedAt = new Date().toISOString();
-      users[idx].fcmUid = uid;
-      await writeData('users', users);
-      req.session.user = sessionUser(users[idx]);
-      console.log('FCM register: saved for user', uid);
-    } else {
-      console.warn('FCM register: user not found in data store');
-    }
+    // Save token to this user
+    await prisma.user.update({ where: { id: uid }, data: { fcmToken } });
+    // Refresh session
+    const fresh = await buildLegacyUser(uid);
+    if (fresh) req.session.user = sessionUser(fresh);
+    console.log('FCM register: saved for user', uid);
     res.json({ success: true });
   } catch (e) {
     console.error('FCM register error:', e.message);
@@ -5684,7 +6039,7 @@ app.get('/api/fcm/debug', requireAdmin, async (req, res) => {
     const users = await readData('users') || [];
     const adminUser = users.find(u => u.id === req.session.user.id) || {};
     const allWithToken = users.filter(u => u.fcmToken).map(u => ({
-      id: u.id, name: u.name, role: u.role, tokenPreview: (u.fcmToken || '').slice(0, 15) + '...', tokenSavedAt: u.fcmTokenSavedAt || null
+      id: u.id, name: u.name, role: u.role, tokenPreview: (u.fcmToken || '').slice(0, 15) + '...'
     }));
     res.json({
       admin: {
@@ -5692,11 +6047,10 @@ app.get('/api/fcm/debug', requireAdmin, async (req, res) => {
         name: adminUser.name,
         hasToken: !!adminUser.fcmToken,
         tokenPreview: adminUser.fcmToken ? adminUser.fcmToken.slice(0, 15) + '...' : null,
-        tokenSavedAt: adminUser.fcmTokenSavedAt || null,
         tokenLength: (adminUser.fcmToken || '').length
       },
       firebaseAdmin: {
-        initialized: !!(await (async () => { try { const a = require('./firebase-admin'); return a.fbAuth !== null; } catch(e) { return false; } })()),
+        initialized: !!(await (async () => { try { const a = require('./prisma-bridge'); return a.fbAuth !== null; } catch(e) { return false; } })()),
         projectId: process.env.FIREBASE_PROJECT_ID || (() => { try { const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || '{}'); return sa.project_id; } catch(e) { return null; } })()
       },
       vapidPreview: process.env.FIREBASE_VAPID_KEY ? process.env.FIREBASE_VAPID_KEY.slice(0, 10) + '...' + process.env.FIREBASE_VAPID_KEY.slice(-10) : null,
@@ -5727,6 +6081,7 @@ app.post('/api/fcm/test', requireAdmin, async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
+// Migration: RTDB → Firestore (one-time)
 app.get('/admin/fcm-debug', requireAdmin, async (req, res) => {
   try {
     const users = await readData('users') || [];
@@ -5777,23 +6132,9 @@ app.post('/api/admin/send-notification', requireAdmin, async (req, res) => {
     // Send actual FCM push notifications
     let sent = 0;
     for (const u of recipients) {
-      try {
-        const message = {
-          token: u.fcmToken,
-          notification: { title: title, body: body },
-          data: { url: '/' }
-        };
-        await admin.messaging().send(message);
-        sent++;
-      } catch (e) {
-        console.error('send-notification FCM error for', u.id, ':', e.code || e.message);
-        if (e.code === 'messaging/invalid-registration-token' || e.code === 'messaging/registration-token-not-registered') {
-          const idx = users.findIndex(x => x.id === u.id);
-          if (idx !== -1) { users[idx].fcmToken = ''; }
-        }
-      }
+      const ok = await sendFCM(u.id, title, body, '/');
+      if (ok) sent++;
     }
-    if (recipients.some(u => !u.fcmToken)) await writeData('users', users);
 
     res.json({ success: true, recipientCount: recipients.length, sentCount: sent, notification: notif });
   } catch (e) {
@@ -6030,26 +6371,25 @@ async function checkScheduledNotifications() {
     if (!due.length) return { checked: true, processed: 0 };
 
     var processed = 0;
+    var allNotifs = await readData('scheduledNotifications') || [];
     for (var di = 0; di < due.length; di++) {
       var notif = due[di];
-
-      // Re-read to check if still Pending (another request might have handled it)
-      var fresh = await readData('scheduledNotifications') || [];
       var idx = -1;
-      for (var fi = 0; fi < fresh.length; fi++) {
-        if (fresh[fi].id === notif.id) { idx = fi; break; }
+      for (var fi = 0; fi < allNotifs.length; fi++) {
+        if (allNotifs[fi].id === notif.id) { idx = fi; break; }
       }
-      if (idx === -1 || fresh[idx].status !== 'Pending') continue;
+      if (idx === -1 || allNotifs[idx].status !== 'Pending') continue;
 
-      fresh[idx].status = 'Sending';
-      await writeData('scheduledNotifications', fresh);
+      allNotifs[idx].status = 'Sending';
 
       var result = await sendScheduledNotification(notif);
-      fresh[idx].status = result.success ? 'Sent' : 'Failed';
-      fresh[idx].sentAt = result.success ? new Date().toISOString() : null;
-      fresh[idx].error = result.error || null;
-      await writeData('scheduledNotifications', fresh);
+      allNotifs[idx].status = result.success ? 'Sent' : 'Failed';
+      allNotifs[idx].sentAt = result.success ? new Date().toISOString() : null;
+      allNotifs[idx].error = result.error || null;
       processed++;
+    }
+    if (processed > 0) {
+      await writeData('scheduledNotifications', allNotifs);
     }
     return { checked: true, processed: processed };
   } catch (e) {
@@ -6138,7 +6478,12 @@ function btnShapeRadius(shape) {
   if (shape === 'circular') return '999px';
   return '12px'; // rounded (نصف دائرية)
 }
-function buildThemeCss(theme) {
+var DEFAULT_LIGHT = { bg: '#FFF9F1', card: '#FFFFFF', border: '#E8E8E8', text: '#111111', textLight: '#666666', textMuted: '#9A8A7A', cardAlt: '#f5f5f5', glassBg: 'rgba(255,255,255,0.85)', glassBorder: 'rgba(0,0,0,0.06)', glassBlur: '20px', sidebarTextHover: '#000000', sidebarTextActive: '#000000', sidebarIconHover: '#000000', sidebarIconActive: '#000000', sidebarLogout: '#ef4444' };
+var DEFAULT_DARK = { bg: '#0F172A', card: '#1E293B', border: 'rgba(255,255,255,0.08)', text: '#F1F5F9', textLight: '#94A3B8', textMuted: '#64748B', cardAlt: '#111827', glassBg: 'rgba(255,255,255,0.06)', glassBorder: 'rgba(255,255,255,0.1)', glassBlur: '24px', sidebarTextHover: 'var(--accent)', sidebarTextActive: 'var(--accent)', sidebarIconHover: 'var(--accent)', sidebarIconActive: 'var(--accent)', sidebarLogout: '#f87171' };
+
+function pickHex(obj, key, fallback) { return (obj && obj[key]) || fallback; }
+
+async function buildThemeCss(theme) {
   if (!theme || !theme.accent) return '';
   var rgb = hexToRgb(theme.accent) || { r: 245, g: 158, b: 11 };
   var light = mixRgb(rgb, { r: 255, g: 255, b: 255 }, 0.35);
@@ -6151,13 +6496,23 @@ function buildThemeCss(theme) {
   var fd = theme.fontData;
   var fontFaceCss = '';
   if (fd && fd.data) {
-    fontFaceCss = '@font-face{font-family:"' + (fd.name || fontName || 'CustomFont') + '";src:url("data:' + (fd.mime || 'font/woff2') + ';base64,' + fd.data + '") format("' + (fd.format || 'woff2') + '");font-display:swap;}';
+    if (fd.r2 && storageConfig.isR2Enabled()) {
+      try {
+        var fontUrl = await getStorageService().createPublicUrl(fd.data);
+        fontFaceCss = '@font-face{font-family:"' + (fd.name || fontName || 'CustomFont') + '";src:url("' + fontUrl + '") format("' + (fd.format || 'woff2') + '");font-display:swap;}';
+      } catch (_) {}
+    } else {
+      fontFaceCss = '@font-face{font-family:"' + (fd.name || fontName || 'CustomFont') + '";src:url("data:' + (fd.mime || 'font/woff2') + ';base64,' + fd.data + '") format("' + (fd.format || 'woff2') + '");font-display:swap;}';
+    }
   }
   var lum = (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255;
   var btnText = lum > 0.5 ? '#111111' : '#F1F5F9';
   var fontCss = fontName ? 'font-family:"' + fontName + '",sans-serif;' : '';
   var fontBodyCss = fontName ? 'body,input,textarea,select,button,.navbar,.nav-links a,.sidebar-logo,.btn,.form-input,.sp-info-value,.sp-code{font-family:"' + fontName + '",sans-serif!important;}' : '';
-  return fontFaceCss + ':root,[data-theme="light"],[data-theme="dark"]{' +
+
+  var lt = theme.light || {};
+  var dk = theme.dark || {};
+  var sharedVars =
     '--primary:' + hex + ';' +
     '--primary-light:' + rgbToHex(light) + ';' +
     '--primary-lighter:' + rgbToHex(lighter) + ';' +
@@ -6174,8 +6529,32 @@ function buildThemeCss(theme) {
     '--course-c3:' + rgbToHex(mixRgb(rgb, { r: 13, g: 148, b: 136 }, 0.55)) + ';' +
     '--course-c4:' + rgbToHex(mixRgb(rgb, { r: 184, g: 134, b: 11 }, 0.5)) + ';' +
     '--btn-radius:' + radius + ';' +
-    fontCss +
-    '}' +
+    fontCss;
+
+  function themeBlock(prefix, src, def) {
+    return prefix + '{' +
+      '--bg:' + pickHex(src, 'bg', def.bg) + ';' +
+      '--card:' + pickHex(src, 'card', def.card) + ';' +
+      '--card-alt:' + pickHex(src, 'cardAlt', def.cardAlt) + ';' +
+      '--border:' + pickHex(src, 'border', def.border) + ';' +
+      '--text:' + pickHex(src, 'text', def.text) + ';' +
+      '--text-light:' + pickHex(src, 'textLight', def.textLight) + ';' +
+      '--text-muted:' + pickHex(src, 'textMuted', def.textMuted) + ';' +
+      '--glass-bg:' + pickHex(src, 'glassBg', def.glassBg) + ';' +
+      '--glass-border:' + pickHex(src, 'glassBorder', def.glassBorder) + ';' +
+      '--glass-blur:' + pickHex(src, 'glassBlur', def.glassBlur) + ';' +
+      '--sidebar-text-hover:' + pickHex(src, 'sidebarTextHover', def.sidebarTextHover) + ';' +
+      '--sidebar-text-active:' + pickHex(src, 'sidebarTextActive', def.sidebarTextActive) + ';' +
+      '--sidebar-icon-hover:' + pickHex(src, 'sidebarIconHover', def.sidebarIconHover) + ';' +
+      '--sidebar-icon-active:' + pickHex(src, 'sidebarIconActive', def.sidebarIconActive) + ';' +
+      '--sidebar-logout:' + pickHex(src, 'sidebarLogout', def.sidebarLogout) + ';' +
+      sharedVars +
+      '}';
+  }
+
+  return fontFaceCss +
+    themeBlock(':root,[data-theme="light"]', lt, DEFAULT_LIGHT) +
+    themeBlock('[data-theme="dark"]', dk, DEFAULT_DARK) +
     '.btn,.btn-lg,.btn-sm,.btn-outline,.btn-primary,.btn-danger,.action-btn{border-radius:var(--btn-radius,14px)!important;}' +
     fontBodyCss;
 }
@@ -6186,7 +6565,7 @@ async function getThemeCss(force) {
   if (!force && themeCache.css && now - themeCache.at < themeCache.TTL) return themeCache.css;
   try {
     const t = await readData('themeConfig');
-    let css = buildThemeCss(t);
+    let css = await buildThemeCss(t);
     if (t && t.fontName && !(t.fontData && t.fontData.data)) {
       const fn = encodeURIComponent(t.fontName.trim()).replace(/%20/g, '+');
       try {
@@ -6249,6 +6628,22 @@ app.get('/dev/dashboard', requireDevAccess, async (req, res) => {
       themeBtnShape: theme.btnShape || 'rounded',
       themeFont: theme.fontName || '',
       themeFontFile: (theme.fontData && theme.fontData.fileName) || '',
+      themeLightBg: (theme.light && theme.light.bg) || '#FFF9F1',
+      themeLightCard: (theme.light && theme.light.card) || '#FFFFFF',
+      themeLightText: (theme.light && theme.light.text) || '#111111',
+      themeLightSidebarTextHover: (theme.light && theme.light.sidebarTextHover) || '#000000',
+      themeLightSidebarTextActive: (theme.light && theme.light.sidebarTextActive) || '#000000',
+      themeLightSidebarIconHover: (theme.light && theme.light.sidebarIconHover) || '#000000',
+      themeLightSidebarIconActive: (theme.light && theme.light.sidebarIconActive) || '#000000',
+      themeLightSidebarLogout: (theme.light && theme.light.sidebarLogout) || '#ef4444',
+      themeDarkBg: (theme.dark && theme.dark.bg) || '#0F172A',
+      themeDarkCard: (theme.dark && theme.dark.card) || '#1E293B',
+      themeDarkText: (theme.dark && theme.dark.text) || '#F1F5F9',
+      themeDarkSidebarTextHover: (theme.dark && theme.dark.sidebarTextHover) || '#FBBF24',
+      themeDarkSidebarTextActive: (theme.dark && theme.dark.sidebarTextActive) || '#FBBF24',
+      themeDarkSidebarIconHover: (theme.dark && theme.dark.sidebarIconHover) || '#FBBF24',
+      themeDarkSidebarIconActive: (theme.dark && theme.dark.sidebarIconActive) || '#FBBF24',
+      themeDarkSidebarLogout: (theme.dark && theme.dark.sidebarLogout) || '#f87171',
       supportKey: settings.supportKey || '',
       title: 'Developer Panel'
     });
@@ -6307,6 +6702,17 @@ app.get('/api/dev/status', requireDevAccess, async (req, res) => {
       }
     } catch (e) {}
     try { var mm = await readData('maintenanceMode'); status.maintenance = mm || { enabled: false, message: '' }; } catch (e) {}
+    // FCM status
+    try {
+      const users = await readData('users');
+      const usersWithToken = (Array.isArray(users) ? users : []).filter(u => u.fcmToken);
+      const adminUser = (Array.isArray(users) ? users : []).find(u => u.uid === req.session.user.uid);
+      status.fcm = {
+        firebaseAdmin: { initialized: true, projectId: process.env.FIREBASE_PROJECT_ID || 'almumayaz' },
+        admin: { hasToken: !!(adminUser && adminUser.fcmToken), tokenLength: (adminUser && adminUser.fcmToken) ? adminUser.fcmToken.length : 0 },
+        totalUsersWithToken: usersWithToken.length
+      };
+    } catch (e) { status.fcm = { firebaseAdmin: { initialized: false }, admin: { hasToken: false }, totalUsersWithToken: 0 }; }
     res.json(status);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -6435,82 +6841,16 @@ app.get('/api/cron/check-scheduled', async function(req, res) {
   }
 });
 
-app.get('/api/admin/test-fcm', requireAdmin, async (req, res) => {
-  try {
-    const users = await readData('users');
-    const students = users.filter(u => u.role === 'student' && u.fcmToken);
-    const allStudentCount = users.filter(u => u.role === 'student').length;
-    const userTokens = students.map(u => ({ id: u.id, name: u.name, token: (u.fcmToken || '').slice(0, 20) + '...' }));
-    // Check apiKey is set
-    const apiKeySet = !!process.env.FIREBASE_API_KEY;
-    const apiKeyPreview = process.env.FIREBASE_API_KEY ? process.env.FIREBASE_API_KEY.slice(0, 10) + '...' : 'NOT SET';
-    let fcmStatus = 'unknown';
-    let fcmError = null;
-    try {
-      if (admin.messaging) {
-        fcmStatus = 'admin.messaging() available';
-        const testMsg = { token: 'test', data: { title: 't', body: 't', url: '/' } };
-        JSON.stringify(testMsg);
-        fcmStatus += ' | can stringify test message';
-      }
-    } catch (e) { fcmError = e.message; }
-    const adminUser = users.find(u => u.role === 'admin');
-    // Try a direct test call to FCM to see if credentials work
-    let fcmCredsOk = false;
-    let fcmCredsError = null;
-    try {
-      const testMsg2 = { token: 'FAKE_TOKEN_FOR_TEST', notification: { title: 't', body: 't' }, data: { url: '/' } };
-      await admin.messaging().send(testMsg2);
-    } catch (e) {
-      fcmCredsError = e.code || e.message;
-      if (e.code === 'messaging/invalid-argument' || e.code === 'messaging/invalid-registration-token' || (e.message && e.message.indexOf('token') !== -1)) {
-        fcmCredsOk = true;
-      }
-    }
-    res.json({
-      success: true,
-      totalStudents: allStudentCount,
-      studentCount: students.length,
-      userTokens,
-      apiKeySet,
-      apiKeyPreview,
-      vapidKeySet: !!process.env.FIREBASE_VAPID_KEY,
-      adminFcmTokenSet: !!(adminUser && adminUser.fcmToken),
-      fcmCredsOk: fcmCredsOk,
-      fcmCredsError: fcmCredsError
-    });
-  } catch (e) {
-    res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' });
-  }
-});
 
-app.get('/api/admin/test-send-raw-fcm', requireAdmin, async (req, res) => {
-  try {
-    const token = req.query.token || '';
-    if (!token) return res.json({ success: false, error: 'Missing ?token=' });
-    const hasMessaging = admin && typeof admin.messaging === 'function';
-    if (!hasMessaging) return res.json({ success: false, error: 'admin.messaging is not a function (messaging scope unavailable)' });
-    const messaging = admin.messaging();
-    try {
-      const result = await messaging.send({ token: token, data: { title: 'Test', body: 'raw fcm test', url: '/' } });
-      res.json({ success: true, result: result });
-    } catch (e) {
-      res.json({ success: false, errorCode: e.code || '', errorMessage: e.message, fullError: e.errorInfo || null });
-    }
-  } catch (e) {
-    res.status(500).json({ success: false, serverError: e.message });
-  }
-});
 
 function clearAllFcm() {
   return (async () => {
-    const users = await readData('users');
-    let cleared = 0;
-    users.forEach(function(u) {
-      if (u.fcmToken) { u.fcmToken = ''; u.fcmTokenSavedAt = ''; cleared++; }
+    const prisma = getPrisma();
+    const result = await prisma.user.updateMany({
+      where: { fcmToken: { not: '' } },
+      data: { fcmToken: '' },
     });
-    await writeData('users', users);
-    return cleared;
+    return result.count;
   })();
 }
 
@@ -6585,29 +6925,7 @@ app.get('/api/admin/fcm-project', requireAdmin, async (req, res) => {
   }
 });
 
-app.get('/api/admin/test-send-fcm', requireAdmin, async (req, res) => {
-  try {
-    const users = await readData('users');
-    const adminUser = users.find(u => u.role === 'admin' && u.fcmToken);
-    if (!adminUser) return res.json({ success: false, error: 'Admin has no FCM token' });
-    const message = { token: adminUser.fcmToken, notification: { title: 'Test', body: 'This is a test notification' }, data: { url: '/' } };
-    try {
-      const result = await admin.messaging().send(message);
-      res.json({ success: true, result: result });
-    } catch (e) {
-      // Auto-delete unregistered/invalid token so the browser regenerates a fresh one.
-      if (e.code === 'messaging/invalid-registration-token' || e.code === 'messaging/registration-token-not-registered') {
-        const idx = users.findIndex(u => u.id === adminUser.id);
-        if (idx !== -1) { users[idx].fcmToken = ''; users[idx].fcmTokenSavedAt = ''; await writeData('users', users); }
-        res.json({ success: false, error: e.code || e.message, fullError: e.message, autoDeleted: true, action: 'token removed from DB — please re-open site to regenerate' });
-      } else {
-        res.json({ success: false, error: e.code || e.message, fullError: e.message });
-      }
-    }
-  } catch (e) {
-    res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' });
-  }
-});
+
 
 /* ===================== File Upload (Word → Questions) ===================== */
 
@@ -6771,12 +7089,22 @@ app.post('/api/admin/upload-note-file', requireAdmin, upload.single('file'), asy
     var ext = path.extname(req.file.originalname) || '.pdf';
     var allowedExts = ['.pdf','.png','.jpg','.jpeg','.webp','.gif','.doc','.docx','.ppt','.pptx','.txt','.zip'];
     if (allowedExts.indexOf(ext.toLowerCase()) === -1) return res.status(400).json({ error: 'نوع الملف غير مسموح به' });
-    const fs = require('fs');
-    const dir = path.join(__dirname, 'uploads', 'notes');
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    const filename = 'note-' + Date.now() + ext;
-    fs.writeFileSync(path.join(dir, filename), req.file.buffer);
-    res.json({ success: true, url: '/uploads/notes/' + filename });
+
+    if (storageConfig.isR2Enabled()) {
+      const storage = getStorageService();
+      const noteId = 'note-' + Date.now();
+      const objectKey = storage.generateObjectKey('notes', noteId, 'file', req.file.originalname);
+      await storage.upload({
+        key: objectKey,
+        body: req.file.buffer,
+        contentType: req.file.mimetype || 'application/octet-stream',
+        metadata: { originalName: req.file.originalname, uploadedBy: req.session.user ? (req.session.user.id || req.session.user.email) : 'admin' }
+      });
+      return res.json({ success: true, url: objectKey });
+    }
+
+    const path2 = await supabaseStorage.uploadPdf('notes', req.file.originalname, req.file.buffer, req.file.mimetype);
+    res.json({ success: true, url: path2 });
   } catch (e) {
     res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' });
   }
@@ -7175,22 +7503,8 @@ app.post('/api/admin/live-sessions/:id/start', requireAdmin, async (req, res) =>
       }
       var startSent = 0;
       for (var ri = 0; ri < recipients.length; ri++) {
-        try {
-          var msg = {
-            token: recipients[ri].fcmToken,
-            notification: { title: '📺 الحصة المباشرة بدأت الآن!', body: (s.title || 'حصة مباشرة') + ' - اضغط للانضمام' },
-            data: { url: '/student/live-session/' + s.id, click_action: 'FLUTTER_NOTIFICATION_CLICK' }
-          };
-          await admin.messaging().send(msg);
-          sessionSent++;
-          if (admin.messaging) { await admin.messaging().send(msg); startSent++; }
-        } catch (fcmErr) {
-          console.error('[start] FCM error:', fcmErr.code || fcmErr.message);
-          if (fcmErr.code === 'messaging/invalid-registration-token' || fcmErr.code === 'messaging/registration-token-not-registered') {
-            var uidx = allUsers.findIndex(function(x) { return x.id === recipients[ri].id; });
-            if (uidx !== -1) { allUsers[uidx].fcmToken = ''; }
-          }
-        }
+        var ok = await sendFCM(recipients[ri].id, '📺 الحصة المباشرة بدأت الآن!', (s.title || 'حصة مباشرة') + ' - اضغط للانضمام', '/student/live-session/' + s.id);
+        if (ok) { sessionSent++; startSent++; }
       }
       // Mark notified so cron doesn't send a duplicate "about to start" notification
       if (startSent > 0) {
@@ -7497,21 +7811,8 @@ app.get('/api/cron/check-notifications', async (req, res) => {
       }
       var sessionSent = 0;
       for (var ri = 0; ri < recipients.length; ri++) {
-        try {
-          var msg = {
-            token: recipients[ri].fcmToken,
-            notification: { title: '🔔 الحصة المباشرة على وشك البدء', body: (s.title || 'حصة مباشرة') + ' ستبدأ قريباً - اضغط للانضمام!' },
-            data: { url: '/student/live-session/' + s.id, click_action: 'FLUTTER_NOTIFICATION_CLICK' }
-          };
-          await admin.messaging().send(msg);
-          sessionSent++;
-        } catch (fcmErr) {
-          console.error('[cron] FCM error for', recipients[ri].id, ':', fcmErr.code || fcmErr.message);
-          if (fcmErr.code === 'messaging/invalid-registration-token' || fcmErr.code === 'messaging/registration-token-not-registered') {
-            var uidx = users.findIndex(function(x) { return x.id === recipients[ri].id; });
-            if (uidx !== -1) { users[uidx].fcmToken = ''; }
-          }
-        }
+        var ok = await sendFCM(recipients[ri].id, '🔔 الحصة المباشرة على وشك البدء', (s.title || 'حصة مباشرة') + ' ستبدأ قريباً - اضغط للانضمام!', '/student/live-session/' + s.id);
+        if (ok) sessionSent++;
       }
       if (sessionSent > 0) {
         s.notified = true;
@@ -7593,20 +7894,12 @@ app.get('/api/debug/notifications', requireAdmin, async (req, res) => {
   }
 });
 
-// Temp: check outbound IP for Brevo whitelist
-var http = require('http');
-app.get('/api/debug/ip', async (req, res) => {
-  try {
-    var ip = await new Promise(function(ok) { http.get('http://api.ipify.org', function(r) { var d=''; r.on('data',function(c){d+=c;}); r.on('end',function(){ok(d.trim());}); }).on('error', function(){ok('failed');}); });
-    res.json({ outboundIP: ip, headers: req.headers });
-  } catch(e) { res.json({ error: e.message }); }
-});
-
 // Global error handler
 app.use(function(err, req, res, next) {
   console.error('[ERROR]', req.method, req.url, err.stack || err.message || err);
   if (res.headersSent) return;
-  res.status(500).send('خطأ في الخادم: ' + (err.message || ''));
+  var isFirebaseError = err && (err.code || (err.errorInfo && err.errorInfo.code));
+  res.status(500).send(isFirebaseError ? getFirebaseErrorMessage(err) : 'حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى.');
 });
 
 app.get('/admin/puter-ai', requireAdmin, async (req, res) => {

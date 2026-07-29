@@ -8,24 +8,7 @@
     </div>
   </div>
 
-  <% var fawaterkStatus = typeof fawaterkStatus !== 'undefined' ? fawaterkStatus : ''; %>
-  <% if (fawaterkStatus === 'success') { %>
-  <div style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);border-radius:var(--radius);padding:20px 24px;margin-bottom:20px;display:flex;align-items:center;gap:14px;">
-    <i class="fas fa-check-circle" style="font-size:28px;color:var(--success);"></i>
-    <div>
-      <h3 style="font-size:15px;font-weight:700;margin-bottom:4px;color:var(--success);">تم الدفع بنجاح!</h3>
-      <p style="font-size:13px;color:var(--text-light);margin:0;">تم تفعيل اشتراكك. يمكنك الآن مشاهدة جميع المحاضرات.</p>
-    </div>
-  </div>
-  <% } else if (fawaterkStatus === 'fail') { %>
-  <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:var(--radius);padding:20px 24px;margin-bottom:20px;display:flex;align-items:center;gap:14px;">
-    <i class="fas fa-times-circle" style="font-size:28px;color:var(--danger);"></i>
-    <div>
-      <h3 style="font-size:15px;font-weight:700;margin-bottom:4px;color:var(--danger);">فشلت عملية الدفع</h3>
-      <p style="font-size:13px;color:var(--text-light);margin:0;">لم تتم عملية الدفع. يمكنك المحاولة مرة أخرى أو اختيار الدفع اليدوي.</p>
-    </div>
-  </div>
-  <% } %>
+
 
   <% if (isGuest) { %>
   <div style="background:var(--accent-glow);border:1px solid var(--accent);border-radius:var(--radius);padding:20px 24px;margin-bottom:20px;text-align:center;">
@@ -95,6 +78,7 @@
   </div>
 
   <div class="subscription-plans">
+    <% if (subscriptions && subscriptions.length > 0) { %>
     <% subscriptions.forEach(function(sub, idx) { %>
     <div class="sub-card <%= sub.popular ? 'popular' : '' %>">
       <% if (sub.popular) { %><div class="sub-badge">الأكثر طلباً</div><% } %>
@@ -121,10 +105,17 @@
           <% }) %>
         </ul>
       </div>
-      <button class="btn btn-primary" onclick="openSubPopup(<%= idx %>, '<%= sub.name %>', '<%= sub.price %>')">اشترك الآن</button>
+      <button class="btn btn-primary" onclick="openSubPopup(<%= idx %>, '<%= sub.name %>', '<%= sub.price %>', '<%= sub.id %>')">اشترك الآن</button>
       <div class="sub-expand" onclick="toggleFeatures(<%= idx %>)"><span>عرض المزايا</span> <i class="fas fa-chevron-down"></i></div>
     </div>
     <% }) %>
+    <% } else { %>
+    <div style="text-align:center;padding:60px 20px;color:var(--text-muted);">
+      <i class="fas fa-box-open" style="font-size:40px;display:block;margin-bottom:12px;opacity:0.4;"></i>
+      <div style="font-size:16px;font-weight:600;">لا توجد خطط اشتراك متاحة حالياً</div>
+      <p style="font-size:13px;margin-top:6px;">سيتم إضافة خطط قريباً</p>
+    </div>
+    <% } %>
   </div>
 </main>
 
@@ -151,9 +142,6 @@
         <div style="background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.15);border-radius:var(--radius);padding:20px;text-align:center;margin-bottom:20px;">
           <div style="font-size:13px;color:var(--text-light);margin-bottom:8px;">المطلوب</div>
           <div id="instantPriceDisplay" style="font-size:32px;font-weight:900;color:var(--accent);"></div>
-          <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">
-            <i class="fas fa-info-circle"></i> رسوم خدمة الدفع الإلكتروني <strong>3%</strong>
-          </div>
         </div>
 
         <div style="background:var(--bg);border-radius:var(--radius);padding:16px;margin-bottom:20px;font-size:13px;color:var(--text-light);line-height:1.8;">
@@ -165,20 +153,22 @@
             <span style="color:var(--success);">خصم الدعوة (<span id="instantDiscountPct"></span>%)</span>
             <span id="instantDiscountAmount" style="font-weight:700;color:var(--success);"></span>
           </div>
-          <div style="display:flex;justify-content:space-between;padding:4px 0;">
-            <span>رسوم الخدمة (3%)</span>
-            <span id="instantFee" style="font-weight:700;color:var(--text);"></span>
-          </div>
           <div style="border-top:1px solid var(--border);margin:8px 0;padding:8px 0 0;display:flex;justify-content:space-between;">
             <span style="font-weight:700;">الإجمالي</span>
             <span id="instantTotal" style="font-weight:900;font-size:18px;color:var(--accent);"></span>
           </div>
         </div>
 
-        <button class="btn btn-primary btn-lg" onclick="payInstant()" id="instantPayBtn" style="width:100%;">
-          <i class="fas fa-credit-card"></i> ادفع الآن عبر Fawaterk
+        <% if (typeof shakeoutEnabled !== 'undefined' && shakeoutEnabled) { %>
+        <button class="btn btn-primary btn-lg" onclick="payShakeout()" id="shakeoutPayBtn" style="width:100%;padding:16px;font-size:16px;">
+          <i class="fas fa-bolt"></i> ادفع الآن (تفعيل لحظي)
         </button>
-        <div id="instantPayError" style="display:none;background:rgba(220,38,38,0.1);border:1px solid rgba(220,38,38,0.2);border-radius:var(--radius);padding:12px;margin-top:12px;text-align:center;font-size:13px;color:var(--danger);"></div>
+        <div id="shakeoutPayError" style="display:none;background:rgba(220,38,38,0.1);border:1px solid rgba(220,38,38,0.2);border-radius:var(--radius);padding:12px;margin-top:12px;text-align:center;font-size:13px;color:var(--danger);"></div>
+        <% } else { %>
+        <div style="background:rgba(220,38,38,0.06);border:1px solid rgba(220,38,38,0.15);border-radius:var(--radius);padding:16px;text-align:center;font-size:13px;color:var(--text-light);">
+          الدفع الإلكتروني غير متاح حالياً. استخدم الدفع اليدوي.
+        </div>
+        <% } %>
       </div>
 
       <!-- Tab Content: Manual -->
@@ -351,12 +341,13 @@ function removeManualReceipt() {
   document.getElementById('manualReceiptImage').value = '';
 }
 
-var currentPlanName = '', currentPlanPrice = 0, currentPriceNum = 0;
+var currentPlanName = '', currentPlanPrice = 0, currentPriceNum = 0, currentPlanId = '';
 
-function openSubPopup(idx, name, price) {
+function openSubPopup(idx, name, price, planId) {
   currentPlanName = name;
   currentPriceNum = parseInt(price) || 0;
   currentPlanPrice = discountPct > 0 ? Math.round(currentPriceNum - (currentPriceNum * discountPct / 100)) : currentPriceNum;
+  currentPlanId = planId || '';
   document.getElementById('popupPlanName').textContent = name;
   document.getElementById('manualPlanName').value = name;
   document.getElementById('manualPlanPrice').value = currentPlanPrice;
@@ -390,16 +381,12 @@ function switchTab(tab) {
 function updateInstantPrices() {
   var base = currentPriceNum;
   var discounted = discountPct > 0 ? Math.round(base - (base * discountPct / 100)) : base;
-  var afterDiscount = discounted;
-  var fee = Math.round(afterDiscount * 3 / 100);
-  var total = afterDiscount + fee;
-  var feeDisplay = document.getElementById('instantFee');
+  var total = discounted;
   var totalDisplay = document.getElementById('instantTotal');
   var baseDisplay = document.getElementById('instantBasePrice');
   var priceDisplay = document.getElementById('instantPriceDisplay');
   priceDisplay.innerHTML = total + ' <span style="font-size:16px;font-weight:600;">جنيه</span>';
   baseDisplay.textContent = base + ' جنيه';
-  feeDisplay.textContent = fee + ' جنيه';
   totalDisplay.textContent = total + ' جنيه';
   var discountRow = document.getElementById('instantDiscountRow');
   if (discountPct > 0) {
@@ -409,8 +396,6 @@ function updateInstantPrices() {
   } else {
     discountRow.style.display = 'none';
   }
-  var totalWithFees = document.getElementById('instantPriceDisplay');
-  totalWithFees.innerHTML = total + ' <span style="font-size:16px;font-weight:600;">جنيه</span>';
 }
 
 function updateManualPrices() {
@@ -424,15 +409,16 @@ function updateManualPrices() {
   }
 }
 
-function payInstant() {
-  var btn = document.getElementById('instantPayBtn');
-  var errDiv = document.getElementById('instantPayError');
+<% if (typeof shakeoutEnabled !== 'undefined' && shakeoutEnabled) { %>
+function payShakeout() {
+  var btn = document.getElementById('shakeoutPayBtn');
+  var errDiv = document.getElementById('shakeoutPayError');
   errDiv.style.display = 'none';
   btn.disabled = true;
   btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري تحويلك إلى بوابة الدفع...';
-  fetch('/api/student/pay-subscription-fawaterk', {
+  fetch('/api/student/pay-subscription-shakeout', {
     method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ planName: currentPlanName, price: currentPlanPrice })
+    body: JSON.stringify({ planName: currentPlanName, price: currentPlanPrice, planId: currentPlanId })
   }).then(function(r) { return r.json(); }).then(function(d) {
     if (d.success && d.paymentUrl) {
       window.location.href = d.paymentUrl;
@@ -440,15 +426,20 @@ function payInstant() {
       errDiv.style.display = 'block';
       errDiv.textContent = d.error || 'حدث خطأ، حاول مرة أخرى';
       btn.disabled = false;
-      btn.innerHTML = '<i class="fas fa-credit-card"></i> ادفع الآن عبر Fawaterk';
+      btn.innerHTML = '<i class="fas fa-bolt"></i> ادفع الآن (تفعيل لحظي)';
     }
   }).catch(function() {
     errDiv.style.display = 'block';
     errDiv.textContent = 'حدث خطأ في الاتصال';
     btn.disabled = false;
-    btn.innerHTML = '<i class="fas fa-credit-card"></i> ادفع الآن عبر Fawaterk';
+    btn.innerHTML = '<i class="fas fa-bolt"></i> ادفع الآن (تفعيل لحظي)';
   });
 }
+window.addEventListener('pageshow', function() {
+  var btn = document.getElementById('shakeoutPayBtn');
+  if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-bolt"></i> ادفع الآن (تفعيل لحظي)'; }
+});
+<% } %>
 
 function submitManualSubscription() {
   var transactionId = document.getElementById('manualTransactionId').value.trim();

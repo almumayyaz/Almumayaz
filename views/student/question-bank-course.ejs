@@ -11,108 +11,221 @@
     </div>
   </div>
 
+  <% if (courseBanks && courseBanks.length > 0) { %>
   <% courseBanks.forEach(function(bank, bi) { %>
-  <div class="quiz-section" data-bank="<%= bi %>" style="margin-bottom:28px;">
+  <%
+    var ts = bank.timeSettings || null;
+    var hasTimer = ts && (ts.enableDuration || (ts.enableAvailability && ts.availableTo));
+  %>
+  <div class="quiz-section" data-bank="<%= bi %>" data-bank-id="<%= bank.id %>" style="margin-bottom:28px;" data-has-timer="<%= hasTimer ? '1' : '0' %>" data-ts='<%- JSON.stringify(ts) %>'>
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;margin-bottom:24px;">
       <h2 style="margin-bottom:0;"><i class="fas fa-question-circle" style="color:<%= course.color %>;"></i> <%= bank.title %></h2>
-      <% if (bank.timerMinutes) { %><span style="background:var(--primary);color:#fff;padding:6px 16px;border-radius:6px;font-size:14px;font-weight:600;">
-        <i class="fas fa-clock"></i> <span class="timerDisplay" data-bank="<%= bi %>"><%= String(bank.timerMinutes).padStart(2,'0') %>:00</span>
-      </span><% } %>
     </div>
     <% if (bank.description) { %><p style="font-size:14px;color:var(--text-light);margin-bottom:16px;"><%= bank.description %></p><% } %>
 
-    <% (bank.questions||[]).forEach(function(q, qi) { %>
-    <div class="quiz-question" data-correct="<%= q.correct %>" data-bank="<%= bi %>" data-wrong-msg="<%= (q.wrongAnswerMessage || '').replace(/\n/g,' ').replace(/"/g,'&quot;') %>">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-        <span style="background:var(--gold-gradient);color:var(--primary);width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;"><%= qi + 1 %></span>
-        <h3 style="margin-bottom:0;font-size:16px;"><%= q.question %></h3>
+    <!-- Timer Header للبنك -->
+    <div class="qb-timer-header" id="qbTimerHeader_<%= bi %>" style="display:none;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 16px;margin-bottom:16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-size:13px;font-weight:600;"><%= bank.title %></span>
+        <span id="qbTimerDisplay_<%= bi %>" style="font-size:20px;font-weight:800;font-variant-numeric:tabular-nums;direction:ltr;font-family:monospace;transition:color 0.4s ease;">--:--:--</span>
       </div>
-      <div class="quiz-options">
-        <% q.options.forEach(function(o, oi) { %>
-        <label class="quiz-option">
-          <input type="radio" name="qb_q_<%= bi %>_<%= qi %>" value="<%= oi %>">
-          <span><%= o %></span>
-        </label>
-        <% }) %>
+      <div style="width:100%;height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-top:6px;">
+        <div id="qbProgressBar_<%= bi %>" style="height:100%;width:0%;background:var(--accent);border-radius:2px;transition:width 0.5s ease,background 0.4s ease;"></div>
       </div>
     </div>
-    <% }) %>
 
-    <div style="margin-top:28px;">
-      <button class="btn btn-primary btn-sm btn-submit-bank" data-bank="<%= bi %>" style="width:100%;">
-        <i class="fas fa-check-circle"></i> تقييم الإجابات
+    <!-- شاشة بدء الامتحان لكل بنك -->
+    <div class="qb-start-screen" id="qbStartScreen_<%= bi %>" style="text-align:center;padding:40px 20px;background:var(--card);border-radius:12px;border:1px solid var(--border);">
+      <div style="font-size:36px;margin-bottom:12px;">📝</div>
+      <h3 style="margin-bottom:4px;"><%= bank.title %></h3>
+      <p style="color:var(--text-light);font-size:13px;margin-bottom:16px;"><%= (bank.questions||[]).length %> سؤال</p>
+      <button class="btn btn-primary btn-sm start-bank-btn" data-bi="<%= bi %>">
+        <i class="fas fa-play"></i> ابدأ
       </button>
+    </div>
+
+    <!-- محتوى بنك الأسئلة (مخفي حتى البدء) -->
+    <div class="qb-content" id="qbContent_<%= bi %>" style="display:none;">
+      <% (bank.questions||[]).forEach(function(q, qi) { %>
+      <div class="quiz-question" data-correct="<%= q.correct %>" data-bank="<%= bi %>" data-idx="<%= qi %>" data-wrong-msg="<%= (q.wrongAnswerMessage || '').replace(/\n/g,' ').replace(/"/g,'&quot;') %>">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+          <span style="background:var(--gold-gradient);color:var(--primary);width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;"><%= qi + 1 %></span>
+          <h3 style="margin-bottom:0;font-size:16px;"><%= q.question %></h3>
+        </div>
+        <div class="quiz-options">
+          <% q.options.forEach(function(o, oi) { %>
+          <label class="quiz-option">
+            <input type="radio" name="qb_q_<%= bi %>_<%= qi %>" value="<%= oi %>" data-idx="<%= qi %>" data-bi="<%= bi %>">
+            <span><%= o %></span>
+          </label>
+          <% }) %>
+        </div>
+      </div>
+      <% }) %>
+
+      <div style="margin-top:28px;">
+        <button class="btn btn-primary btn-sm btn-submit-bank" data-bank="<%= bi %>" style="width:100%;">
+          <i class="fas fa-check-circle"></i> تسليم الإجابات
+        </button>
+      </div>
     </div>
   </div>
   <% }) %>
-
+  <% } else { %>
+  <div style="text-align:center;padding:60px 20px;color:var(--text-muted);">
+    <i class="fas fa-database" style="font-size:40px;display:block;margin-bottom:12px;opacity:0.4;"></i>
+    <div style="font-size:16px;font-weight:600;">لا توجد بنوك أسئلة متاحة حالياً</div>
+    <p style="font-size:13px;margin-top:6px;">سيتم إضافة بنوك الأسئلة قريباً</p>
+  </div>
+  <% } %>
 </main>
 
 <script>
-var timerIntervals = {};
-var bankTimers = {};
-<% courseBanks.forEach(function(bank, bi) { %>
-  <% if (bank.timerMinutes) { %>
-    bankTimers[<%= bi %>] = { seconds: <%= bank.timerMinutes * 60 %>, running: true };
-  <% } %>
-<% }); %>
+(function() {
+  var courseId = '<%= course.id %>';
+  var questions = document.querySelectorAll('.quiz-question');
+  var runningAttempts = {};
+  var countdownTimers = {};
+  var syncTimers = {};
+  var saveTimers = {};
 
-function startBankTimer(bi) {
-  var t = bankTimers[bi];
-  if (!t) return;
-  var display = document.querySelector('.timerDisplay[data-bank="' + bi + '"]');
-  if (!display) return;
-  timerIntervals[bi] = setInterval(function() {
-    t.seconds--;
-    var m = Math.floor(t.seconds / 60);
-    var s = t.seconds % 60;
-    display.textContent = m.toString().padStart(2, '0') + ':' + s.toString().padStart(2, '0');
-    if (t.seconds <= 0) {
-      clearInterval(timerIntervals[bi]);
-      t.running = false;
-      alert('انتهى الوقت!');
-      document.querySelector('.btn-submit-bank[data-bank="' + bi + '"]')?.click();
-    }
-  }, 1000);
-}
+  function formatTime(ms) {
+    if (ms === null || ms === undefined) return '--:--:--';
+    var totalSec = Math.max(0, Math.floor(ms / 1000));
+    var h = Math.floor(totalSec / 3600);
+    var m = Math.floor((totalSec % 3600) / 60);
+    var s = totalSec % 60;
+    return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+  }
 
-document.querySelectorAll('.btn-submit-bank').forEach(function(btn) {
-  btn.addEventListener('click', function() {
-    var bi = this.dataset.bank;
-    if (bankTimers[bi] && timerIntervals[bi]) {
-      clearInterval(timerIntervals[bi]);
-      bankTimers[bi].running = false;
-    }
-    var quiz = this.closest('.quiz-section');
-    if (!quiz) return;
-    var questions = quiz.querySelectorAll('.quiz-question');
-    var score = 0, total = questions.length, allAnswered = true;
+  function updateQbTimerColor(bi, pct) {
+    var el = document.getElementById('qbTimerDisplay_' + bi);
+    if (!el) return;
+    if (pct > 0.3) el.style.color = '';
+    else if (pct > 0.1) el.style.color = '#F59E0B';
+    else el.style.color = '#EF4444';
+    var bar = document.getElementById('qbProgressBar_' + bi);
+    if (!bar) return;
+    if (pct > 0.3) bar.style.background = 'var(--accent)';
+    else if (pct > 0.1) bar.style.background = '#F59E0B';
+    else bar.style.background = '#EF4444';
+  }
 
-    questions.forEach(function(q) {
+  function startQbCountdown(bi, realEndTime, startedAt) {
+    if (!realEndTime) return;
+    var endTime = new Date(realEndTime).getTime();
+    var totalDuration = startedAt ? endTime - new Date(startedAt).getTime() : endTime - Date.now();
+
+    countdownTimers[bi] = setInterval(function() {
+      var remainingMs = Math.max(0, endTime - Date.now());
+      var display = document.getElementById('qbTimerDisplay_' + bi);
+      if (display) display.textContent = formatTime(remainingMs);
+
+      var pct = totalDuration > 0 ? remainingMs / totalDuration : 0;
+      updateQbTimerColor(bi, pct);
+      var bar = document.getElementById('qbProgressBar_' + bi);
+      if (bar) bar.style.width = ((1 - pct) * 100) + '%';
+
+      if (remainingMs <= 0) {
+        clearInterval(countdownTimers[bi]);
+        clearInterval(saveTimers[bi]);
+        clearInterval(syncTimers[bi]);
+        handleQbAutoSubmit(bi);
+      }
+    }, 1000);
+  }
+
+  function handleQbAutoSubmit(bi) {
+    var section = document.querySelector('.quiz-section[data-bank="' + bi + '"]');
+    if (!section) return;
+    var attempt = runningAttempts[bi];
+    if (!attempt || attempt.submitting) return;
+    attempt.submitting = true;
+    var answers = collectQbAnswers(bi);
+    fetch('/api/exam/submit', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ attemptId: attempt.id, answers: answers })
+    }).then(function(r) { return r.json(); }).then(function(d) {
+      if (d.success) showQbResult(bi, answers, true);
+    });
+  }
+
+  function collectQbAnswers(bi) {
+    var answers = {};
+    var section = document.querySelector('.quiz-section[data-bank="' + bi + '"]');
+    if (!section) return answers;
+    var qs = section.querySelectorAll('.quiz-question');
+    qs.forEach(function(q) {
+      var idx = q.dataset.idx;
+      var selected = q.querySelector('input[type="radio"]:checked');
+      if (selected) answers[idx] = selected.value;
+    });
+    return answers;
+  }
+
+  function saveQbAnswersToServer(bi) {
+    var attempt = runningAttempts[bi];
+    if (!attempt || !attempt.id) return;
+    var answers = collectQbAnswers(bi);
+    fetch('/api/exam/save-answers', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ attemptId: attempt.id, answers: answers })
+    }).catch(function() {});
+  }
+
+  function syncQbWithServer(bi) {
+    var attempt = runningAttempts[bi];
+    if (!attempt || !attempt.id) return;
+    fetch('/api/exam/sync', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ attemptId: attempt.id })
+    }).then(function(r) { return r.json(); }).then(function(d) {
+      if (d.success && d.status !== 'active') {
+        clearInterval(countdownTimers[bi]);
+        clearInterval(saveTimers[bi]);
+        clearInterval(syncTimers[bi]);
+      }
+    }).catch(function() {});
+  }
+
+  function showQbResult(bi, answers, autoSubmitted) {
+    var section = document.querySelector('.quiz-section[data-bank="' + bi + '"]');
+    if (!section) return;
+
+    // إخفاء العداد
+    var timerHeader = document.getElementById('qbTimerHeader_' + bi);
+    if (timerHeader) timerHeader.style.display = 'none';
+
+    // حساب النتيجة
+    var qs = section.querySelectorAll('.quiz-question');
+    var score = 0, total = qs.length;
+    qs.forEach(function(q) {
+      var correct = parseInt(q.dataset.correct);
       var selected = q.querySelector('input[type="radio"]:checked');
       var options = q.querySelectorAll('.quiz-option');
-      var correct = parseInt(q.dataset.correct);
-      if (!selected) { allAnswered = false; return; }
-      var selIdx = parseInt(selected.value);
       options.forEach(function(o, oi) {
         o.style.borderColor = oi === correct ? '#059669' : '';
         o.style.background = oi === correct ? 'rgba(5,150,105,0.08)' : '';
       });
-      if (selIdx === correct) { score++; }
-      else {
-        selected.closest('.quiz-option').style.borderColor = '#DC2626';
-        var wrongMsg = q.dataset.wrongMsg || 'إجابة غير صحيحة، راجع الدرس ثم حاول مرة أخرى.';
-        if (!q.querySelector('.wrong-msg-card')) {
-          var card = document.createElement('div');
-          card.className = 'wrong-msg-card';
-          card.style.cssText = 'margin-top:12px;padding:12px 14px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:10px;font-size:13px;color:#D97706;display:flex;align-items:center;gap:10px;line-height:1.6;';
-          card.innerHTML = '<i class="fas fa-exclamation-triangle" style="font-size:16px;flex-shrink:0;"></i><span>' + wrongMsg + '</span>';
-          q.appendChild(card);
+      if (selected) {
+        var selIdx = parseInt(selected.value);
+        if (selIdx === correct) score++;
+        else {
+          selected.closest('.quiz-option').style.borderColor = '#DC2626';
+          var wrongMsg = q.dataset.wrongMsg || 'إجابة غير صحيحة، راجع الدرس ثم حاول مرة أخرى.';
+          if (!q.querySelector('.wrong-msg-card')) {
+            var card = document.createElement('div');
+            card.className = 'wrong-msg-card';
+            card.style.cssText = 'margin-top:12px;padding:12px 14px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:10px;font-size:13px;color:#D97706;display:flex;align-items:center;gap:10px;line-height:1.6;';
+            card.innerHTML = '<i class="fas fa-exclamation-triangle" style="font-size:16px;flex-shrink:0;"></i><span>' + wrongMsg + '</span>';
+            q.appendChild(card);
+          }
         }
       }
     });
-
-    if (!allAnswered) { alert('يرجى الإجابة على جميع الأسئلة أولاً'); return; }
 
     var pct = Math.round((score / total) * 100);
     var grade = 'ضعيف';
@@ -121,19 +234,123 @@ document.querySelectorAll('.btn-submit-bank').forEach(function(btn) {
     else if (pct >= 60) { grade = 'جيد'; }
     else if (pct >= 45) { grade = 'مقبول'; }
 
-    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-    var resTextColor = isDark ? '#111' : '#fff';
-    var results = '<div class="quiz-results" style="margin-top:20px;padding:24px;background:var(--card);border-radius:12px;border:1px solid var(--border);"><div style="text-align:center;padding:24px;background:var(--gold-gradient);border-radius:12px;color:' + resTextColor + ';margin-bottom:16px;"><div style="font-size:48px;font-weight:900;line-height:1;">' + score + '/' + total + '</div><div style="font-size:20px;opacity:0.85;">' + pct + '%</div><div style="font-size:26px;font-weight:700;margin-top:8px;">' + grade + '</div></div></div>';
+    var passed = pct >= 60;
+    var confetti = '';
+    if (passed) {
+      for (var ci = 0; ci < 12; ci++) {
+        var left = 10 + Math.random() * 80;
+        var delay = Math.random() * 0.6;
+        var bg = ['#FCD34D','#F59E0B','#34D399','#60A5FA','#F472B6','#A78BFA'][Math.floor(Math.random()*6)];
+        confetti += '<div class="confetti-piece" style="left:'+left+'%;bottom:-10px;background:'+bg+';animation-delay:'+delay+'s;"></div>';
+      }
+    }
+    var results = '<div class="quiz-results ' + (passed ? 'quiz-celebrate' : 'quiz-fail') + '" style="position:relative;overflow:hidden;margin-top:20px;padding:32px 20px;border-radius:12px;text-align:center;color:#fff;background:' + (passed ? 'linear-gradient(135deg,#059669,#10B981)' : 'linear-gradient(135deg,#DC2626,#EF4444)') + ';">' + confetti + '<div style="font-size:48px;margin-bottom:8px;position:relative;z-index:1;">' + (passed ? '🎉' : '😠') + '</div><div style="font-size:22px;font-weight:700;position:relative;z-index:1;">' + (passed ? 'أحسنت!' : 'حاول مرة أخرى') + '</div><div style="font-size:14px;opacity:0.9;margin-top:4px;position:relative;z-index:1;">' + score + '/' + total + ' — ' + pct + '% — ' + grade + '</div>' + (autoSubmitted ? '<div style="margin-top:12px;font-size:13px;opacity:0.8;position:relative;z-index:1;"><i class="fas fa-clock"></i> تم التسليم تلقائياً لانتهاء الوقت</div>' : '') + '</div>';
 
-    this.style.display = 'none';
-    quiz.querySelector('.quiz-results')?.remove();
-    quiz.insertAdjacentHTML('beforeend', results);
+    var submitBtn = section.querySelector('.btn-submit-bank');
+    if (submitBtn) submitBtn.style.display = 'none';
+    section.querySelector('.qb-content').insertAdjacentHTML('beforeend', results);
+
+    // حفظ النتيجة
+    fetch('/api/exam/grade', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ attemptId: runningAttempts[bi].id, score: score, total: total })
+    }).catch(function(){});
+  }
+
+  // ===== أزرار بدء الامتحان لكل بنك =====
+  document.querySelectorAll('.start-bank-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var bi = this.dataset.bi;
+      var section = document.querySelector('.quiz-section[data-bank="' + bi + '"]');
+      if (!section) return;
+      var bankId = section.dataset.bankId;
+      var hasTimer = section.dataset.hasTimer === '1';
+
+      this.disabled = true;
+      this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري التجهيز...';
+
+      var tsStr = section.getAttribute('data-ts');
+      var timeSettings = null;
+      if (tsStr) { try { timeSettings = JSON.parse(tsStr); } catch(e) {} }
+
+      fetch('/api/exam/start', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          examId: bankId,
+          examType: 'questionBank',
+          courseId: courseId,
+          timeSettings: timeSettings
+        })
+      }).then(function(r) { return r.json(); }).then(function(d) {
+        if (!d.success) {
+          alert(d.error || 'فشل بدء الامتحان');
+          return;
+        }
+        runningAttempts[bi] = d.attempt;
+        runningAttempts[bi].submitting = false;
+
+        // إظهار المحتوى وإخفاء شاشة البداية
+        document.getElementById('qbStartScreen_' + bi).style.display = 'none';
+        document.getElementById('qbContent_' + bi).style.display = '';
+
+        if (hasTimer && d.attempt.realEndTime) {
+          document.getElementById('qbTimerHeader_' + bi).style.display = '';
+          startQbCountdown(bi, d.attempt.realEndTime, d.attempt.startedAt);
+
+          // حفظ تلقائي كل 15 ثانية
+          saveTimers[bi] = setInterval(function() { saveQbAnswersToServer(bi); }, 15000);
+
+          // مزامنة كل دقيقة
+          syncTimers[bi] = setInterval(function() { syncQbWithServer(bi); }, 60000);
+        }
+
+        // حفظ عند تغيير الإجابة
+        section.querySelectorAll('input[type="radio"]').forEach(function(inp) {
+          inp.addEventListener('change', function() { saveQbAnswersToServer(bi); });
+        });
+
+        // حفظ قبل إغلاق الصفحة
+        window.addEventListener('beforeunload', function() { saveQbAnswersToServer(bi); });
+      }).catch(function() {
+        alert('فشل الاتصال بالخادم');
+        this.disabled = false;
+        this.innerHTML = '<i class="fas fa-play"></i> ابدأ';
+      });
+    });
   });
-});
 
-<% courseBanks.forEach(function(bank, bi) { %>
-  <% if (bank.timerMinutes) { %>startBankTimer(<%= bi %>);<% } %>
-<% }); %>
+  // ===== تسليم الامتحان لكل بنك =====
+  document.querySelectorAll('.btn-submit-bank').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var bi = this.dataset.bank;
+      var attempt = runningAttempts[bi];
+      if (!attempt || attempt.submitting) return;
+      if (!confirm('هل أنت متأكد من تسليم الإجابات؟')) return;
+      attempt.submitting = true;
+      this.disabled = true;
+      this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري التسليم...';
+
+      var answers = collectQbAnswers(bi);
+      fetch('/api/exam/submit', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ attemptId: attempt.id, answers: answers })
+      }).then(function(r) { return r.json(); }).then(function(d) {
+        if (d.success) {
+          showQbResult(bi, answers, false);
+        } else {
+          alert(d.error);
+          attempt.submitting = false;
+        }
+      }).catch(function() {
+        alert('فشل التسليم');
+        attempt.submitting = false;
+      });
+    });
+  });
+})();
 </script>
 <%- include("../partials/footer") %>
 </body>

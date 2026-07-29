@@ -1,4 +1,4 @@
-const { getPrisma } = require('../database');
+const { auditLogRepo } = require('../repositories');
 
 const ACTIONS = {
   USER_LOGIN: 'USER_LOGIN',
@@ -31,17 +31,14 @@ const ACTIONS = {
 
 async function recordAuditLog({ actorId, action, entity, entityId, metadata, ip, userAgent }) {
   try {
-    const prisma = getPrisma();
-    await prisma.auditLog.create({
-      data: {
-        actorId: actorId || null,
-        action,
-        entity,
-        entityId: entityId || null,
-        metadata: metadata || null,
-        ip: ip || null,
-        userAgent: userAgent || null,
-      }
+    await auditLogRepo.create({
+      actorId: actorId || null,
+      action,
+      entity,
+      entityId: entityId || null,
+      metadata: metadata || null,
+      ip: ip || null,
+      userAgent: userAgent || null,
     });
   } catch (e) {
     console.error('[auditLog] failed:', e.message);

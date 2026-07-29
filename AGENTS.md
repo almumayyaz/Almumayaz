@@ -128,6 +128,28 @@
 - لو عايز تقفل وصول الطالب للدرس من غير ما يفتحه أصلاً: الـ `computeLessonStatuses` بتمنع الدخول لو `isUnlocked === false`
 - أي تعديل في ترتيب الدروس (`order`) لازم يكون كلesson ليها `order` unique عشان السلسلة تشتغل صح
 
+## Data Architecture Fixes — تحديثات البنية التحتية للبيانات
+
+### المشكلة العامة
+`writeData` بتفحص `RTDB_REALTIME.has(key)` باستخدام الـ full path (زي `zoomCredentials/abc123`) لكن `RTDB_REALTIME` فيه اسم المجموعة بس (`zoomCredentials`). يبقى أي write لمسار متدرج (nested path) بيتخطى RTDB.
+
+### Zoom Credentials — مشكلة عدم الحفظ بين الـ instances
+| المشكلة | الإصلاح |
+|---------|---------|
+| `writeData('zoomAppCredentials', {...})` و `writeData('zoomCredentials/<uid>', encrypted)` بيكتبوا بس في `localStore` (في الذاكرة) لأنهم مش في `FIRESTORE_COLLECTIONS` ولا `RTDB_REALTIME`. أي instance تانية مبتلاقيش البيانات | إضافة `zoomAppCredentials` و `zoomCredentials` إلى `RTDB_REALTIME` في `firebase-admin.js` |
+
+### Settings — مشكلة الكتابة الفاشلة لـ Firestore
+| المشكلة | الإصلاح |
+|---------|---------|
+| `settings` كان في `FIRESTORE_COLLECTIONS`، لكن `writeCollection` بتتطلب array. `settings` عبارة عن object key-value. كل `writeData('settings', {...})` كانت تفشل silent (`if (!Array.isArray(array)) return;`). التعديلات (زي `currentSemester`) مبتستمرش بين الـ instances | `settings` اتمسحت من `FIRESTORE_COLLECTIONS` واتضافت لـ `RTDB_REALTIME` — دلوقتي بتتكتب/تتقرأ من RTDB مباشرة |
+
+### التغييرات في `firebase-admin.js`
+| السطر | التغيير |
+|-------|---------|
+| `RTDB_REALTIME` | إضافة `zoomAppCredentials`, `zoomCredentials`, `settings` |
+| `FIRESTORE_COLLECTIONS` | إزالة `settings` (object, مش array) |
+| `writeData` (شرط RTDB_REALTIME) | تغيير `RTDB_REALTIME.has(key)` → `RTDB_REALTIME.has(key.split('/')[0])` عشان nested paths (زي `zoomCredentials/<uid>`) تشتغل |
+
 ### أخطاء متبقية
 - `header.ejs` السطر 45: كود PWA install banner بيحاول `document.body.appendChild` قبل `<body>` — مش مربوط بـ FCM
 

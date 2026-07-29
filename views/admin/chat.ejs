@@ -12,6 +12,37 @@
   <div id="chatContainer" style="flex:1;display:flex;flex-direction:column;background:var(--card);overflow:hidden;">
     <div id="chatMessages" style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;scroll-behavior:smooth;"></div>
     <div id="chatTyping" style="padding:2px 14px 4px;font-size:11px;color:var(--text-muted);min-height:16px;display:none;">الطالب يكتب...</div>
+    <!-- Attachment Preview Card -->
+    <div id="attachPreview" style="display:none;padding:8px 14px;border-top:1px solid var(--border);background:var(--card);">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="position:relative;width:46px;height:46px;border-radius:8px;overflow:hidden;flex-shrink:0;background:var(--bg);border:1px solid var(--border);">
+          <img id="attachPreviewImg" src="" style="width:100%;height:100%;object-fit:cover;">
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div id="attachPreviewName" style="font-size:12px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
+          <div id="attachPreviewSize" style="font-size:11px;color:var(--text-muted);"></div>
+        </div>
+        <button onclick="removeAttachment()" style="background:rgba(220,38,38,0.12);border:none;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;color:var(--danger);font-size:14px;cursor:pointer;flex-shrink:0;transition:var(--transition);"><i class="fas fa-times"></i></button>
+      </div>
+    </div>
+    <!-- Upload Progress Card -->
+    <div id="uploadProgress" style="display:none;padding:8px 14px;border-top:1px solid var(--border);background:var(--card);">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="position:relative;width:46px;height:46px;border-radius:8px;overflow:hidden;flex-shrink:0;background:var(--bg);border:1px solid var(--border);">
+          <img id="uploadProgressImg" src="" style="width:100%;height:100%;object-fit:cover;opacity:0.5;">
+          <div id="uploadProgressOverlay" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.3);border-radius:8px;">
+            <i class="fas fa-spinner fa-spin" style="color:#fff;font-size:14px;"></i>
+          </div>
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:12px;font-weight:600;color:var(--text);">جاري رفع الصورة...</div>
+          <div style="margin-top:4px;height:4px;background:var(--border);border-radius:2px;overflow:hidden;">
+            <div id="uploadProgressBar" style="height:100%;width:0%;background:var(--gold-gradient);border-radius:2px;transition:width .3s ease;"></div>
+          </div>
+          <div id="uploadProgressPct" style="font-size:10px;color:var(--text-muted);margin-top:2px;text-align:left;direction:ltr;">0%</div>
+        </div>
+      </div>
+    </div>
     <div style="padding:14px 16px;border-top:1px solid var(--border);background:var(--bg);border-radius:var(--radius-xl);">
       <div style="display:flex;gap:10px;align-items:flex-end;">
         <button id="attachBtn" onclick="document.getElementById('imageInput').click()" style="background:var(--card);border:1px solid var(--border);border-radius:50%;width:42px;height:42px;display:flex;align-items:center;justify-content:center;color:var(--accent);font-size:16px;cursor:pointer;transition:var(--transition);flex-shrink:0;"><i class="fas fa-image"></i></button>
@@ -117,11 +148,52 @@
 
   function sendMessage() {
     var text = chatInput.value.trim();
-    if ((!text && !selectedImage) || isSending) return;
+    if ((!text && !selectedImageData) || isSending) return;
     isSending = true;
-    if (selectedImage) {
-      fetch('/api/admin/chat/' + encodeURIComponent(studentId) + '/send', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ text: text || '', image: selectedImage }) })
-      .then(function(r){return r.json()}).then(function(d){ if (d.success) { chatInput.value = ''; selectedImage = null; updateAttachBtn(); document.getElementById('imageInput').value = ''; } isSending = false; }).catch(function(){ isSending = false; });
+
+    if (selectedImageData) {
+      document.getElementById('attachPreview').style.display = 'none';
+      document.getElementById('uploadProgress').style.display = '';
+      document.getElementById('uploadProgressImg').src = selectedImageData;
+      document.getElementById('uploadProgressBar').style.width = '0%';
+      document.getElementById('uploadProgressPct').textContent = '0%';
+
+      var tempId = 'local-' + Date.now();
+      pendingKeys[tempId] = true;
+      addMessage({ _localId: tempId, senderId: 'teacher', senderName: 'محمد عفيفي', timestamp: Date.now(), text: text || '', image: selectedImageData, read: false, _status: 'sending' });
+      chatInput.value = '';
+
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/admin/chat/' + encodeURIComponent(studentId) + '/send');
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.upload.onprogress = function(e) {
+        if (e.lengthComputable) {
+          var pct = Math.round(e.loaded / e.total * 100);
+          document.getElementById('uploadProgressBar').style.width = pct + '%';
+          document.getElementById('uploadProgressPct').textContent = pct + '%';
+        }
+      };
+      xhr.onload = function() {
+        document.getElementById('uploadProgress').style.display = 'none';
+        isSending = false;
+        try {
+          var d = JSON.parse(xhr.responseText);
+          if (d.success && d.key) {
+            pendingKeys[d.key] = true;
+            delete pendingKeys[tempId];
+            var el = document.getElementById('msg-' + tempId);
+            var dup = document.getElementById('msg-' + d.key);
+            if (dup && dup !== el) dup.remove();
+            if (el) { el.id = 'msg-' + d.key; el.setAttribute('data-local-key', d.key); }
+            var rcpt = el ? el.querySelector('[id^="rcpt-"]') : null;
+            if (rcpt) { rcpt.id = 'rcpt-' + d.key; rcpt.innerHTML = '<i class="fas fa-check" style="color:var(--text-muted);font-size:11px;"></i>'; }
+            delete pendingKeys[d.key];
+          }
+        } catch(e) {}
+        selectedImageData = null; selectedFile = null; document.getElementById('imageInput').value = '';
+      };
+      xhr.onerror = function() { document.getElementById('uploadProgress').style.display = 'none'; isSending = false; };
+      xhr.send(JSON.stringify({ text: text || '', image: selectedImageData }));
       return;
     }
     var tempId = 'local-' + Date.now();
@@ -148,17 +220,28 @@
     }).catch(function() { btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> إرسال'; isSending = false; });
   }
 
-  var selectedImage = null;
+  var selectedFile = null;
+  var selectedImageData = null;
   function handleImageSelect(e) {
     var file = e.target.files[0]; if (!file) return;
+    if (!file.type.match('image/.*')) { alert('يرجى اختيار صورة فقط'); return; }
     if (file.size > 5 * 1024 * 1024) { alert('حجم الصورة يجب أن يكون أقل من 5 ميجابايت'); return; }
-    var reader = new FileReader(); reader.onload = function(ev) { selectedImage = ev.target.result; updateAttachBtn(); }; reader.readAsDataURL(file);
+    selectedFile = file;
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      selectedImageData = ev.target.result;
+      document.getElementById('attachPreviewImg').src = selectedImageData;
+      document.getElementById('attachPreviewName').textContent = file.name;
+      document.getElementById('attachPreviewSize').textContent = (file.size / 1024).toFixed(1) + ' KB';
+      document.getElementById('attachPreview').style.display = '';
+      document.getElementById('imageInput').value = '';
+    };
+    reader.readAsDataURL(file);
   }
-  function updateAttachBtn() {
-    var btn = document.getElementById('attachBtn');
-    if (selectedImage) { btn.innerHTML = '<i class="fas fa-check-circle"></i>'; btn.style.color = 'var(--success)'; btn.style.borderColor = 'var(--success)'; }
-    else { btn.innerHTML = '<i class="fas fa-image"></i>'; btn.style.color = 'var(--accent)'; btn.style.borderColor = 'var(--border)'; }
-    document.getElementById('imageInput').value = '';
+  function removeAttachment() {
+    selectedFile = null; selectedImageData = null;
+    document.getElementById('attachPreview').style.display = 'none';
+    document.getElementById('attachPreviewImg').src = '';
   }
 
   window.deleteChat = function() {
@@ -168,6 +251,7 @@
 
   window.sendMessage = sendMessage;
   window.handleImageSelect = handleImageSelect;
+  window.removeAttachment = removeAttachment;
 })();
 </script>
 

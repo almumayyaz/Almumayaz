@@ -7,21 +7,41 @@
         <i class="fas fa-chevron-right"></i> العودة إلى <%= course.title %>
       </a>
       <h1>الاختبار - <%= course.quiz.title %></h1>
-      <p><%= (course.quiz.questions||[]).length %> أسئلة - أجب عن جميع الأسئلة ثم اضغط على تقييم</p>
     </div>
   </div>
 
-  <div class="quiz-section">
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;margin-bottom:24px;">
-      <h2 style="margin-bottom:0;"><i class="fas fa-question-circle" style="color:var(--accent);"></i> <%= course.quiz.title %></h2>
-      <% if (course.quiz.timerMinutes) { %><span id="examTimer" style="background:var(--primary);color:#fff;padding:6px 16px;border-radius:6px;font-size:14px;font-weight:600;">
-        <i class="fas fa-clock"></i> <span id="timerDisplay"><%= String(course.quiz.timerMinutes).padStart(2,'0') %>:00</span>
-      </span><% } %>
+  <!-- Timer Header — ثابت في أعلى الصفحة -->
+  <div id="examHeader" style="display:none;position:sticky;top:0;z-index:100;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 20px;margin-bottom:20px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <span style="font-weight:600;font-size:14px;"><%= course.quiz.title %></span>
+        <span style="font-size:12px;color:var(--text-light);" id="examQuestionCount">0</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:16px;">
+        <div id="examTimerWrap" style="display:none;">
+          <span id="examTimerDisplay" style="font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;direction:ltr;font-family:monospace;transition:color 0.4s ease;">--:--:--</span>
+        </div>
+        <div style="width:120px;height:6px;background:var(--border);border-radius:3px;overflow:hidden;">
+          <div id="examProgressBar" style="height:100%;width:0%;background:var(--accent);border-radius:3px;transition:width 0.5s ease,background 0.4s ease;"></div>
+        </div>
+      </div>
     </div>
-    <p style="color:var(--text-light);font-size:14px;margin-bottom:24px;">أجب عن جميع الأسئلة التالية ثم اضغط على "تقييم الإجابات" لمعرفة نتيجتك</p>
+  </div>
 
+  <!-- زر بدء الامتحان -->
+  <div id="startExamScreen" style="text-align:center;padding:80px 20px;">
+    <div style="font-size:48px;margin-bottom:16px;">📝</div>
+    <h2 style="margin-bottom:8px;"><%= course.quiz.title %></h2>
+    <p style="color:var(--text-light);margin-bottom:24px;"><%= (course.quiz.questions||[]).length %> أسئلة</p>
+    <button class="btn btn-primary" id="startExamBtn" style="padding:14px 48px;font-size:16px;">
+      <i class="fas fa-play"></i> ابدأ الامتحان
+    </button>
+  </div>
+
+  <!-- محتوى الامتحان (مخفي حتى البدء) -->
+  <div id="examContent" style="display:none;">
     <% (course.quiz.questions||[]).forEach(function(q, qi) { %>
-    <div class="quiz-question" data-correct="<%= q.correct %>">
+    <div class="quiz-question" data-correct="<%= q.correct %>" data-idx="<%= qi %>">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
         <span style="background:var(--accent);color:var(--primary);width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;"><%= qi + 1 %></span>
         <h3 style="margin-bottom:0;font-size:16px;"><%= q.question %></h3>
@@ -29,7 +49,7 @@
       <div class="quiz-options">
         <% q.options.forEach(function(o, oi) { %>
         <label class="quiz-option">
-          <input type="radio" name="exam_q_<%= qi %>" value="<%= oi %>">
+          <input type="radio" name="exam_q_<%= qi %>" value="<%= oi %>" data-idx="<%= qi %>">
           <span><%= o %></span>
         </label>
         <% }) %>
@@ -39,101 +59,298 @@
 
     <div style="margin-top:28px;">
       <button class="btn btn-primary btn-sm btn-submit-quiz" style="width:100%;">
-        <i class="fas fa-check-circle"></i> تقييم الإجابات
+        <i class="fas fa-check-circle"></i> تسليم الإجابات
       </button>
     </div>
   </div>
+
+  <!-- رسالة منع الدخول (نافذة الإتاحة) -->
+  <div id="availabilityBlocked" style="display:none;text-align:center;padding:80px 20px;">
+    <div style="font-size:48px;margin-bottom:16px;">🔒</div>
+    <h2 id="availabilityMsg" style="color:var(--danger);"></h2>
+  </div>
 </main>
 
+<%
+  var ts = course.quiz.timeSettings || null;
+  var hasTimer = ts && (ts.enableDuration || (ts.enableAvailability && ts.availableTo));
+%>
 <script>
-let timerInterval;
-let seconds = <%= (course.quiz.timerMinutes || 15) * 60 %>;
-var hasTimer = <%= !!course.quiz.timerMinutes %>;
+(function() {
+  var courseId = '<%= course.id %>';
+  var examId = '<%= (course.quiz.id || course.id) %>';
+  var questions = document.querySelectorAll('.quiz-question');
+  var totalQuestions = questions.length;
+  var timeSettings = <%- JSON.stringify(ts) %>;
+  var hasTimer = <%= hasTimer ? 'true' : 'false' %>;
+  var attemptId = null;
+  var remainingMs = null;
+  var syncTimer = null;
+  var countdownTimer = null;
+  var saveTimer = null;
+  var isSubmitting = false;
 
-function startTimer() {
-  if (!hasTimer) return;
-  const display = document.getElementById('timerDisplay');
-  timerInterval = setInterval(() => {
-    seconds--;
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    display.textContent = m.toString().padStart(2, '0') + ':' + s.toString().padStart(2, '0');
-    if (seconds <= 120) document.getElementById('examTimer').style.background = 'var(--danger)';
-    if (seconds <= 0) {
-      clearInterval(timerInterval);
-      alert('انتهى الوقت!');
-      document.querySelector('.btn-submit-quiz')?.click();
-    }
-  }, 1000);
-}
+  document.getElementById('examQuestionCount').textContent = totalQuestions + ' أسئلة';
 
-startTimer();
+  // عرض العداد فقط إذا كان هناك مؤقت
+  if (hasTimer) document.getElementById('examTimerWrap').style.display = '';
 
-document.querySelector('.btn-submit-quiz')?.addEventListener('click', function() {
-  clearInterval(timerInterval);
-});
+  function formatTime(ms) {
+    if (ms === null || ms === undefined) return '--:--:--';
+    var totalSec = Math.max(0, Math.floor(ms / 1000));
+    var h = Math.floor(totalSec / 3600);
+    var m = Math.floor((totalSec % 3600) / 60);
+    var s = totalSec % 60;
+    return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+  }
 
-/* ===== QUIZ SUBMIT ===== */
-document.querySelectorAll('.btn-submit-quiz').forEach(btn => {
-  btn.addEventListener('click', function () {
-    const quiz = this.closest('.quiz-section');
-    if (!quiz) return;
-    const questions = quiz.querySelectorAll('.quiz-question');
-    let score = 0, total = questions.length, allAnswered = true;
+  function updateTimerColor(pct) {
+    var el = document.getElementById('examTimerDisplay');
+    if (pct > 0.3) el.style.color = '';
+    else if (pct > 0.1) el.style.color = '#F59E0B';
+    else el.style.color = '#EF4444';
+    var bar = document.getElementById('examProgressBar');
+    if (pct > 0.3) bar.style.background = 'var(--accent)';
+    else if (pct > 0.1) bar.style.background = '#F59E0B';
+    else bar.style.background = '#EF4444';
+  }
 
-    questions.forEach((q, idx) => {
-      const selected = q.querySelector('input[type="radio"]:checked');
-      const options = q.querySelectorAll('.quiz-option');
-      const correct = parseInt(q.dataset.correct);
+  function startCountdown(realEndTime, startedAt) {
+    if (!realEndTime) return;
+    var endTime = new Date(realEndTime).getTime();
+    var totalDuration = startedAt ? endTime - new Date(startedAt).getTime() : endTime - Date.now();
 
-      if (!selected) { allAnswered = false; return; }
+    countdownTimer = setInterval(function() {
+      remainingMs = Math.max(0, endTime - Date.now());
+      var display = document.getElementById('examTimerDisplay');
+      display.textContent = formatTime(remainingMs);
 
-      const selIdx = parseInt(selected.value);
-      options.forEach((o, oi) => {
+      var pct = totalDuration > 0 ? remainingMs / totalDuration : 0;
+      updateTimerColor(pct);
+      document.getElementById('examProgressBar').style.width = ((1 - pct) * 100) + '%';
+
+      if (remainingMs <= 0) {
+        clearInterval(countdownTimer);
+        clearInterval(saveTimer);
+        handleAutoSubmit();
+      }
+    }, 1000);
+  }
+
+  function handleAutoSubmit() {
+    if (isSubmitting) return;
+    isSubmitting = true;
+    collectAnswers(function(answers) {
+      fetch('/api/exam/submit', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ attemptId: attemptId, answers: answers })
+      }).then(function(r) { return r.json(); }).then(function(d) {
+        if (d.success) {
+          showResult(answers, true);
+        }
+      });
+    });
+  }
+
+  function collectAnswers(callback) {
+    var answers = {};
+    questions.forEach(function(q) {
+      var idx = q.dataset.idx;
+      var selected = q.querySelector('input[type="radio"]:checked');
+      if (selected) answers[idx] = selected.value;
+    });
+    if (callback) callback(answers);
+    return answers;
+  }
+
+  function saveAnswersToServer(answers) {
+    if (!attemptId) return;
+    fetch('/api/exam/save-answers', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ attemptId: attemptId, answers: answers || collectAnswers() })
+    }).catch(function() {});
+  }
+
+  function syncWithServer() {
+    if (!attemptId) return;
+    fetch('/api/exam/sync', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ attemptId: attemptId })
+    }).then(function(r) { return r.json(); }).then(function(d) {
+      if (d.success && d.remaining !== null) {
+        remainingMs = d.remaining;
+        if (d.status !== 'active') {
+          clearInterval(countdownTimer);
+          clearInterval(saveTimer);
+          clearInterval(syncTimer);
+        }
+      }
+    }).catch(function() {});
+  }
+
+  function showResult(answers, autoSubmitted) {
+    clearInterval(countdownTimer);
+    clearInterval(saveTimer);
+    clearInterval(syncTimer);
+    document.getElementById('examHeader').style.display = 'none';
+
+    // حساب النتيجة محلياً
+    var score = 0, total = questions.length;
+    questions.forEach(function(q, idx) {
+      var correct = parseInt(q.dataset.correct);
+      var selected = q.querySelector('input[type="radio"]:checked');
+      var options = q.querySelectorAll('.quiz-option');
+      options.forEach(function(o, oi) {
         o.style.borderColor = oi === correct ? '#059669' : '';
         o.style.background = oi === correct ? 'rgba(5,150,105,0.08)' : '';
       });
-      if (selIdx === correct) { score++; }
-      else { selected.closest('.quiz-option').style.borderColor = '#DC2626'; }
+      if (selected) {
+        var selIdx = parseInt(selected.value);
+        if (selIdx === correct) score++;
+        else selected.closest('.quiz-option').style.borderColor = '#DC2626';
+      }
     });
 
-    if (!allAnswered) { alert('يرجى الإجابة على جميع الأسئلة أولاً'); return; }
-
-    const pct = Math.round((score / total) * 100);
-    let grade = 'ضعيف';
+    var pct = Math.round((score / total) * 100);
+    var grade = 'ضعيف';
     if (pct >= 90) { grade = 'ممتاز'; }
     else if (pct >= 75) { grade = 'جيد جداً'; }
     else if (pct >= 60) { grade = 'جيد'; }
     else if (pct >= 45) { grade = 'مقبول'; }
 
-    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-    const resTextColor = isDark ? '#111' : '#fff';
-    const results = `
-      <div class="quiz-results" style="margin-top:20px;padding:24px;background:var(--card);border-radius:12px;border:1px solid var(--border);">
-        <div style="text-align:center;padding:24px;background:var(--gold-gradient);border-radius:12px;color:${resTextColor};margin-bottom:16px;">
-          <div style="font-size:48px;font-weight:900;line-height:1;">${score}/${total}</div>
-          <div style="font-size:20px;opacity:0.85;">${pct}%</div>
-          <div style="font-size:26px;font-weight:700;margin-top:8px;">${grade}</div>
-        </div>
-      </div>`;
+    var passed = pct >= 60;
+    var confetti = '';
+    if (passed) {
+      for (var ci = 0; ci < 12; ci++) {
+        var left = 10 + Math.random() * 80;
+        var delay = Math.random() * 0.6;
+        var bg = ['#FCD34D','#F59E0B','#34D399','#60A5FA','#F472B6','#A78BFA'][Math.floor(Math.random()*6)];
+        confetti += '<div class="confetti-piece" style="left:'+left+'%;bottom:-10px;background:'+bg+';animation-delay:'+delay+'s;"></div>';
+      }
+    }
+    var results = '<div class="quiz-results ' + (passed ? 'quiz-celebrate' : 'quiz-fail') + '" style="position:relative;overflow:hidden;margin-top:20px;padding:32px 20px;border-radius:12px;text-align:center;color:#fff;background:' + (passed ? 'linear-gradient(135deg,#059669,#10B981)' : 'linear-gradient(135deg,#DC2626,#EF4444)') + ';">' + confetti + '<div style="font-size:48px;margin-bottom:8px;position:relative;z-index:1;">' + (passed ? '🎉' : '😠') + '</div><div style="font-size:22px;font-weight:700;position:relative;z-index:1;">' + (passed ? 'أحسنت!' : 'حاول مرة أخرى') + '</div><div style="font-size:14px;opacity:0.9;margin-top:4px;position:relative;z-index:1;">' + score + '/' + total + ' — ' + pct + '% — ' + grade + '</div>' + (autoSubmitted ? '<div style="margin-top:12px;font-size:13px;opacity:0.8;position:relative;z-index:1;"><i class="fas fa-clock"></i> تم التسليم تلقائياً لانتهاء الوقت</div>' : '') + '</div>';
 
-    this.style.display = 'none';
-    quiz.querySelector('.quiz-results')?.remove();
-    quiz.insertAdjacentHTML('beforeend', results);
+    document.getElementById('examContent').querySelector('.btn-submit-quiz').style.display = 'none';
+    document.getElementById('examContent').insertAdjacentHTML('beforeend', results);
 
-    // Save quiz result to server
+    // حفظ النتيجة في الخادم
+    var answersData = collectAnswers();
+    fetch('/api/exam/grade', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ attemptId: attemptId, score: score, total: total })
+    }).catch(function() {});
+    // حفظ في التحليلات القديمة للتوافق
     fetch('/api/analytics/quiz/submit', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
-        courseId: '<%= course.id %>',
-        quizId: '<%= (course.quiz.id || course.id) %>',
+        courseId: courseId,
+        quizId: examId,
         quizTitle: '<%= (course.quiz.title || "اختبار") %>',
         score: score, total: total, correct: score, wrong: total - score, timeTaken: 0
       })
     }).catch(function(){});
+  }
+
+  // ===== بدء الامتحان =====
+  document.getElementById('startExamBtn').addEventListener('click', function() {
+    this.disabled = true;
+    this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري التجهيز...';
+
+    fetch('/api/exam/start', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        examId: examId,
+        examType: 'course',
+        courseId: courseId,
+        timeSettings: timeSettings
+      })
+    }).then(function(r) { return r.json(); }).then(function(d) {
+      if (!d.success) {
+        if (d.code === 'AVAILABILITY') {
+          document.getElementById('startExamScreen').style.display = 'none';
+          document.getElementById('availabilityBlocked').style.display = '';
+          document.getElementById('availabilityMsg').textContent = d.error;
+        } else {
+          alert(d.error || 'فشل بدء الامتحان');
+        }
+        return;
+      }
+      attemptId = d.attempt.id;
+      document.getElementById('startExamScreen').style.display = 'none';
+      document.getElementById('examContent').style.display = '';
+      document.getElementById('examHeader').style.display = '';
+
+      if (d.attempt.realEndTime) {
+        var endTime = new Date(d.attempt.realEndTime).getTime();
+        var now = d.serverTime || Date.now();
+        remainingMs = Math.max(0, endTime - now);
+        var totalDuration = endTime - now;
+
+        startCountdown(d.attempt.realEndTime, d.attempt.startedAt);
+
+        // مزامنة كل دقيقة
+        syncTimer = setInterval(syncWithServer, 60000);
+
+        // حفظ تلقائي كل 15 ثانية
+        saveTimer = setInterval(function() {
+          saveAnswersToServer();
+        }, 15000);
+      }
+
+      // حفظ عند تغيير الإجابة
+      document.querySelectorAll('input[type="radio"]').forEach(function(inp) {
+        inp.addEventListener('change', function() {
+          saveAnswersToServer();
+        });
+      });
+
+      // حفظ قبل إغلاق الصفحة
+      window.addEventListener('beforeunload', function() {
+        saveAnswersToServer();
+      });
+    }).catch(function() {
+      alert('فشل الاتصال بالخادم');
+      this.disabled = false;
+      this.innerHTML = '<i class="fas fa-play"></i> ابدأ الامتحان';
+    });
   });
-});
+
+  // ===== تسليم الامتحان =====
+  document.querySelector('.btn-submit-quiz')?.addEventListener('click', function() {
+    if (isSubmitting) return;
+    if (!confirm('هل أنت متأكد من تسليم الإجابات؟')) return;
+    isSubmitting = true;
+    this.disabled = true;
+    this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري التسليم...';
+
+    collectAnswers(function(answers) {
+      fetch('/api/exam/submit', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ attemptId: attemptId, answers: answers })
+      }).then(function(r) { return r.json(); }).then(function(d) {
+        if (d.success) {
+          showResult(answers, false);
+        } else {
+          alert(d.error);
+          isSubmitting = false;
+        }
+      }).catch(function() {
+        alert('فشل التسليم');
+        isSubmitting = false;
+      });
+    });
+  });
+
+  // التحقق من وجود محاولة سابقة عند تحميل الصفحة (للحماية من الـ Refresh)
+  // سيتم فتح المحاولة الحالية تلقائياً عند الضغط على ابدأ
+})();
 </script>
 <%- include("../partials/footer") %>
 </body>

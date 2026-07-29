@@ -181,11 +181,7 @@ function firebaseLogin() {
       console.error(error);
       if (error && error.verifyShown) return;
       errorDiv.style.display = 'block';
-      if (error.code === 'auth/user-not-found') errorDiv.textContent = 'لا يوجد حساب بهذا البريد الإلكتروني';
-      else if (error.code === 'auth/wrong-password') errorDiv.textContent = 'كلمة المرور غير صحيحة';
-      else if (error.code === 'auth/invalid-email') errorDiv.textContent = 'البريد الإلكتروني غير صحيح';
-      else if (error.code === 'auth/too-many-requests') errorDiv.textContent = 'تم حظر تسجيل الدخول مؤقتاً، حاول لاحقاً';
-      else errorDiv.textContent = 'فشل تسجيل الدخول: ' + error.message;
+      errorDiv.textContent = window.getFirebaseErrorMessage(error);
       btn.disabled = false;
       btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> تسجيل الدخول';
     });

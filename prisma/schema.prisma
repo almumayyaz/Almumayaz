@@ -11,82 +11,96 @@ datasource db {
 // deletedAt, deletedBy on models requiring soft delete
 // Tracking fields: createdBy, updatedBy on audit-worthy models
 
+model IdMapping {
+  id         String   @id @default(cuid())
+  legacyId   String
+  entityType String
+  newId      String   @unique
+  migratedAt DateTime @default(now())
+
+  @@index([entityType, legacyId])
+}
+
 model User {
-  id              String   @id @default(cuid())
-  uid             String   @default("")
+  id              String  @id @default(cuid())
+  uid             String  @default("")
   name            String
-  email           String   @unique
+  email           String  @unique
   passwordHash    String?
-  role            String   @default("student")
-  phone           String   @default("")
-  parentName      String   @default("")
-  parentPhone     String   @default("")
-  parentEmail     String   @default("")
+  role            String  @default("student")
+  phone           String  @default("")
+  parentName      String  @default("")
+  parentPhone     String  @default("")
+  parentEmail     String  @default("")
   parentId        String?
   parentStudentId String?
-  childrenIds     Json     @default("[]")
-  parentOf        Json     @default("[]")
-  stage           String   @default("")
-  grade           String   @default("")
-  governorate     String   @default("")
-  avatar          String   @default("")
-  fcmEnabled      Boolean  @default(true)
+  childrenIds     Json    @default("[]")
+  parentOf        Json    @default("[]")
+  stage           String  @default("")
+  grade           String  @default("")
+  governorate     String  @default("")
+  avatar          String  @default("")
+  fcmEnabled      Boolean @default(true)
+  notes           String  @default("")
 
   // Legacy subscription fields — kept until Phase 6 migration to UserSubscription
-  subscriptionStatus  String   @default("inactive")
-  subscriptionStart   DateTime?
-  subscriptionEnd     DateTime?
-  subscribedStage     String   @default("")
-  planName            String   @default("")
-  planPeriod          String   @default("")
+  subscriptionStatus String    @default("inactive")
+  subscriptionStart  DateTime?
+  subscriptionEnd    DateTime?
+  subscribedStage    String    @default("")
+  planName           String    @default("")
+  planPeriod         String    @default("")
 
-  referralCode    String   @default("")
-  referredBy      String?
-  referralDiscount Decimal  @default(0)
-  referralUsedAt  DateTime?
-  referrals       Json     @default("[]")
+  referralCode     String    @default("")
+  referredBy       String?
+  referralDiscount Decimal   @default(0)
+  referralUsedAt   DateTime?
+  referrals        Json      @default("[]")
 
-  fcmToken        String   @default("")
+  fcmToken String @default("")
 
-  emailVerified   Boolean  @default(false)
+  emailVerified   Boolean   @default(false)
   emailCode       String?
   emailCodeExpiry DateTime?
   resetCode       String?
   resetCodeExpiry DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
   lastLogin       DateTime?
-  phoneVerified   Boolean  @default(false)
+  phoneVerified   Boolean   @default(false)
   phoneVerifiedAt DateTime?
 
-  progress        Json     @default("{}")
+  progress Json @default("{}")
 
   deletedAt DateTime?
   deletedBy String?
 
-  refreshTokens       RefreshToken[]
-  payments            Payment[]
-  subRequests         SubRequest[]
-  chatMessages        ChatMessage[]
-  notifications       Notification[]
-  supportTickets      SupportTicket[]
-  ticketReplies       TicketReply[]
-  examAttempts        ExamAttempt[]
-  examAnswers         ExamAnswer[]
-  zoomCredentials     ZoomCredential[]
-  usageLogs           UsageLog[]
-  enrollments         Enrollment[]
-  dismissed           Dismissed[]
-  videoProgress       VideoProgress[]
-  lessonProgress      LessonProgress[]
-  subscriptions       UserSubscription[]
-  referralsGiven      Referral[]     @relation("referrer")
-  referralReceived    Referral?      @relation("referred")
-  children            ChildRelation[] @relation("parent")
-  parents             ChildRelation[] @relation("child")
-  auditLogs           AuditLog[]
+  refreshTokens    RefreshToken[]
+  payments         Payment[]
+  subRequests      SubRequest[]
+  chatMessages     ChatMessage[]
+  notifications    Notification[]
+  supportTickets   SupportTicket[]
+  ticketReplies    TicketReply[]
+  examAttempts     ExamAttempt[]
+  examAnswers      ExamAnswer[]
+  zoomCredentials  ZoomCredential[]
+  usageLogs        UsageLog[]
+  enrollments      Enrollment[]
+  dismissed        Dismissed[]
+  videoProgress    VideoProgress[]
+  lessonProgress   LessonProgress[]
+  subscriptions    UserSubscription[]
+  referralsGiven   Referral[]         @relation("referrer")
+  referralReceived Referral?          @relation("referred")
+  children         ChildRelation[]    @relation("parent")
+  parents          ChildRelation[]    @relation("child")
+  auditLogs        AuditLog[]
 
   @@index([role])
+  @@index([role, stage])
+  @@index([role, grade])
+  @@index([createdAt])
   @@index([email])
   @@index([referralCode])
 }
@@ -109,21 +123,21 @@ model RefreshToken {
 // ═══════════════════════════════════════════════
 
 model UserSubscription {
-  id          String             @id @default(cuid())
+  id          String    @id @default(cuid())
   userId      String
-  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   planName    String
-  planId      String             @default("")
-  status      String             @default("active")
+  planId      String    @default("")
+  status      String    @default("active")
   startDate   DateTime
   endDate     DateTime?
   cancelledAt DateTime?
-  period      String             @default("شهرياً")
-  stage       String             @default("")
-  discount    Decimal       @default(0)
+  period      String    @default("شهرياً")
+  stage       String    @default("")
+  discount    Decimal   @default(0)
   price       Decimal?
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@index([userId, status])
   @@index([endDate])
@@ -134,14 +148,14 @@ model UserSubscription {
 // ═══════════════════════════════════════════════
 
 model Referral {
-  id           String   @id @default(cuid())
-  referrerId   String
-  referrer     User     @relation("referrer", fields: [referrerId], references: [id], onDelete: Cascade)
-  referredId   String   @unique
-  referred     User     @relation("referred", fields: [referredId], references: [id], onDelete: Cascade)
-  discount     Decimal @default(25)
-  code         String
-  createdAt    DateTime @default(now())
+  id         String   @id @default(cuid())
+  referrerId String
+  referrer   User     @relation("referrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  referredId String   @unique
+  referred   User     @relation("referred", fields: [referredId], references: [id], onDelete: Cascade)
+  discount   Decimal  @default(25)
+  code       String
+  createdAt  DateTime @default(now())
 
   @@index([referrerId, createdAt])
   @@index([code])
@@ -169,25 +183,25 @@ model ChildRelation {
 // ═══════════════════════════════════════════════
 
 model Course {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   title        String
-  subtitle     String   @default("")
-  description  String   @default("")
-  icon         String   @default("fa-book")
-  color        String   @default("#A07200")
-  gradient     String   @default("")
+  subtitle     String    @default("")
+  description  String    @default("")
+  icon         String    @default("fa-book")
+  color        String    @default("#A07200")
+  gradient     String    @default("")
   image        String?
-  stage        String   @default("all")
-  grade        String   @default("")
-  semester     String   @default("all")
-  order        Int      @default(0)
-  active       Boolean  @default(true)
-  guestVisible Boolean  @default(false)
+  stage        String    @default("all")
+  grade        String    @default("")
+  semester     String    @default("all")
+  order        Int       @default(0)
+  active       Boolean   @default(true)
+  guestVisible Boolean   @default(false)
   price        Decimal?
-  sections     Json     @default("[]")
+  sections     Json      @default("[]")
   quiz         Json?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?
   deletedBy    String?
 
@@ -203,6 +217,7 @@ model Course {
 
   @@index([stage])
   @@index([grade])
+  @@index([stage, grade, order])
   @@index([active, order])
 }
 
@@ -211,18 +226,18 @@ model Course {
 // ═══════════════════════════════════════════════
 
 model Unit {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   courseId    String
-  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course      Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
   title       String
-  description String   @default("")
-  order       Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  description String    @default("")
+  order       Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
   deletedBy   String?
 
-  lessons    Lesson[]
+  lessons Lesson[]
 
   @@index([courseId, order])
 }
@@ -232,23 +247,23 @@ model Unit {
 // ═══════════════════════════════════════════════
 
 model Lesson {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   courseId     String
-  course       Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course       Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
   unitId       String?
-  unit         Unit?    @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  unit         Unit?     @relation(fields: [unitId], references: [id], onDelete: SetNull)
   title        String
-  description  String   @default("")
-  duration     String   @default("00:00")
-  order        Int      @default(0)
-  isFree       Boolean  @default(false)
-  guestVisible Boolean  @default(false)
-  sectionId    String   @default("")
-  videos       Json     @default("[]")
-  pdfFiles     Json     @default("[]")
+  description  String    @default("")
+  duration     String    @default("00:00")
+  order        Int       @default(0)
+  isFree       Boolean   @default(false)
+  guestVisible Boolean   @default(false)
+  sectionId    String    @default("")
+  videos       Json      @default("[]")
+  pdfFiles     Json      @default("[]")
   quiz         Json?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?
   deletedBy    String?
 
@@ -267,19 +282,19 @@ model Lesson {
 // ═══════════════════════════════════════════════
 
 model Video {
-  id           String   @id @default(cuid())
-  lessonId     String
-  lesson       Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
-  order        Int      @default(0)
-  title        String   @default("")
-  url          String
-  duration     Int?
-  thumbnail    String?
-  isPreview    Boolean  @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  deletedAt    DateTime?
-  deletedBy    String?
+  id        String    @id @default(cuid())
+  lessonId  String
+  lesson    Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  order     Int       @default(0)
+  title     String    @default("")
+  url       String
+  duration  Int?
+  thumbnail String?
+  isPreview Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  deletedBy String?
 
   videoProgress VideoProgress[]
 
@@ -291,17 +306,17 @@ model Video {
 // ═══════════════════════════════════════════════
 
 model LessonFile {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   lessonId  String
-  lesson    Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
-  order     Int      @default(0)
-  title     String   @default("")
+  lesson    Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  order     Int       @default(0)
+  title     String    @default("")
   url       String
-  filePath  String   @default("")
-  type      String   @default("pdf")
+  filePath  String    @default("")
+  type      String    @default("pdf")
   size      Int?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime?
   deletedBy String?
 
@@ -340,15 +355,15 @@ model VideoProgress {
 // ═══════════════════════════════════════════════
 
 model LessonProgress {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   studentId   String
-  student     User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student     User      @relation(fields: [studentId], references: [id], onDelete: Cascade)
   lessonId    String
-  lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
-  completed   Boolean  @default(false)
+  lesson      Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  completed   Boolean   @default(false)
   completedAt DateTime?
-  watchTime   Int      @default(0)
-  lastAccess  DateTime @default(now())
+  watchTime   Int       @default(0)
+  lastAccess  DateTime  @default(now())
 
   @@unique([studentId, lessonId])
   @@index([studentId])
@@ -362,18 +377,18 @@ model LessonProgress {
 // Polymorphic: entityId references Course.id, Lesson.id, Review.id, or QuestionBank.id
 // No FK constraint — the referenced table depends on entityType
 model Quiz {
-  id             String   @id @default(cuid())
-  entityType     String
-  entityId       String
-  title          String   @default("")
-  passPercentage Int      @default(60)
-  timerMinutes   Int?
-  shuffleQuestions Boolean @default(false)
-  maxAttempts    Int?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  deletedAt      DateTime?
-  deletedBy      String?
+  id               String    @id @default(cuid())
+  entityType       String
+  entityId         String
+  title            String    @default("")
+  passPercentage   Int       @default(60)
+  timerMinutes     Int?
+  shuffleQuestions Boolean   @default(false)
+  maxAttempts      Int?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+  deletedBy        String?
 
   questions Question[]
 
@@ -381,21 +396,21 @@ model Quiz {
 }
 
 model Question {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   quizId      String
-  quiz        Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
-  type        String   @default("single_choice")
+  quiz        Quiz      @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  type        String    @default("single_choice")
   text        String
   image       String?
   explanation String?
-  points      Int      @default(1)
-  order       Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  points      Int       @default(1)
+  order       Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
   deletedBy   String?
 
-  choices  Choice[]
+  choices     Choice[]
   examAnswers ExamAnswer[]
 
   @@index([quizId, order])
@@ -418,21 +433,21 @@ model Choice {
 // ═══════════════════════════════════════════════
 
 model ExamAttempt {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   courseId  String?
-  course    Course?  @relation(fields: [courseId], references: [id], onDelete: SetNull)
-  type      String   @default("exam")
+  course    Course?   @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  type      String    @default("exam")
   examId    String?
-  status    String   @default("in_progress")
-  answers   Json     @default("{}")
+  status    String    @default("in_progress")
+  answers   Json      @default("{}")
   score     Decimal?
   total     Decimal?
   startTime DateTime?
   endTime   DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime?
   deletedBy String?
 
@@ -444,17 +459,17 @@ model ExamAttempt {
 }
 
 model ExamAnswer {
-  id              String   @id @default(cuid())
-  attemptId       String
-  attempt         ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
-  userId          String?
-  user            User?      @relation(fields: [userId], references: [id])
-  questionId      String?
-  question        Question?  @relation(fields: [questionId], references: [id])
-  selectedChoice  String?
-  textAnswer      String?
-  isCorrect       Boolean?
-  answeredAt      DateTime @default(now())
+  id             String      @id @default(cuid())
+  attemptId      String
+  attempt        ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  userId         String?
+  user           User?       @relation(fields: [userId], references: [id])
+  questionId     String?
+  question       Question?   @relation(fields: [questionId], references: [id])
+  selectedChoice String?
+  textAnswer     String?
+  isCorrect      Boolean?
+  answeredAt     DateTime    @default(now())
 
   @@unique([attemptId, questionId])
   @@index([attemptId])
@@ -466,22 +481,22 @@ model ExamAnswer {
 // ═══════════════════════════════════════════════
 
 model Payment {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   userId        String
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userName      String   @default("")
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userName      String    @default("")
   amount        Decimal?
-  currency      String   @default("جنيه")
-  method        String   @default("")
-  transactionId String   @default("")
-  status        String   @default("pending")
-  planName      String   @default("")
+  currency      String    @default("جنيه")
+  method        String    @default("")
+  transactionId String    @default("")
+  status        String    @default("pending")
+  planName      String    @default("")
   invoiceRef    String?
-  receiptImage  String   @default("")
-  rejectReason  String   @default("")
+  receiptImage  String    @default("")
+  rejectReason  String    @default("")
   gatewayData   Json?
-  date          DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  date          DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
   deletedAt     DateTime?
   deletedBy     String?
 
@@ -494,27 +509,27 @@ model Payment {
 // ═══════════════════════════════════════════════
 
 model SubRequest {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   userId        String
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userName      String   @default("")
-  userPhone     String   @default("")
-  planName      String   @default("")
-  planId        String   @default("")
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userName      String    @default("")
+  userPhone     String    @default("")
+  planName      String    @default("")
+  planId        String    @default("")
   price         Decimal?
-  period        String   @default("")
-  durationDays  Int      @default(30)
-  planStage     String   @default("")
-  transactionId String   @default("")
-  paymentMethod String   @default("vodafone-cash")
-  receiptImage  String   @default("")
-  status        String   @default("pending")
+  period        String    @default("")
+  durationDays  Int       @default(30)
+  planStage     String    @default("")
+  transactionId String    @default("")
+  paymentMethod String    @default("vodafone-cash")
+  receiptImage  String    @default("")
+  status        String    @default("pending")
   discount      Decimal   @default(0)
-  date          DateTime @default(now())
+  date          DateTime  @default(now())
   reviewedBy    String?
   reviewedAt    DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
   deletedAt     DateTime?
   deletedBy     String?
 
@@ -527,42 +542,42 @@ model SubRequest {
 // ═══════════════════════════════════════════════
 
 model Subscription {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   name            String
-  price           String   @default("0")
-  currency        String   @default("جنيه")
-  period          String   @default("شهرياً")
-  durationDays    Int      @default(30)
-  stage           String   @default("")
-  popular         Boolean  @default(false)
-  features        Json     @default("[]")
+  price           String    @default("0")
+  currency        String    @default("جنيه")
+  period          String    @default("شهرياً")
+  durationDays    Int       @default(30)
+  stage           String    @default("")
+  popular         Boolean   @default(false)
+  features        Json      @default("[]")
   allowedBranches Json?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?
   deletedBy       String?
 
   // Normalized relations (populated in Phase 3+)
-  planFeatures    SubscriptionFeature[]
-  allowedCourses  PlanAllowedCourse[]
+  planFeatures   SubscriptionFeature[]
+  allowedCourses PlanAllowedCourse[]
 }
 
 model SubscriptionFeature {
-  id       String   @id @default(cuid())
-  planId   String
-  plan     Subscription @relation(fields: [planId], references: [id], onDelete: Cascade)
-  text     String
-  order    Int      @default(0)
+  id     String       @id @default(cuid())
+  planId String
+  plan   Subscription @relation(fields: [planId], references: [id], onDelete: Cascade)
+  text   String
+  order  Int          @default(0)
 
   @@index([planId, order])
 }
 
 model PlanAllowedCourse {
-  id       String   @id @default(cuid())
+  id       String       @id @default(cuid())
   planId   String
   plan     Subscription @relation(fields: [planId], references: [id], onDelete: Cascade)
   courseId String?
-  course   Course?  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course   Course?      @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
   @@unique([planId, courseId])
 }
@@ -572,13 +587,13 @@ model PlanAllowedCourse {
 // ═══════════════════════════════════════════════
 
 model ChargeCode {
-  id           String   @id @default(cuid())
-  code         String   @unique
-  durationDays Int      @default(30)
-  uses         Int      @default(0)
-  maxUses      Int      @default(1)
+  id           String    @id @default(cuid())
+  code         String    @unique
+  durationDays Int       @default(30)
+  uses         Int       @default(0)
+  maxUses      Int       @default(1)
   createdBy    String?
-  createdAt    DateTime @default(now())
+  createdAt    DateTime  @default(now())
   expiresAt    DateTime?
   deletedAt    DateTime?
   deletedBy    String?
@@ -591,13 +606,13 @@ model ChargeCode {
 // ═══════════════════════════════════════════════
 
 model ChatSession {
-  id          String   @id @default(cuid())
+  id          String        @id @default(cuid())
   studentId   String
-  studentName String   @default("")
+  studentName String        @default("")
   adminId     String?
-  status      String   @default("open")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  status      String        @default("open")
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
   messages    ChatMessage[]
   deletedAt   DateTime?
   deletedBy   String?
@@ -607,31 +622,32 @@ model ChatSession {
 }
 
 model ChatMessage {
-  id         String   @id @default(cuid())
+  id         String      @id @default(cuid())
   sessionId  String
   session    ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  senderId   String?                         // null for guest messages, real User.id for authenticated
-  sender     User?     @relation(fields: [senderId], references: [id])
-  senderName String   @default("")
-  senderRole String   @default("student")
+  senderId   String? // null for guest messages, real User.id for authenticated
+  sender     User?       @relation(fields: [senderId], references: [id])
+  senderName String      @default("")
+  senderRole String      @default("student")
   text       String
   image      String?
-  read       Boolean  @default(false)
-  createdAt  DateTime @default(now())
+  read       Boolean     @default(false)
+  createdAt  DateTime    @default(now())
 
   attachments ChatAttachment[]
 
   @@index([sessionId])
+  @@index([senderId])
   @@index([createdAt])
 }
 
 model ChatAttachment {
-  id        String   @id @default(cuid())
+  id        String      @id @default(cuid())
   messageId String
   message   ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  type      String   @default("image")
+  type      String      @default("image")
   url       String
-  name      String   @default("")
+  name      String      @default("")
   size      Int?
   metadata  Json?
 
@@ -643,22 +659,44 @@ model ChatAttachment {
 // ═══════════════════════════════════════════════
 
 model Notification {
-  id         String   @id @default(cuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title      String
-  body       String   @default("")
-  url        String   @default("")
-  actionType String?
-  actionData Json?
-  read       Boolean  @default(false)
-  type       String   @default("general")
-  createdAt  DateTime @default(now())
-  deletedAt  DateTime?
-  deletedBy  String?
+  id          String    @id @default(cuid())
+  userId      String?
+  user        User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  body        String    @default("")
+  url         String    @default("")
+  actionType  String?
+  actionData  Json?
+  read        Boolean   @default(false)
+  type        String    @default("general")
+  target      String?
+  targetValue String?
+  createdAt   DateTime  @default(now())
+  deletedAt   DateTime?
+  deletedBy   String?
 
   @@index([userId, read, createdAt])
   @@index([createdAt])
+}
+
+// ═══════════════════════════════════════════════
+// SCHEDULED NOTIFICATIONS
+// ═══════════════════════════════════════════════
+
+model ScheduledNotification {
+  id          String   @id @default(cuid())
+  title       String
+  body        String   @default("")
+  url         String   @default("")
+  role        String   @default("")
+  target      String   @default("")
+  targetValue String   @default("")
+  scheduledAt DateTime
+  sent        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([scheduledAt, sent])
+  @@index([role])
 }
 
 // ═══════════════════════════════════════════════
@@ -666,24 +704,32 @@ model Notification {
 // ═══════════════════════════════════════════════
 
 model LiveSession {
-  id          String   @id @default(cuid())
-  title       String
-  description String   @default("")
-  courseId    String?
-  course      Course?  @relation(fields: [courseId], references: [id], onDelete: SetNull)
-  grade       String   @default("")
-  stage       String   @default("")
-  startTime   DateTime
-  endTime     DateTime?
-  joinUrl     String?
-  password    String?
-  status      String   @default("scheduled")
-  recording   Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  attendance  LiveSessionAttendance[]
-  deletedAt   DateTime?
-  deletedBy   String?
+  id                     String                  @id @default(cuid())
+  title                  String
+  description            String                  @default("")
+  courseId               String?
+  course                 Course?                 @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  grade                  String                  @default("")
+  stage                  String                  @default("")
+  startTime              DateTime
+  endTime                DateTime?
+  joinUrl                String?
+  password               String?
+  status                 String                  @default("scheduled")
+  recording              Boolean                 @default(false)
+  subject                String                  @default("")
+  meetingId              String                  @default("")
+  startUrl               String                  @default("")
+  notifyAt               DateTime?
+  notified               Boolean                 @default(false)
+  allowJoinBeforeTeacher Boolean                 @default(false)
+  waitingRoom            Boolean                 @default(false)
+  createdBy              String                  @default("")
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  attendance             LiveSessionAttendance[]
+  deletedAt              DateTime?
+  deletedBy              String?
 
   @@index([startTime])
   @@index([status])
@@ -691,11 +737,11 @@ model LiveSession {
 }
 
 model LiveSessionAttendance {
-  id        String   @id @default(cuid())
+  id        String      @id @default(cuid())
   sessionId String
   session   LiveSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   userId    String
-  joinTime  DateTime @default(now())
+  joinTime  DateTime    @default(now())
   leaveTime DateTime?
 
   @@index([sessionId])
@@ -707,17 +753,19 @@ model LiveSessionAttendance {
 // ═══════════════════════════════════════════════
 
 model QuestionBank {
-  id            String   @id @default(cuid())
-  courseId      String
-  course        Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  title         String
-  questions     Json?
-  timeSettings  Json?
-  timerMinutes  Int?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  deletedAt     DateTime?
-  deletedBy     String?
+  id           String    @id @default(cuid())
+  courseId     String
+  course       Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title        String
+  description  String    @default("")
+  order        Int       @default(0)
+  questions    Json?
+  timeSettings Json?
+  timerMinutes Int?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+  deletedBy    String?
 
   @@index([courseId])
 }
@@ -727,18 +775,18 @@ model QuestionBank {
 // ═══════════════════════════════════════════════
 
 model Note {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   courseId    String?
-  course      Course?  @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  course      Course?   @relation(fields: [courseId], references: [id], onDelete: SetNull)
   title       String
-  description String   @default("")
-  filePath    String   @default("")
+  description String    @default("")
+  filePath    String    @default("")
   fileUrl     String?
-  type        String   @default("pdf")
-  stage       String   @default("")
-  grade       String   @default("")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  type        String    @default("pdf")
+  stage       String    @default("")
+  grade       String    @default("")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
   deletedBy   String?
 
@@ -752,28 +800,28 @@ model Note {
 // ═══════════════════════════════════════════════
 
 model Review {
-  id        String   @id @default(cuid())
-  title     String   @default("")
-  course    String   @default("")
-  courseId  String   @default("")
-  color     String   @default("#A07200")
-  icon      String   @default("fa-book-open")
-  desc      String   @default("")
-  videos    Json     @default("[]")
-  pdfFiles  Json     @default("[]")
-  stage     String   @default("all")
-  grade     String   @default("")
-  order     Int      @default(0)
-  isFree    Boolean  @default(false)
+  id        String    @id @default(cuid())
+  title     String    @default("")
+  course    String    @default("")
+  courseId  String    @default("")
+  color     String    @default("#A07200")
+  icon      String    @default("fa-book-open")
+  desc      String    @default("")
+  videos    Json      @default("[]")
+  pdfFiles  Json      @default("[]")
+  stage     String    @default("all")
+  grade     String    @default("")
+  order     Int       @default(0)
+  isFree    Boolean   @default(false)
   date      DateTime?
   quiz      Json?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime?
   deletedBy String?
 
   // Normalized relations (populated in Phase 3+)
-  videosNormalized ReviewVideo[]
+  videosNormalized   ReviewVideo[]
   pdfFilesNormalized ReviewFile[]
 
   @@index([courseId])
@@ -815,16 +863,19 @@ model ReviewFile {
 // ═══════════════════════════════════════════════
 
 model SupportTicket {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  subject   String
-  message   String
-  status    String   @default("open")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  deletedAt DateTime?
-  deletedBy String?
+  id             String    @id @default(cuid())
+  userId         String?
+  user           User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject        String
+  message        String
+  status         String    @default("open")
+  requesterName  String    @default("")
+  requesterEmail String    @default("")
+  requesterPhone String    @default("")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+  deletedBy      String?
 
   replies TicketReply[]
 
@@ -833,13 +884,15 @@ model SupportTicket {
 }
 
 model TicketReply {
-  id        String   @id @default(cuid())
-  ticketId  String
-  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  senderId  String
-  sender    User     @relation(fields: [senderId], references: [id])
-  message   String
-  createdAt DateTime @default(now())
+  id         String        @id @default(cuid())
+  ticketId   String
+  ticket     SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  senderId   String?
+  sender     User?         @relation(fields: [senderId], references: [id])
+  senderRole String        @default("student")
+  senderName String        @default("")
+  message    String
+  createdAt  DateTime      @default(now())
 
   @@index([ticketId])
 }
@@ -849,14 +902,14 @@ model TicketReply {
 // ═══════════════════════════════════════════════
 
 model Announcement {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   title     String
   content   String
-  important Boolean  @default(false)
-  active    Boolean  @default(true)
+  important Boolean   @default(false)
+  active    Boolean   @default(true)
   createdBy String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime?
   deletedBy String?
 
@@ -929,35 +982,36 @@ model CronClaim {
 }
 
 model ParentInvite {
-  id          String   @id @default(cuid())
-  studentId   String
-  studentName String   @default("")
-  studentStage String  @default("")
-  studentGrade String  @default("")
-  parentName  String   @default("")
-  parentPhone String   @default("")
-  parentEmail String
-  token       String   @unique
-  status      String   @default("pending")
-  acceptedAt  DateTime?
+  id           String    @id @default(cuid())
+  studentId    String
+  studentName  String    @default("")
+  studentStage String    @default("")
+  studentGrade String    @default("")
+  parentName   String    @default("")
+  parentPhone  String    @default("")
+  parentEmail  String
+  token        String    @unique
+  status       String    @default("pending")
+  acceptedAt   DateTime?
   parentUserId String?
-  createdAt   DateTime @default(now())
-  expiresAt   DateTime
+  createdAt    DateTime  @default(now())
+  expiresAt    DateTime
 
   @@index([token])
   @@index([studentId])
+  @@index([studentId, status])
 }
 
 model StudentAnalytic {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   userId         String
   courseId       String?
-  course         Course?  @relation(fields: [courseId], references: [id], onDelete: SetNull)
-  totalWatchTime Int      @default(0)
-  completedCount Int      @default(0)
+  course         Course?   @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  totalWatchTime Int       @default(0)
+  completedCount Int       @default(0)
   quizAvgScore   Decimal?
   lastActivity   DateTime?
-  data           Json     @default("{}")
+  data           Json      @default("{}")
 
   @@unique([userId, courseId])
   @@index([userId])
@@ -1014,14 +1068,14 @@ model AuditLog {
 }
 
 model Enrollment {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   userId         String
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   courseId       String
-  course         Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course         Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
   subscriptionId String?
-  status         String   @default("active")
-  enrolledAt     DateTime @default(now())
+  status         String    @default("active")
+  enrolledAt     DateTime  @default(now())
   completedAt    DateTime?
   deletedAt      DateTime?
   deletedBy      String?

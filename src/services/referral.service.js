@@ -1,4 +1,5 @@
 const { userRepo, settingRepo } = require('../repositories');
+const { getPrisma } = require('../database');
 
 async function applyReferral(uid, { code }) {
   if (!code || !code.startsWith('REF-')) return { invalidCode: true };
@@ -21,11 +22,13 @@ async function applyReferral(uid, { code }) {
   const settings = await settingRepo.findBy('key', 'referralDiscount');
   const refDiscount = settings ? parseFloat(settings.value) || 25 : 25;
 
-  await userRepo.update(uid, { referralDiscount: refDiscount, referredBy: referrer.referralCode, referralUsedAt: new Date() });
-
-  const currentReferrals = typeof referrer.referrals === 'string' ? JSON.parse(referrer.referrals) : (Array.isArray(referrer.referrals) ? referrer.referrals : []);
-  currentReferrals.push({ userId: uid, discount: refDiscount, date: new Date().toISOString() });
-  await userRepo.update(referrer.id, { referrals: currentReferrals });
+  const prisma = getPrisma();
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({ where: { id: uid }, data: { referralDiscount: refDiscount, referredBy: referrer.referralCode, referralUsedAt: new Date() } });
+    const currentReferrals = typeof referrer.referrals === 'string' ? JSON.parse(referrer.referrals) : (Array.isArray(referrer.referrals) ? referrer.referrals : []);
+    currentReferrals.push({ userId: uid, discount: refDiscount, date: new Date().toISOString() });
+    await tx.user.update({ where: { id: referrer.id }, data: { referrals: currentReferrals } });
+  });
 
   return { success: true, discount: refDiscount, message: 'تم تطبيق خصم ' + refDiscount + '% على جميع خطط الاشتراك!' };
 }

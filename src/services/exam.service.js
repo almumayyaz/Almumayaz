@@ -1,5 +1,6 @@
 const { recordAuditLog, ACTIONS } = require('../utils/auditLog');
 const { examAttemptRepo, userRepo } = require('../repositories');
+const { getPrisma } = require('../database');
 
 function calculateRealEndTime(timeSettings, startedAt) {
   if (!timeSettings) return null;
@@ -96,14 +97,17 @@ async function submit(uid, { attemptId, answers }) {
 async function grade(uid, { attemptId, score, total }) {
   const attempt = await examAttemptRepo.findFirst({ id: attemptId, userId: uid });
   if (!attempt) return { notFound: true };
-  await examAttemptRepo.update(attemptId, { score, total });
-  const user = await userRepo.get(uid);
-  if (user) {
-    const progress = typeof user.progress === 'object' && user.progress ? { ...user.progress } : {};
-    if (!progress.examResults) progress.examResults = {};
-    progress.examResults[attempt.examId] = { score, total, date: new Date().toISOString() };
-    await userRepo.update(uid, { progress });
-  }
+  const prisma = getPrisma();
+  await prisma.$transaction(async (tx) => {
+    await tx.examAttempt.update({ where: { id: attemptId }, data: { score, total } });
+    const user = await tx.user.findUnique({ where: { id: uid } });
+    if (user) {
+      const progress = typeof user.progress === 'object' && user.progress ? { ...user.progress } : {};
+      if (!progress.examResults) progress.examResults = {};
+      progress.examResults[attempt.examId] = { score, total, date: new Date().toISOString() };
+      await tx.user.update({ where: { id: uid }, data: { progress } });
+    }
+  });
   await recordAuditLog({ actorId: uid, action: ACTIONS.EXAM_GRADE, entity: 'ExamAttempt', entityId: attemptId, metadata: { score, total }, ip: uid });
   return {};
 }

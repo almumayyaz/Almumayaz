@@ -131,8 +131,7 @@ function generateSignature(meetingNumber, role) {
   var sdkKey = getEnv('ZOOM_SDK_KEY');
   var sdkSecret = getEnv('ZOOM_SDK_SECRET');
   if (!sdkKey || !sdkSecret) {
-    // Fallback: generate a mock signature when SDK credentials not configured
-    return 'MOCK_SIGNATURE_FOR_' + meetingNumber + '_ROLE_' + role;
+    return '';
   }
   var ts = new Date().getTime() - 30000;
   var msg = sdkKey + '.' + meetingNumber + '.' + role + '.' + ts;

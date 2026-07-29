@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const { chargeCodeRepo, userRepo } = require('../repositories');
+const { getPrisma } = require('../database');
 
 async function listChargeCodes() {
   return chargeCodeRepo.query({}, { orderBy: { createdAt: 'desc' } });
@@ -46,12 +47,15 @@ async function redeemChargeCode(uid, { code }) {
   if (codeData.uses >= codeData.maxUses) return { maxUsesReached: true };
   const user = await userRepo.get(uid);
   if (!user) return { userNotFound: true };
-  await chargeCodeRepo.update(codeData.id, { uses: codeData.uses + 1 });
-  const durDays = codeData.durationDays || 30;
-  const endDate = user.subscriptionEnd && new Date(user.subscriptionEnd) > new Date()
-    ? new Date(new Date(user.subscriptionEnd).getTime() + durDays * 86400000)
-    : new Date(Date.now() + durDays * 86400000);
-  await userRepo.update(uid, { subscriptionStatus: 'active', subscriptionStart: new Date(), subscriptionEnd: endDate });
+  const prisma = getPrisma();
+  await prisma.$transaction(async (tx) => {
+    await tx.chargeCode.update({ where: { id: codeData.id }, data: { uses: codeData.uses + 1 } });
+    const durDays = codeData.durationDays || 30;
+    const endDate = user.subscriptionEnd && new Date(user.subscriptionEnd) > new Date()
+      ? new Date(new Date(user.subscriptionEnd).getTime() + durDays * 86400000)
+      : new Date(Date.now() + durDays * 86400000);
+    await tx.user.update({ where: { id: uid }, data: { subscriptionStatus: 'active', subscriptionStart: new Date(), subscriptionEnd: endDate } });
+  });
   return {};
 }
 

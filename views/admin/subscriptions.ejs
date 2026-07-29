@@ -10,10 +10,11 @@
   </div>
   <div class="admin-table">
     <table>
-      <thead>
-        <tr><th>#</th><th>اسم الباقة</th><th>السعر</th><th>المدة</th><th>المرحلة</th><th>المميزات</th><th>الحالة</th><th>الإجراءات</th></tr>
-      </thead>
+        <thead>
+          <tr><th>#</th><th>اسم الباقة</th><th>السعر</th><th>المدة</th><th>المرحلة</th><th>الفروع</th><th>المميزات</th><th>الحالة</th><th>الإجراءات</th></tr>
+        </thead>
       <tbody>
+        <% if (subscriptions && subscriptions.length > 0) { %>
         <% subscriptions.forEach(function(s, i) { %>
         <tr>
           <td><%= i + 1 %></td>
@@ -21,7 +22,8 @@
           <td><%= s.price %> <%= s.currency %></td>
           <td><%= s.period %></td>
           <td><%= s.stage || 'جميع المراحل' %></td>
-          <td><%= s.features.length %> ميزة</td>
+          <td style="font-size:12px;"><% if (s.allowedBranches && Array.isArray(s.allowedBranches) && s.allowedBranches[0] !== '*') { %><%= s.allowedBranches.length %> فرع<% } else { %>جميع الفروع<% } %></td>
+           <td><%= s.features ? s.features.length : 0 %> ميزة</td>
           <td><span class="status-badge <%= s.popular ? 'active' : 'pending' %>"><%= s.popular ? 'الأكثر طلباً' : 'متاح' %></span></td>
           <td>
             <div class="admin-actions">
@@ -31,6 +33,9 @@
           </td>
         </tr>
         <% }) %>
+        <% } else { %>
+        <tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-muted);"><i class="fas fa-box-open" style="font-size:28px;display:block;margin-bottom:8px;opacity:0.4;"></i>لا توجد باقات اشتراك. اضف باقة جديدة.</td></tr>
+        <% } %>
       </tbody>
     </table>
   </div>
@@ -51,7 +56,8 @@
         <div class="form-group"><label>العملة</label><input id="subCurrency" value="جنيه"></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-        <div class="form-group"><label>المدة</label><input id="subPeriod" placeholder="شهرياً"></div>
+        <div class="form-group"><label>المدة (نص)</label><input id="subPeriod" placeholder="شهرياً"></div>
+        <div class="form-group"><label>المدة (أيام)</label><input id="subDurationDays" type="number" min="1" placeholder="30"></div>
         <div class="form-group"><label>المرحلة</label>
           <select id="subStage" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
             <option value="">كل المراحل</option>
@@ -69,12 +75,32 @@
         <label>المميزات (واحدة في كل سطر)</label>
         <textarea id="subFeatures" rows="5" placeholder="جميع محاضرات النحو&#10;جميع محاضرات البلاغة&#10;الوصول إلى بنك الأسئلة"></textarea>
       </div>
+      <div class="form-group">
+        <label style="font-weight:700;font-size:15px;display:flex;align-items:center;gap:6px;margin-bottom:8px;"><i class="fas fa-code-branch"></i> الفروع المتاحة</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;background:var(--glass-bg);border:1px solid var(--border);border-radius:10px;padding:12px;">
+          <label style="display:flex;align-items:center;gap:6px;font-weight:700;font-size:13px;cursor:pointer;padding:4px 0;">
+            <input type="checkbox" id="branchAll" onchange="toggleAllBranches(this.checked)"> جميع الفروع
+          </label>
+          <% if (typeof courses !== 'undefined' && courses.length > 0) { %>
+          <% courses.forEach(function(c) { %>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;padding:4px 0;">
+            <input type="checkbox" name="allowedBranch" value="<%= c.id %>" style="accent-color:var(--accent);"> <span style="color:<%= c.color || 'var(--text)' %>;"><i class="fas <%= c.icon || 'fa-book' %>" style="font-size:11px;width:16px;text-align:center;"></i></span> <%= c.title %>
+          </label>
+          <% }) %>
+          <% } else { %>
+          <span style="grid-column:1/-1;color:var(--text-muted);font-size:12px;">لا توجد مواد مضافة بعد</span>
+          <% } %>
+        </div>
+      </div>
       <button class="btn btn-primary" onclick="saveSub()" style="width:100%;"><i class="fas fa-save"></i> حفظ</button>
     </div>
   </div>
 </div>
 
 <script>
+function toggleAllBranches(checked) {
+  document.querySelectorAll('input[name="allowedBranch"]').forEach(function(cb) { cb.checked = checked; });
+}
 function openSubModal(sub) {
   document.getElementById('subModalTitle').textContent = sub ? 'تعديل الباقة' : 'إضافة باقة جديدة';
   document.getElementById('subId').value = sub ? sub.id : '';
@@ -82,9 +108,24 @@ function openSubModal(sub) {
   document.getElementById('subPrice').value = sub ? sub.price : '';
   document.getElementById('subCurrency').value = sub ? (sub.currency || 'جنيه') : 'جنيه';
   document.getElementById('subPeriod').value = sub ? sub.period : '';
+  document.getElementById('subDurationDays').value = sub ? (sub.durationDays || '') : '';
   document.getElementById('subStage').value = sub ? (sub.stage || '') : '';
   document.getElementById('subPopular').checked = sub ? !!sub.popular : false;
   document.getElementById('subFeatures').value = sub ? (sub.features ? sub.features.join('\n') : '') : '';
+  // Restore allowedBranches
+  var ab = sub && sub.allowedBranches;
+  var allCheck = document.getElementById('branchAll');
+  var branchCbs = document.querySelectorAll('input[name="allowedBranch"]');
+  if (!ab || ab === '*' || (Array.isArray(ab) && (ab.length === 0 || ab[0] === '*'))) {
+    allCheck.checked = true;
+    branchCbs.forEach(function(cb) { cb.checked = true; });
+  } else if (Array.isArray(ab)) {
+    allCheck.checked = false;
+    branchCbs.forEach(function(cb) { cb.checked = ab.indexOf(cb.value) !== -1; });
+  } else {
+    allCheck.checked = true;
+    branchCbs.forEach(function(cb) { cb.checked = true; });
+  }
   document.getElementById('subModal').classList.add('show');
 }
 function closeSubModal() { document.getElementById('subModal').classList.remove('show'); }
@@ -92,14 +133,23 @@ function saveSub() {
   const id = document.getElementById('subId').value;
   const featuresRaw = document.getElementById('subFeatures').value;
   const features = featuresRaw.split('\n').map(f => f.trim()).filter(f => f);
+  var allCheck = document.getElementById('branchAll');
+  var allowedBranches;
+  if (allCheck.checked) {
+    allowedBranches = ['*'];
+  } else {
+    allowedBranches = Array.from(document.querySelectorAll('input[name="allowedBranch"]:checked')).map(function(cb) { return cb.value; });
+  }
   const data = {
     name: document.getElementById('subName').value,
     price: document.getElementById('subPrice').value,
     currency: document.getElementById('subCurrency').value,
     stage: document.getElementById('subStage').value,
     period: document.getElementById('subPeriod').value,
+    durationDays: parseInt(document.getElementById('subDurationDays').value) || 30,
     popular: document.getElementById('subPopular').checked,
-    features
+    features,
+    allowedBranches
   };
   const url = id ? '/api/admin/subscriptions/' + id : '/api/admin/subscriptions';
   const method = id ? 'PUT' : 'POST';

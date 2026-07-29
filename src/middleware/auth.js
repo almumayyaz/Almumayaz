@@ -1,5 +1,5 @@
 const { verifyAccessToken, createRefreshToken, setTokenCookies } = require('../utils/jwt');
-const { getPrisma } = require('../database');
+const { refreshTokenRepo, userRepo } = require('../repositories');
 
 function authenticate(req, res, next) {
   const token = req.cookies?.access_token;
@@ -22,14 +22,11 @@ async function refreshAndRetry(req, res, next) {
   try {
     const { verifyRefreshToken, rotateRefreshToken } = require('../utils/jwt');
     const decoded = verifyRefreshToken(refreshToken);
-    const prisma = getPrisma();
-    const stored = await prisma.refreshToken.findUnique({
-      where: { token: refreshToken }
-    });
+    const stored = await refreshTokenRepo.findBy('token', refreshToken);
     if (!stored || stored.revoked || stored.expiresAt < new Date()) {
       return res.status(401).json({ error: 'Unauthorized', message: 'Refresh token expired or revoked' });
     }
-    const user = await prisma.user.findUnique({ where: { id: decoded.sub } });
+    const user = await userRepo.get(decoded.sub);
     if (!user) return res.status(401).json({ error: 'Unauthorized', message: 'User not found' });
     const newRefreshToken = await rotateRefreshToken(refreshToken, user.id);
     const { signAccessToken } = require('../utils/jwt');

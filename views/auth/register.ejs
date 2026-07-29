@@ -190,10 +190,8 @@ function handleRegister(e) {
         else { alert(d.error || 'فشل إنشاء الحساب'); location.reload(); }
       })
       .catch(function(err) {
-        var msg = err.message;
-        if (err.code === 'auth/email-already-in-use') msg = 'البريد الإلكتروني مستخدم بالفعل';
-        else if (err.code === 'auth/weak-password') msg = 'كلمة المرور ضعيفة (6 أحرف على الأقل)';
-        alert(msg);
+        console.error(err);
+        alert(window.getFirebaseErrorMessage(err));
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-user-plus"></i> إنشاء الحساب';
       });

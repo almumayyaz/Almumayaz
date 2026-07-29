@@ -19,19 +19,6 @@ function getCached(filename) {
   return e.value;
 }
 
-// Preload with require() so JSON files are bundled on Vercel
-try { setCached('courses.json', require('./data/courses.json')); } catch(e) {}
-try { setCached('users.json', require('./data/users.json')); } catch(e) {}
-try { setCached('announcements.json', require('./data/announcements.json')); } catch(e) {}
-try { setCached('subscriptions.json', require('./data/subscriptions.json')); } catch(e) {}
-try { setCached('reviews.json', require('./data/reviews.json')); } catch(e) {}
-try { setCached('notes.json', require('./data/notes.json')); } catch(e) {}
-try { setCached('questionBanks.json', require('./data/questionBanks.json')); } catch(e) {}
-try { setCached('payments.json', require('./data/payments.json')); } catch(e) {}
-try { setCached('settings.json', require('./data/settings.json')); } catch(e) {}
-try { setCached('quotes.json', require('./data/quotes.json')); } catch(e) {}
-try { setCached('parentInvites.json', require('./data/parentInvites.json')); } catch(e) {}
-
 async function readJSON(filename) {
   const cached = getCached(filename);
   if (cached !== undefined) return cached;
@@ -64,17 +51,5 @@ async function writeData(key, data) {
   const filename = key.endsWith('s') ? key + '.json' : key + '.json';
   return writeJSON(filename, data);
 }
-
-async function init() {
-  const files = ['users.json', 'courses.json', 'announcements.json', 'subscriptions.json', 'reviews.json', 'payments.json', 'notifications.json', 'parentInvites.json'];
-  for (const file of files) {
-    try {
-      const content = await fs.readFile(path.join(dataDir, file), 'utf8');
-      setCached(file, JSON.parse(content));
-    } catch (e) {}
-  }
-}
-
-init();
 
 module.exports = { readData, writeData };

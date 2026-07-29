@@ -1,6 +1,7 @@
 const https = require('https');
 const crypto = require('crypto');
-const { readData, writeData } = require('./firebase-admin');
+const { readData, writeData } = require('./prisma-bridge');
+const { withTimeout } = require('./src/utils/timeout');
 
 /* ------------------------------------------------------------------ */
 /*  Zoom App Credentials — stored in Firebase, mirrored to process.env*/
@@ -141,10 +142,10 @@ async function clearTokens(userId) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Helper: HTTPS request wrapper                                     */
+/*  Helper: HTTPS request wrapper with timeout                        */
 /* ------------------------------------------------------------------ */
 function httpsRequest(opts, body) {
-  return new Promise(function(resolve, reject) {
+  return withTimeout(new Promise(function(resolve, reject) {
     var payload = body ? (typeof body === 'string' ? body : JSON.stringify(body)) : null;
     var options = {
       hostname: opts.hostname || 'zoom.us',
@@ -165,7 +166,7 @@ function httpsRequest(opts, body) {
     req.on('error', reject);
     if (payload) req.write(payload);
     req.end();
-  });
+  }), 'ZoomAPI');
 }
 
 function buildBasicAuth() {
@@ -426,7 +427,7 @@ function generateSignature(meetingNumber, role, sdkKey, sdkSecret) {
   if (!sdkKey) sdkKey = process.env.ZOOM_SDK_KEY || '';
   if (!sdkSecret) sdkSecret = process.env.ZOOM_SDK_SECRET || '';
   if (!sdkKey || !sdkSecret) {
-    return 'MOCK_JWT_FOR_' + meetingNumber + '_ROLE_' + role;
+    return '';
   }
   var iat = Math.round(Date.now() / 1000) - 30;
   var exp = iat + 7200; // 2 hours

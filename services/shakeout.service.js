@@ -1,6 +1,6 @@
 const https = require('https');
 const crypto = require('crypto');
-const { readData, writeData } = require('../firebase-admin');
+const { readData, writeData } = require('../prisma-bridge');
 
 const API_BASE = 'https://dash.shake-out.com/api/public/vendor';
 const API_KEY = process.env.SHAKEOUT_API_KEY || '';
@@ -57,7 +57,7 @@ function normalizeCurrency(cur) {
   return map[c] || 'EGP';
 }
 
-async function createInvoice(studentId, studentName, studentEmail, studentPhone, plan) {
+async function createInvoice(studentId, studentName, studentEmail, studentPhone, plan, subscriptionId) {
   if (!isConfigured()) throw new Error('Shake Out is not configured');
   logger.info('createInvoice', 'Creating invoice for student ' + studentId + ', plan ' + plan.name);
 
@@ -109,6 +109,7 @@ async function createInvoice(studentId, studentName, studentEmail, studentPhone,
     invoiceRef: res.data.invoice_ref || '',
     studentId: studentId,
     planName: plan.name,
+    subscriptionId: subscriptionId || '',
     amount: parseInt(plan.price) || 0,
     currency: normalizeCurrency(plan.currency),
     status: 'pending',
@@ -146,4 +147,100 @@ function verifySignature(data, signature) {
   }
 }
 
-module.exports = { isConfigured, createInvoice, verifySignature };
+async function handleWebhook(body) {
+  if (!body || !body.type || !body.data || !body.signature) {
+    logger.warn('handleWebhook', 'Missing webhook fields');
+    throw Object.assign(new Error('بيانات ناقصة'), { statusCode: 400 });
+  }
+  logger.info('handleWebhook', 'Webhook received, type=' + body.type + ', invoice=' + (body.data.invoice_id || ''));
+
+  var data = body.data;
+  var signature = body.signature;
+
+  if (!verifySignature(data, signature)) {
+    logger.error('handleWebhook', 'Signature invalid');
+    throw Object.assign(new Error('توقيع غير صالح'), { statusCode: 401 });
+  }
+  logger.info('handleWebhook', 'Signature valid');
+
+  var invoiceStatus = data.invoice_status;
+  var invoiceId = data.invoice_id;
+
+  // Find and update invoice in subscriptionPayments
+  var payments = await readData('subscriptionPayments') || [];
+  if (!Array.isArray(payments)) payments = Object.values(payments);
+  var pIdx = payments.findIndex(function(p) { return p.invoiceId === invoiceId; });
+  if (pIdx === -1) {
+    logger.error('handleWebhook', 'Invoice not found: ' + invoiceId);
+    throw Object.assign(new Error('الفاتورة غير موجودة'), { statusCode: 404 });
+  }
+
+  var updated = {
+    status: invoiceStatus,
+    paymentMethod: data.payment_method || '',
+    referenceNumber: data.reference_number || '',
+    invoiceRef: data.invoice_ref || payments[pIdx].invoiceRef,
+    updatedAt: new Date().toISOString()
+  };
+  Object.keys(updated).forEach(function(k) { payments[pIdx][k] = updated[k]; });
+
+  if (invoiceStatus === 'paid') {
+    logger.info('handleWebhook', 'Payment paid, activating subscription for invoice ' + invoiceId);
+
+    // Activate student subscription
+    var users = await readData('users') || [];
+    if (!Array.isArray(users)) users = Object.values(users);
+    var uIdx = users.findIndex(function(u) { return u.id === payments[pIdx].studentId || u.uid === payments[pIdx].studentId; });
+    if (uIdx !== -1) {
+      users[uIdx].subscriptionStatus = 'active';
+      users[uIdx].subscriptionStart = new Date().toISOString();
+      var dur = payments[pIdx].durationDays || 30;
+      users[uIdx].subscriptionEnd = new Date(Date.now() + dur * 86400000).toISOString();
+      users[uIdx].planName = payments[pIdx].planName;
+      users[uIdx].planPeriod = payments[pIdx].period || '';
+      await writeData('users', users);
+      logger.info('handleWebhook', 'Subscription activated for user ' + payments[pIdx].studentId);
+
+      // Record payment in payments collection
+      try {
+        var allPayments = await readData('payments') || [];
+        allPayments.push({
+          id: 'PAY-' + Date.now(),
+          userId: payments[pIdx].studentId,
+          userName: users[uIdx].name || '',
+          transactionId: payments[pIdx].invoiceRef || payments[pIdx].invoiceId || '',
+          amount: Number(payments[pIdx].amount) || 0,
+          method: 'shakeout',
+          planName: payments[pIdx].planName || '',
+          status: 'approved',
+          date: new Date().toISOString(),
+          rejectReason: ''
+        });
+        await writeData('payments', allPayments);
+        logger.info('handleWebhook', 'Payment recorded for user ' + payments[pIdx].studentId);
+      } catch (pe) { logger.error('handleWebhook', 'Failed to record payment', pe.message); }
+
+      // Notify all admins via FCM
+      try {
+        var admins = users.filter(function(u) { return u.role === 'admin' && u.fcmToken; });
+        var { sendFCM, sendFCMToRole } = require('../prisma-bridge');
+        for (var ai = 0; ai < admins.length; ai++) {
+          try {
+            await sendFCM(admins[ai].id, '💳 اشتراك جديد عبر Shake Out', 'اشترك ' + (users[uIdx].name || 'طالب') + ' في خطة ' + (payments[pIdx].planName || '') + ' بمبلغ ' + (payments[pIdx].amount || 0) + ' جنيه', '/admin/payments');
+          } catch (fe) { logger.error('handleWebhook', 'FCM error for admin ' + admins[ai].id, fe.message); }
+        }
+      } catch (ne) { logger.error('handleWebhook', 'Admin notify error', ne.message); }
+    } else {
+      logger.error('handleWebhook', 'User not found: ' + payments[pIdx].studentId);
+    }
+  }
+
+  if (invoiceStatus === 'paid' || invoiceStatus === 'pending' || invoiceStatus === 'expired' || invoiceStatus === 'failed') {
+    await writeData('subscriptionPayments', payments);
+    logger.info('handleWebhook', 'Invoice ' + invoiceId + ' updated to ' + invoiceStatus);
+  }
+
+  return { success: true, status: invoiceStatus };
+}
+
+module.exports = { isConfigured, createInvoice, verifySignature, handleWebhook };
