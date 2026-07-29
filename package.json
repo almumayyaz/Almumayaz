@@ -14,7 +14,8 @@
     "migrate:dry-run": "node scripts/migrate-data.js --dry-run",
     "migrate:data:force": "node scripts/migrate-data.js --force",
     "migrate:preflight": "node scripts/preflight.js",
-    "verify:migration": "node scripts/verify-migration.js"
+    "verify:migration": "node scripts/verify-migration.js",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1097.0",
