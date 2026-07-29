@@ -44,7 +44,8 @@ function _fb() {
 
 // ── Collection → Prisma model mapping ──
 const COLLECTION_MODEL_MAP = {
-  users: 'user',
+  // users removed — Firebase has extra fields (quizResults, examResults, etc.)
+  // that don't exist in the Prisma User model. All user reads/writes go to Firebase.
   courses: 'course',
   payments: 'payment',
   subscriptions: 'subscription',
