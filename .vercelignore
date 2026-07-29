@@ -1,0 +1,42 @@
+# Version control
+.git
+.gitignore
+
+# IDE & AI agent config
+.agents
+.claude
+.windsurf
+.vscode
+.idea
+
+# Archives and downloads
+*.zip
+*.tgz
+*.tar
+*.gz
+*.rar
+*.7z
+*.bak
+*.old
+
+# Logs and session files
+*.log
+all_calls.txt
+cookies.txt
+nul
+NUL
+
+# Documentation and reports
+*.md
+docs/
+migration-reports/
+
+# Migration scripts (one-time use)
+scripts/
+logs/
+
+# Environment files
+.env
+.env.local
+.env.vercel
+.env.*

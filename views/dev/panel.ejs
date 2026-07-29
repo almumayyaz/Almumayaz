@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>لوحة المطور — Developer Panel</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap');
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Cairo', sans-serif;
+      background: #0a0a0f;
+      color: #e0e0e0;
+      direction: rtl;
+      line-height: 1.6;
+    }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #111; }
+    ::-webkit-scrollbar-thumb { background: #2a2a3a; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #3b82f6; }
+
+    /* Background */
+    .dev-bg {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background:
+        radial-gradient(ellipse at 20% 50%, rgba(59,130,246,0.04) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 50%, rgba(139,92,246,0.04) 0%, transparent 50%);
+    }
+    .dev-grid-overlay {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background-image:
+        linear-gradient(rgba(59,130,246,0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59,130,246,0.02) 1px, transparent 1px);
+      background-size: 40px 40px;
+    }
+
+    /* Top bar */
+    .top-bar {
+      position: relative; z-index: 1;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 24px;
+      background: rgba(16,16,24,0.9);
+      border-bottom: 1px solid rgba(59,130,246,0.15);
+      backdrop-filter: blur(12px);
+    }
+    .top-bar .brand {
+      display: flex; align-items: center; gap: 10px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 15px; font-weight: 700; color: #f0f0f0;
+    }
+    .top-bar .brand .badge {
+      display: inline-block;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      font-size: 10px; padding: 2px 8px; border-radius: 4px;
+      color: #fff; font-weight: 700;
+      margin-right: 6px;
+      font-family: 'Cairo', sans-serif;
+    }
+    .top-bar .brand i { color: #3b82f6; }
+    .top-bar .actions { display: flex; gap: 8px; align-items: center; }
+    .top-bar .actions a, .top-bar .actions button {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px; padding: 6px 14px; border-radius: 6px;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.04);
+      color: #aaa; cursor: pointer; text-decoration: none;
+      transition: all 0.2s;
+    }
+    .top-bar .actions a:hover, .top-bar .actions button:hover {
+      background: rgba(255,255,255,0.08); color: #fff;
+    }
+    .top-bar .actions .logout-btn { color: #ef4444; border-color: rgba(239,68,68,0.2); }
+    .top-bar .actions .logout-btn:hover { background: rgba(239,68,68,0.1); }
+
+    /* Layout */
+    .panel-layout {
+      position: relative; z-index: 1;
+      display: flex; max-width: 1200px; margin: 0 auto; padding: 24px;
+      gap: 24px; align-items: flex-start;
+    }
+    .panel-sidebar {
+      width: 220px; flex-shrink: 0;
+      position: sticky; top: 24px;
+    }
+    .panel-sidebar nav { display: flex; flex-direction: column; gap: 4px; }
+    .panel-sidebar nav a {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 14px; border-radius: 8px;
+      font-size: 13px; font-weight: 600; color: #888; text-decoration: none;
+      transition: all 0.2s; border: 1px solid transparent;
+    }
+    .panel-sidebar nav a:hover {
+      background: rgba(255,255,255,0.04); color: #ccc; border-color: rgba(255,255,255,0.06);
+    }
+    .panel-sidebar nav a.active {
+      background: rgba(59,130,246,0.1); color: #60a5fa; border-color: rgba(59,130,246,0.2);
+    }
+    .panel-sidebar nav a i { width: 18px; text-align: center; font-size: 14px; }
+
+    .panel-main { flex: 1; min-width: 0; }
+
+    /* Cards */
+    .dev-card {
+      background: rgba(16,16,24,0.85);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+      backdrop-filter: blur(8px);
+    }
+    .dev-card-head {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 18px; flex-wrap: wrap; gap: 8px;
+    }
+    .dev-card-head h3 {
+      font-size: 15px; font-weight: 700; color: #e0e0e0;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .dev-card-head h3 i { color: #3b82f6; margin-left: 8px; }
+    .dev-badge {
+      display: inline-block; padding: 3px 10px; border-radius: 6px;
+      font-size: 11px; font-weight: 700; font-family: 'JetBrains Mono', monospace;
+    }
+    .dev-badge-ok { background: rgba(22,163,74,0.12); color: #22c55e; border: 1px solid rgba(22,163,74,0.2); }
+    .dev-badge-pending { background: rgba(251,191,36,0.12); color: #f59e0b; border: 1px solid rgba(251,191,36,0.2); }
+    .dev-badge-err { background: rgba(239,68,68,0.12); color: #ef4444; border: 1px solid rgba(239,68,68,0.2); }
+    .dev-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width:800px) { .dev-grid { grid-template-columns:1fr; } .panel-layout { flex-direction: column; } .panel-sidebar { width: 100%; position: static; } .panel-sidebar nav { flex-direction: row; flex-wrap: wrap; } }
+    .dev-info { background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 14px; }
+    .dev-info-row { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 12.5px; }
+    .dev-info-row:last-child { border-bottom: none; }
+    .dev-info-row span { color: #888; }
+    .dev-info-row code { font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: #60a5fa; word-break: break-all; text-align: left; }
+    .dev-form { display: flex; flex-direction: column; gap: 12px; }
+
+    /* Form controls */
+    .form-group { display: flex; flex-direction: column; gap: 5px; }
+    .form-group label { font-size: 12px; font-weight: 600; color: #aaa; font-family: 'JetBrains Mono', monospace; }
+    .form-input {
+      padding: 10px 14px; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 8px; color: #e0e0e0; font-size: 13px; font-family: 'JetBrains Mono', monospace; outline: none; transition: border-color 0.2s;
+    }
+    .form-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.08); }
+    .form-input::placeholder { color: #555; }
+    textarea.form-input { resize: vertical; min-height: 60px; }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 9px 18px; border-radius: 8px; font-size: 13px; font-weight: 700;
+      font-family: 'Cairo', sans-serif; cursor: pointer; transition: all 0.2s; border: none; text-decoration: none; line-height: 1;
+    }
+    .btn i { font-size: 13px; }
+    .btn-primary { background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-outline { background: none; border: 1px solid rgba(255,255,255,0.12); color: #aaa; }
+    .btn-outline:hover { background: rgba(255,255,255,0.05); color: #fff; }
+    .btn-sm { padding: 6px 14px; font-size: 12px; }
+    .btn-danger { background: linear-gradient(135deg, #ef4444, #dc2626); color: #fff; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    /* Messages */
+    .dev-msg {
+      display: none; margin-top: 12px; padding: 10px 14px; border-radius: 8px;
+      font-size: 12.5px; font-weight: 600; text-align: center;
+    }
+    .dev-msg.show { display: block; }
+    .dev-msg.ok { background: rgba(22,163,74,0.1); color: #22c55e; border: 1px solid rgba(22,163,74,0.15); }
+    .dev-msg.err { background: rgba(239,68,68,0.1); color: #ef4444; border: 1px solid rgba(239,68,68,0.15); }
+
+    /* Theme color picker */
+    .theme-preview {
+      display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    }
+    .theme-preview input[type="color"] {
+      width: 42px; height: 36px; border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px; background: none; cursor: pointer; padding: 2px;
+    }
+    .theme-preview input[type="text"] {
+      direction: ltr; max-width: 120px; font-family: 'JetBrains Mono', monospace;
+    }
+    .shape-options { display: flex; gap: 8px; flex-wrap: wrap; }
+    .shape-options label {
+      display: flex; align-items: center; gap: 6px;
+      padding: 8px 14px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 8px; cursor: pointer; font-size: 13px; color: #aaa; transition: all 0.2s;
+    }
+    .shape-options label:hover { border-color: rgba(255,255,255,0.12); color: #ddd; }
+    .shape-options input:checked + span { color: #60a5fa; }
+    .shape-options input[type="radio"] { accent-color: #3b82f6; }
+
+    /* Toggle */
+    .dev-toggle {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 8px; padding: 12px 14px; cursor: pointer;
+      font-size: 13px; font-weight: 600; color: #ccc;
+    }
+    .switch { position: relative; width: 44px; height: 24px; flex-shrink: 0; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; inset: 0; background: #2a2a3a; border-radius: 999px; transition: 0.3s; cursor: pointer;
+    }
+    .slider::before {
+      content: ""; position: absolute; height: 18px; width: 18px;
+      right: 3px; top: 3px; background: #555; border-radius: 50%; transition: 0.3s;
+    }
+    .switch input:checked + .slider { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+    .switch input:checked + .slider::before {
+      background: #fff; transform: translateX(-20px);
+    }
+    .hint { font-size: 11.5px; color: #666; margin-top: 4px; }
+    .usage-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; font-size:14px; font-weight:600; }
+    .usage-total { font-size:16px; font-weight:700; color:#f59e0b; }
+    .usage-bars { display:flex; flex-wrap:wrap; gap:4px; align-items:flex-end; }
+
+    /* Status badges inline */
+    .status-dot {
+      display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-left: 6px;
+    }
+    .status-dot.green { background: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,0.4); }
+    .status-dot.red { background: #ef4444; box-shadow: 0 0 6px rgba(239,68,68,0.4); }
+    .status-dot.yellow { background: #f59e0b; box-shadow: 0 0 6px rgba(251,191,36,0.4); }
+  </style>
+</head>
+<body>
+  <div class="dev-bg"></div>
+  <div class="dev-grid-overlay"></div>
+
+  <!-- Top Bar -->
+  <div class="top-bar">
+    <div class="brand">
+      <i class="fas fa-terminal"></i>
+      Developer Panel <span class="badge">v2.0</span>
+    </div>
+    <div class="actions">
+      <a href="/admin"><i class="fas fa-tachometer-alt"></i> Admin</a>
+      <a href="/"><i class="fas fa-globe"></i> Site</a>
+      <button class="logout-btn" onclick="logout()"><i class="fas fa-power-off"></i> خروج</button>
+    </div>
+  </div>
+
+  <div class="panel-layout">
+    <!-- Sidebar -->
+    <aside class="panel-sidebar">
+      <nav>
+        <a href="#theme" class="active" id="nav-theme"><i class="fas fa-palette"></i> Platform Theme</a>
+        <a href="#zoom" id="nav-zoom"><i class="fab fa-zoom"></i> Zoom Config</a>
+        <a href="#cron" id="nav-cron"><i class="fas fa-clock"></i> Cron Control</a>
+        <a href="#maintenance" id="nav-maint"><i class="fas fa-power-off"></i> Maintenance</a>
+        <a href="#notify" id="nav-notify"><i class="fas fa-bell"></i> Notify Teacher</a>
+        <a href="#support" id="nav-support"><i class="fas fa-headset"></i> Support Key</a>
+      </nav>
+    </aside>
+
+    <!-- Main content -->
+    <main class="panel-main">
+
+      <!-- ==================== THEME COLORS ==================== -->
+      <div class="dev-card" id="theme">
+        <div class="dev-card-head">
+          <h3><i class="fas fa-palette"></i> Platform Theme</h3>
+          <span class="dev-badge dev-badge-ok" id="themeStatusBadge"><span class="status-dot green"></span>منظومة</span>
+        </div>
+        <div class="dev-form" style="gap:16px;">
+          <div class="form-group">
+            <label>اللون الأساسي <span style="color:#666;font-weight:400;">(Accent Color)</span></label>
+            <div class="theme-preview">
+              <input type="color" id="themeAccent" value="<%= themeAccent %>" oninput="previewTheme()">
+              <input type="text" id="themeAccentHex" value="<%= themeAccent %>" oninput="syncThemeHex()" class="form-input" style="direction:ltr;max-width:130px;font-family:'JetBrains Mono',monospace;" placeholder="#3B82F6">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>شكل الأزرار <span style="color:#666;font-weight:400;">(Button Shape)</span></label>
+            <div class="shape-options">
+              <label><input type="radio" name="btnShape" value="square" <%= themeBtnShape === 'square' ? 'checked' : '' %> onchange="previewTheme()"> <span>مربعة</span></label>
+              <label><input type="radio" name="btnShape" value="rounded" <%= themeBtnShape === 'rounded' ? 'checked' : '' %> onchange="previewTheme()"> <span>نصف دائرية</span></label>
+              <label><input type="radio" name="btnShape" value="circular" <%= themeBtnShape === 'circular' ? 'checked' : '' %> onchange="previewTheme()"> <span>دائرية</span></label>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>الخط <span style="color:#666;font-weight:400;">(Font Name)</span></label>
+            <div style="display:flex;gap:8px;">
+              <input type="text" id="themeFont" value="<%= themeFont %>" oninput="previewTheme()" class="form-input" style="flex:1;direction:ltr;" placeholder="e.g. Cairo, Tajawal">
+              <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('themeFont').value='Cairo';previewTheme()" title="إعادة تعيين"><i class="fas fa-undo"></i></button>
+            </div>
+            <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <input type="file" id="fontFileInput" accept=".woff2,.woff,.ttf,.otf" style="flex:1;min-width:140px;">
+              <button type="button" class="btn btn-primary btn-sm" id="fontUploadBtn" onclick="uploadFont()"><i class="fas fa-upload"></i> رفع</button>
+              <% if (typeof themeFontFile !== 'undefined' && themeFontFile) { %>
+                <span style="color:#666;font-size:13px;" id="fontFileNameLabel"><i class="fas fa-file"></i> <%= themeFontFile %></span>
+                <button type="button" class="btn btn-outline btn-sm" onclick="removeFont()"><i class="fas fa-trash"></i></button>
+              <% } else { %>
+                <span style="color:#666;font-size:13px;display:none;" id="fontFileNameLabel"></span>
+              <% } %>
+            </div>
+            <p class="hint">أدخل اسم خط من Google Fonts، أو ارفع woff2 لاستخدام خط مخصص.</p>
+          </div>
+          <div class="form-group">
+            <label>ألوان الوضع الفاتح <span style="color:#666;font-weight:400;">(Light)</span></label>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+              <div><label style="font-size:12px;color:#666;">الخلفية</label><input type="color" id="themeLightBg" value="<%= themeLightBg %>" onchange="previewTheme()" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:2px;cursor:pointer;"></div>
+              <div><label style="font-size:12px;color:#666;">البطاقات</label><input type="color" id="themeLightCard" value="<%= themeLightCard %>" onchange="previewTheme()" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:2px;cursor:pointer;"></div>
+              <div><label style="font-size:12px;color:#666;">النص</label><input type="color" id="themeLightText" value="<%= themeLightText %>" onchange="previewTheme()" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:2px;cursor:pointer;"></div>
+            </div>
+            <p class="hint" style="margin-bottom:6px;">الشريط الجانبي (Sidebar)</p>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:6px;">
+              <div><label style="font-size:11px;color:#666;">نص عند التمرير</label><input type="color" id="themeLightSidebarTextHover" value="<%= themeLightSidebarTextHover %>" onchange="previewTheme()" style="width:100%;height:30px;border:1px solid var(--border);border-radius:6px;padding:2px;cursor:pointer;"></div>
+              <div><label style="font-size:11px;color:#666;">نص عند النشاط</label><input type="color" id="themeLightSidebarTextActive" value="<%= themeLightSidebarTextActive %>" onchange="previewTheme()" style="width:100%;height:30px;border:1px solid var(--border);border-radius:6px;padding:2px;cursor:pointer;"></div>
+              <div><label style="font-size:11px;color:#666;">أيقونة عند التمرير</label><input type="color" id="themeLightSidebarIconHover" value="<%= themeLightSidebarIconHover %>" onchange="previewTheme()" style="width:100%;height:30px;border:1px solid var(--border);border-radius:6px;padding:2px;cursor:pointer;"></div>
+              <div><label style="font-size:11px;color:#666;">أيقونة عند النشاط</label><input type="color" id="themeLightSidebarIconActive" value="<%= themeLightSidebarIconActive %>" onchange="previewTheme()" style="width:100%;height:30px;border:1px solid var(--border);border-radius:6px;padding:2px;cursor:pointer;"></div>
+              <div><label style="font-size:11px;color:#666;">تسجيل الخروج</label><input type="color" id="themeLightSidebarLogout" value="<%= themeLightSidebarLogout %>" onchange="previewTheme()" style="width:100%;height:30px;border:1px solid var(--border);border-radius:6px;padding:2px;cursor:pointer;"></div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>ألوان الوضع الغامق <span style="color:#666;font-weight:400;">(Dark)</span></label>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+              <div><label style="font-size:12px;color:#666;">الخلفية</label><input type="color" id="themeDarkBg" value="<%= themeDarkBg %>" onchange="previewTheme()" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:2px;cursor:pointer;"></div>
+              <div><label style="font-size:12px;color:#666;">البطاقات</label><input type="color" id="themeDarkCard" value="<%= themeDarkCard %>" onchange="previewTheme()" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:2px;cursor:pointer;"></div>
+              <div><label style="font-size:12px;color:#666;">النص</label><input type="color" id="themeDarkText" value="<%= themeDarkText %>" onchange="previewTheme()" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:2px;cursor:pointer;"></div>
+            </div>
+            <p class="hint" style="margin-bottom:6px;">الشريط الجانبي (Sidebar)</p>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:6px;">
+              <div><label style="font-size:11px;color:#666;">نص عند التمرير</label><input type="color" id="themeDarkSidebarTextHover" value="<%= themeDarkSidebarTextHover %>" onchange="previewTheme()" style="width:100%;height:30px;border:1px solid var(--border);border-radius:6px;padding:2px;cursor:pointer;"></div>
+              <div><label style="font-size:11px;color:#666;">نص عند النشاط</label><input type="color" id="themeDarkSidebarTextActive" value="<%= themeDarkSidebarTextActive %>" onchange="previewTheme()" style="width:100%;height:30px;border:1px solid var(--border);border-radius:6px;padding:2px;cursor:pointer;"></div>
+              <div><label style="font-size:11px;color:#666;">أيقونة عند التمرير</label><input type="color" id="themeDarkSidebarIconHover" value="<%= themeDarkSidebarIconHover %>" onchange="previewTheme()" style="width:100%;height:30px;border:1px solid var(--border);border-radius:6px;padding:2px;cursor:pointer;"></div>
+              <div><label style="font-size:11px;color:#666;">أيقونة عند النشاط</label><input type="color" id="themeDarkSidebarIconActive" value="<%= themeDarkSidebarIconActive %>" onchange="previewTheme()" style="width:100%;height:30px;border:1px solid var(--border);border-radius:6px;padding:2px;cursor:pointer;"></div>
+              <div><label style="font-size:11px;color:#666;">تسجيل الخروج</label><input type="color" id="themeDarkSidebarLogout" value="<%= themeDarkSidebarLogout %>" onchange="previewTheme()" style="width:100%;height:30px;border:1px solid var(--border);border-radius:6px;padding:2px;cursor:pointer;"></div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-primary" onclick="saveTheme()" id="themeSaveBtn"><i class="fas fa-save"></i> حفظ الثيم</button>
+            <button class="btn btn-outline" onclick="resetThemePreview()"><i class="fas fa-undo"></i> إعادة تعيين</button>
+          </div>
+          <div id="themeMsg" class="dev-msg"></div>
+        </div>
+      </div>
+
+      <!-- ==================== ZOOM CONFIG ==================== -->
+      <div class="dev-card" id="zoom">
+        <div class="dev-card-head">
+          <h3><i class="fab fa-zoom"></i> Zoom Config</h3>
+          <span id="zoomStatusBadge" class="dev-badge dev-badge-pending"><i class="fas fa-spinner fa-spin"></i> جاري الفحص...</span>
+        </div>
+        <div class="dev-grid">
+          <div class="dev-info">
+            <div class="dev-info-row"><span>Client ID:</span> <code id="zoomClientId">—</code></div>
+            <div class="dev-info-row"><span>Firebase:</span> <code id="zoomFirebase">—</code></div>
+            <div class="dev-info-row"><span>SDK Key/Secret:</span> <code id="zoomSdk">—</code></div>
+            <div class="dev-info-row"><span>Redirect URI:</span> <code id="zoomRuri" style="direction:ltr;">—</code></div>
+          </div>
+          <form id="zoomForm" class="dev-form">
+            <div class="form-group"><label>Client ID</label><input id="zoomClientIdInput" name="clientId" class="form-input" placeholder="Zoom Client ID"></div>
+            <div class="form-group"><label>Client Secret</label><input id="zoomClientSecretInput" name="clientSecret" class="form-input" placeholder="اتركه إن لم ترد تغييره"></div>
+            <div class="form-group"><label>Redirect URI</label><input id="zoomRuriInput" name="redirectUri" class="form-input" style="direction:ltr;" placeholder="https://almumayaz.online/auth/zoom/callback"></div>
+            <div class="form-group"><label>SDK Key <span style="color:#666;font-weight:400;">(اختياري)</span></label><input id="zoomSdkKeyInput" name="sdkKey" class="form-input" placeholder="اتركه فارغاً لاستخدام Client ID"></div>
+            <div class="form-group"><label>SDK Secret <span style="color:#666;font-weight:400;">(اختياري)</span></label><input id="zoomSdkSecretInput" name="sdkSecret" class="form-input" placeholder="اتركه فارغاً لاستخدام Client Secret"></div>
+            <div class="btn-group">
+              <button type="submit" class="btn btn-primary" style="flex:1;"><i class="fas fa-save"></i> حفظ</button>
+              <a href="/auth/zoom/reauthorize" class="btn btn-outline"><i class="fas fa-sync-alt"></i> إعادة الربط</a>
+              <a href="/admin/zoom-app/reset" class="btn btn-outline" onclick="return confirm('إعادة التعيين إلى الإعدادات الأصلية؟');"><i class="fas fa-undo"></i> تعيين</a>
+              <a href="/api/zoom/debug" target="_blank" class="btn btn-outline"><i class="fas fa-stethoscope"></i> تشخيص</a>
+            </div>
+          </form>
+        </div>
+        <div id="zoomMsg" class="dev-msg"></div>
+      </div>
+
+      <!-- ==================== CRON CONTROL ==================== -->
+      <div class="dev-card" id="cron">
+        <div class="dev-card-head">
+          <h3><i class="fas fa-clock"></i> Cron Control</h3>
+          <span id="cronStatusBadge" class="dev-badge dev-badge-pending"><i class="fas fa-spinner fa-spin"></i> جاري الفحص...</span>
+        </div>
+        <div class="dev-grid">
+          <div class="dev-info">
+            <div class="dev-info-row"><span>الفحص التلقائي:</span> <code id="cronInterval">—</code></div>
+            <div class="dev-info-row"><span>آخر تشغيل:</span> <code id="cronLastRun">—</code></div>
+            <div class="dev-info-row"><span>آخر إرسال:</span> <code id="cronProcessed">—</code></div>
+            <div class="dev-info-row"><span>CRON_SECRET:</span> <code id="cronSecret">—</code></div>
+          </div>
+          <div class="dev-form">
+            <div class="form-group">
+              <label>Cron URL <span style="color:#666;font-weight:400;">(انسخه إلى Vercel)</span></label>
+              <input id="cronUrl" class="form-input" style="direction:ltr;" readonly>
+              <button type="button" class="btn btn-outline btn-sm" style="margin-top:6px;" onclick="copyCronUrl()"><i class="fas fa-copy"></i> نسخ الرابط</button>
+            </div>
+            <div class="form-group">
+              <label>تحديث CRON_SECRET</label>
+              <div style="display:flex;gap:8px;">
+                <input id="cronSecretInput" class="form-input" style="direction:ltr;flex:1;" placeholder="السر الجديد">
+                <button type="button" class="btn btn-primary btn-sm" onclick="saveCronSecret()"><i class="fas fa-key"></i> حفظ</button>
+              </div>
+            </div>
+            <button type="button" class="btn btn-primary" style="width:100%;" onclick="runCronNow()"><i class="fas fa-play"></i> تشغيل الفحص الآن</button>
+          </div>
+        </div>
+        <div id="cronMsg" class="dev-msg"></div>
+      </div>
+
+      <!-- ==================== MAINTENANCE ==================== -->
+      <div class="dev-card" id="maintenance">
+        <div class="dev-card-head">
+          <h3><i class="fas fa-power-off"></i> Maintenance Mode</h3>
+          <span id="mmStatusBadge" class="dev-badge dev-badge-pending"><i class="fas fa-spinner fa-spin"></i> جاري الفحص...</span>
+        </div>
+        <div class="dev-form">
+          <div class="form-group">
+            <label>رسالة الصيانة <span style="color:#666;font-weight:400;">(تظهر للطلاب)</span></label>
+            <textarea id="mmMessage" class="form-input" rows="3" placeholder="نعتذر، المنصة قيد الصيانة حالياً..."></textarea>
+          </div>
+          <label class="dev-toggle">
+            <span>وضع الصيانة (إيقاف المنصة للطلاب)</span>
+            <span class="switch"><input type="checkbox" id="mmToggle" onchange="setMaintenance(this.checked)"><span class="slider"></span></span>
+          </label>
+          <p class="hint">أثناء الصيانة يستطيع المدير تصفّح المنصة، بينما يرى الطلاب شاشة صيانة.</p>
+        </div>
+        <div id="mmMsg" class="dev-msg"></div>
+      </div>
+
+      <!-- ==================== NOTIFY TEACHER ==================== -->
+      <div class="dev-card" id="notify">
+        <div class="dev-card-head">
+          <h3><i class="fas fa-bell"></i> Notify Teacher</h3>
+        </div>
+        <div class="dev-form">
+          <div class="form-group"><label>العنوان</label><input id="ntTitle" class="form-input" placeholder="عنوان الإشعار"></div>
+          <div class="form-group"><label>النص</label><textarea id="ntBody" class="form-input" rows="3" placeholder="نص الإشعار"></textarea></div>
+          <div class="form-group"><label>الرابط عند النقر <span style="color:#666;font-weight:400;">(اختياري)</span></label><input id="ntUrl" class="form-input" style="direction:ltr;" value="/admin"></div>
+          <button type="button" class="btn btn-primary" style="width:100%;" onclick="notifyTeacher()"><i class="fas fa-paper-plane"></i> إرسال للمدرس</button>
+        </div>
+        <div id="ntMsg" class="dev-msg"></div>
+      </div>
+
+      <!-- ==================== SUPPORT KEY ==================== -->
+      <div class="dev-card" id="support">
+        <div class="dev-card-head">
+          <h3><i class="fas fa-headset"></i> Support Key</h3>
+        </div>
+        <div class="dev-form">
+          <div class="form-group"><label>مفتاح الدعم الفني <span style="color:#666;font-weight:400;">(يستخدمه مسؤول الدعم لتسجيل الدخول)</span></label>
+            <input id="supportKeyInput" class="form-input" style="direction:ltr;font-family:'JetBrains Mono',monospace;text-align:center;letter-spacing:3px;" value="<%= supportKey %>" placeholder="support2024"></div>
+          <button type="button" class="btn btn-primary" onclick="saveSupportKey()"><i class="fas fa-save"></i> حفظ المفتاح</button>
+        </div>
+        <div id="supportKeyMsg" class="dev-msg"></div>
+      </div>
+
+      <!-- ==================== USAGE STATISTICS ==================== -->
+      <div class="dev-card">
+        <div class="dev-card-head">
+          <h3><i class="fas fa-chart-bar"></i> Usage Statistics</h3>
+          <span id="usageBadge" class="dev-badge dev-badge-pending"><i class="fas fa-spinner fa-spin"></i> Loading...</span>
+        </div>
+        <div id="usageContent" style="display:none;">
+          <!-- Brevo Email -->
+          <div style="margin-bottom:16px;">
+            <div class="usage-row">
+              <span><i class="fas fa-envelope"></i> Brevo — Email</span>
+              <span id="brevoTotal" class="usage-total">0</span>
+            </div>
+            <div id="brevoCredits" style="font-size:11px;color:#666;margin-bottom:6px;"></div>
+            <div id="brevoDaily" class="usage-bars"></div>
+          </div>
+        </div>
+        <div id="usageEmpty" style="display:none;text-align:center;padding:20px;color:#666;font-size:13px;">
+          <i class="fas fa-inbox" style="font-size:36px;display:block;margin-bottom:8px;opacity:0.3;"></i>
+          No usage data yet. Start using services to see statistics.
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script>
+/* ===================== Utilities ===================== */
+function escHtml(t){return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');}
+function setMsg(id, ok, msg){
+  var r=document.getElementById(id);
+  r.className='dev-msg show '+(ok?'ok':'err');
+  r.textContent=msg;
+}
+
+/* ===================== Theme ===================== */
+function hexToRgbJs(hex){hex=String(hex).replace('#','').trim();if(hex.length===3)hex=hex.split('').map(function(c){return c+c;}).join('');if(hex.length!==6)return null;return{r:parseInt(hex.slice(0,2),16),g:parseInt(hex.slice(2,4),16),b:parseInt(hex.slice(4,6),16)};}
+function rgbToHexJs(c){var h=function(n){var s=Math.max(0,Math.min(255,Math.round(n))).toString(16);return s.length===1?'0'+s:s;};return'#'+h(c.r)+h(c.g)+h(c.b);}
+function mixRgbJs(a,b,t){return{r:a.r+(b.r-a.r)*t,g:a.g+(b.g-a.g)*t,b:a.b+(b.b-a.b)*t};}
+var DEFAULT_LIGHT_JS={bg:'#FFF9F1',card:'#FFFFFF',border:'#E8E8E8',text:'#111111',textLight:'#666666',textMuted:'#9A8A7A',cardAlt:'#f5f5f5',glassBg:'rgba(255,255,255,0.85)',glassBorder:'rgba(0,0,0,0.06)',glassBlur:'20px',sidebarTextHover:'#000000',sidebarTextActive:'#000000',sidebarIconHover:'#000000',sidebarIconActive:'#000000',sidebarLogout:'#ef4444'};
+var DEFAULT_DARK_JS={bg:'#0F172A',card:'#1E293B',border:'rgba(255,255,255,0.08)',text:'#F1F5F9',textLight:'#94A3B8',textMuted:'#64748B',cardAlt:'#111827',glassBg:'rgba(255,255,255,0.06)',glassBorder:'rgba(255,255,255,0.1)',glassBlur:'24px',sidebarTextHover:'var(--accent)',sidebarTextActive:'var(--accent)',sidebarIconHover:'var(--accent)',sidebarIconActive:'var(--accent)',sidebarLogout:'#f87171'};
+function buildThemeCssJs(accent,shape,font,lt,dk){
+  var rgb=hexToRgbJs(accent)||{r:59,g:130,b:246};
+  var light=mixRgbJs(rgb,{r:255,g:255,b:255},0.35);
+  var lighter=mixRgbJs(rgb,{r:255,g:255,b:255},0.6);
+  var hover=mixRgbJs(rgb,{r:0,g:0,b:0},0.15);
+  var radius=shape==='square'?'0px':(shape==='circular'?'999px':'12px');
+  var fontCss=font?'font-family:"'+font.replace(/"/g,'')+'",sans-serif;':'';
+  function themeBlockJs(prefix,src,def){
+    return prefix+'{'+
+      '--bg:'+(src.bg||def.bg)+';--card:'+(src.card||def.card)+';--card-alt:'+(src.cardAlt||def.cardAlt)+';'+
+      '--border:'+(src.border||def.border)+';--text:'+(src.text||def.text)+';--text-light:'+(src.textLight||def.textLight)+';'+
+      '--text-muted:'+(src.textMuted||def.textMuted)+';--glass-bg:'+(src.glassBg||def.glassBg)+';'+
+      '--glass-border:'+(src.glassBorder||def.glassBorder)+';--glass-blur:'+(src.glassBlur||def.glassBlur)+';'+
+      '--sidebar-text-hover:'+(src.sidebarTextHover||def.sidebarTextHover)+';'+
+      '--sidebar-text-active:'+(src.sidebarTextActive||def.sidebarTextActive)+';'+
+      '--sidebar-icon-hover:'+(src.sidebarIconHover||def.sidebarIconHover)+';'+
+      '--sidebar-icon-active:'+(src.sidebarIconActive||def.sidebarIconActive)+';'+
+      '--sidebar-logout:'+(src.sidebarLogout||def.sidebarLogout)+';'+
+      '--primary:'+accent+';--primary-light:'+rgbToHexJs(light)+';--primary-lighter:'+rgbToHexJs(lighter)+';'+
+      '--accent:'+accent+';--accent-light:'+rgbToHexJs(light)+';--accent-hover:'+rgbToHexJs(hover)+';'+
+      '--accent-glow:rgba('+rgb.r+','+rgb.g+','+rgb.b+',0.18);'+
+      '--gold-gradient:linear-gradient(135deg,'+accent+' 0%,'+rgbToHexJs(hover)+' 100%);'+
+      '--gold-gradient-text:linear-gradient(90deg,'+accent+','+rgbToHexJs(hover)+');'+
+      '--shadow-accent:0 8px 25px rgba('+rgb.r+','+rgb.g+','+rgb.b+',0.25);'+
+      '--course-c1:'+accent+';--course-c2:'+rgbToHexJs(mixRgbJs(rgb,{r:109,g:74,b:255},0.55))+';'+
+      '--course-c3:'+rgbToHexJs(mixRgbJs(rgb,{r:13,g:148,b:136},0.55))+';'+
+      '--course-c4:'+rgbToHexJs(mixRgbJs(rgb,{r:184,g:134,b:11},0.5))+';'+
+      '--btn-radius:'+radius+';'+
+      fontCss+
+      '}';
+  }
+  return themeBlockJs(':root,[data-theme="light"]',lt||{},DEFAULT_LIGHT_JS)+
+    themeBlockJs('[data-theme="dark"]',dk||{},DEFAULT_DARK_JS)+
+    '.btn,.btn-lg,.btn-sm,.btn-outline,.btn-primary,.btn-danger,.action-btn{border-radius:var(--btn-radius,14px)!important;}'+
+    (font?'body,input,textarea,select,button,.navbar,.nav-links a,.sidebar-logo,.btn,.form-input,.sp-info-value,.sp-code{font-family:"'+font.replace(/"/g,'')+'",sans-serif!important;}':'');
+}
+function currentThemeAccent(){return document.getElementById('themeAccent').value;}
+function currentBtnShape(){var els=document.getElementsByName('btnShape');for(var i=0;i<els.length;i++){if(els[i].checked)return els[i].value;}return 'rounded';}
+function currentThemeFont(){return document.getElementById('themeFont').value.trim();}
+function loadGoogleFont(name){
+  if(!name)return;
+  var id='gf-'+name.replace(/\s+/g,'');
+  if(document.getElementById(id))return;
+  var link=document.createElement('link');link.id=id;link.rel='stylesheet';
+  link.href='https://fonts.googleapis.com/css2?family='+encodeURIComponent(name)+':wght@400;500;600;700;800&display=swap';
+  document.head.appendChild(link);
+}
+function uploadFont(){
+  var file=document.getElementById('fontFileInput').files[0];
+  if(!file){setMsg('themeMsg',false,'اختر ملف خط أولاً');return;}
+  var fd=new FormData();
+  fd.append('fontFile',file);
+  fd.append('fontName',currentThemeFont());
+  var btn=document.getElementById('fontUploadBtn');
+  btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i>';
+  fetch('/api/admin/upload-font',{method:'POST',body:fd})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d.success){
+        setMsg('themeMsg',true,'تم رفع الخط "'+d.fontName+'"');
+        var lbl=document.getElementById('fontFileNameLabel');
+        if(lbl){lbl.innerHTML='<i class="fas fa-file"></i> '+d.fileName;lbl.style.display='';}
+        previewTheme();
+      }else{setMsg('themeMsg',false,d.error||'حدث خطأ');}
+      btn.disabled=false;btn.innerHTML='<i class="fas fa-upload"></i> رفع';
+    }).catch(function(){setMsg('themeMsg',false,'فشل الاتصال');btn.disabled=false;btn.innerHTML='<i class="fas fa-upload"></i> رفع';});
+}
+function removeFont(){
+  if(!confirm('إزالة ملف الخط المخصص والرجوع إلى Google Fonts؟'))return;
+  fetch('/api/admin/remove-font',{method:'POST'})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d.success){
+        setMsg('themeMsg',true,'تم إزالة الخط المخصص');
+        var lbl=document.getElementById('fontFileNameLabel');
+        if(lbl)lbl.style.display='none';
+        previewTheme();
+      }else{setMsg('themeMsg',false,d.error||'حدث خطأ');}
+    }).catch(function(){setMsg('themeMsg',false,'فشل الاتصال');});
+}
+function previewTheme(){
+  var hex=currentThemeAccent();
+  var font=currentThemeFont();
+  var colors=currentThemeColors();
+  document.getElementById('themeAccentHex').value=hex;
+  var styleEl=document.getElementById('theme-override');
+  if(!styleEl){styleEl=document.createElement('style');styleEl.id='theme-override';document.head.appendChild(styleEl);}
+  styleEl.textContent=buildThemeCssJs(hex,currentBtnShape(),font,colors.light,colors.dark);
+  if(font)loadGoogleFont(font);
+}
+function syncThemeHex(){
+  var v=document.getElementById('themeAccentHex').value.trim();
+  if(v&&v[0]!=='#')v='#'+v;
+  if(/^#[0-9a-fA-F]{3}$/.test(v)||/^#[0-9a-fA-F]{6}$/.test(v)){
+    document.getElementById('themeAccent').value=v.length===4?(function(h){h=h.replace('#','');return '#'+h[0]+h[0]+h[1]+h[1]+h[2]+h[2];})(v):v;
+    previewTheme();
+  }
+}
+function resetThemePreview(){
+  document.getElementById('themeAccent').value='<%= themeAccent %>';
+  document.getElementById('themeAccentHex').value='<%= themeAccent %>';
+  document.getElementById('themeFont').value='<%= themeFont %>';
+  var els=document.getElementsByName('btnShape');
+  for(var i=0;i<els.length;i++){els[i].checked=els[i].value==='<%= themeBtnShape %>';}
+  document.getElementById('themeLightBg').value='<%= themeLightBg %>';
+  document.getElementById('themeLightCard').value='<%= themeLightCard %>';
+  document.getElementById('themeLightText').value='<%= themeLightText %>';
+  document.getElementById('themeLightSidebarTextHover').value='<%= themeLightSidebarTextHover %>';
+  document.getElementById('themeLightSidebarTextActive').value='<%= themeLightSidebarTextActive %>';
+  document.getElementById('themeLightSidebarIconHover').value='<%= themeLightSidebarIconHover %>';
+  document.getElementById('themeLightSidebarIconActive').value='<%= themeLightSidebarIconActive %>';
+  document.getElementById('themeLightSidebarLogout').value='<%= themeLightSidebarLogout %>';
+  document.getElementById('themeDarkBg').value='<%= themeDarkBg %>';
+  document.getElementById('themeDarkCard').value='<%= themeDarkCard %>';
+  document.getElementById('themeDarkText').value='<%= themeDarkText %>';
+  document.getElementById('themeDarkSidebarTextHover').value='<%= themeDarkSidebarTextHover %>';
+  document.getElementById('themeDarkSidebarTextActive').value='<%= themeDarkSidebarTextActive %>';
+  document.getElementById('themeDarkSidebarIconHover').value='<%= themeDarkSidebarIconHover %>';
+  document.getElementById('themeDarkSidebarIconActive').value='<%= themeDarkSidebarIconActive %>';
+  document.getElementById('themeDarkSidebarLogout').value='<%= themeDarkSidebarLogout %>';
+  previewTheme();
+}
+function currentThemeColors(){
+  function g(id){return document.getElementById(id).value;}
+  return {
+    light:{bg:g('themeLightBg'),card:g('themeLightCard'),text:g('themeLightText'),
+      sidebarTextHover:g('themeLightSidebarTextHover'),sidebarTextActive:g('themeLightSidebarTextActive'),
+      sidebarIconHover:g('themeLightSidebarIconHover'),sidebarIconActive:g('themeLightSidebarIconActive'),
+      sidebarLogout:g('themeLightSidebarLogout')},
+    dark:{bg:g('themeDarkBg'),card:g('themeDarkCard'),text:g('themeDarkText'),
+      sidebarTextHover:g('themeDarkSidebarTextHover'),sidebarTextActive:g('themeDarkSidebarTextActive'),
+      sidebarIconHover:g('themeDarkSidebarIconHover'),sidebarIconActive:g('themeDarkSidebarIconActive'),
+      sidebarLogout:g('themeDarkSidebarLogout')}
+  };
+}
+function saveTheme(){
+  var btn=document.getElementById('themeSaveBtn');
+  var msg=document.getElementById('themeMsg');
+  var accent=currentThemeAccent();
+  var shape=currentBtnShape();
+  var font=currentThemeFont();
+  var colors=currentThemeColors();
+  btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> ...';
+  msg.className='dev-msg';
+  fetch('/api/admin/theme',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accent:accent,btnShape:shape,fontName:font,light:colors.light,dark:colors.dark})})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d.success){previewTheme();setMsg('themeMsg',true,'تم حفظ الثيم وتطبيقه على المنصة');}
+      else{setMsg('themeMsg',false,d.error||'حدث خطأ');}
+      btn.disabled=false;btn.innerHTML='<i class="fas fa-save"></i> حفظ الثيم';
+    })
+    .catch(function(){setMsg('themeMsg',false,'فشل الاتصال بالخادم');btn.disabled=false;btn.innerHTML='<i class="fas fa-save"></i> حفظ الثيم';});
+}
+previewTheme();
+
+/* ===================== Status ===================== */
+function loadStatus(){
+  fetch('/api/dev/status')
+    .then(function(r){return r.json();})
+    .then(function(s){
+      var z=s.zoom||{};
+      document.getElementById('zoomClientId').textContent=z.clientIdPrefix||'غير مضبوط';
+      document.getElementById('zoomFirebase').textContent=z.hasFirebaseCreds?'مُخزّن في Firebase':'من متغيرات البيئة';
+      document.getElementById('zoomSdk').textContent=z.hasSdk?'موجود':'غير مضبوط';
+      document.getElementById('zoomRuri').textContent=z.redirectUri||'—';
+      var zb=document.getElementById('zoomStatusBadge');
+      if(z.configured){zb.className='dev-badge dev-badge-ok';zb.innerHTML='<span class="status-dot green"></span> مضبوط';}
+      else{zb.className='dev-badge dev-badge-err';zb.innerHTML='<span class="status-dot red"></span> غير مضبوط';}
+      var c=s.cron||{};
+      document.getElementById('cronInterval').textContent='كل '+(c.intervalSeconds||'?')+' ثانية';
+      var lr=c.lastRun;
+      document.getElementById('cronLastRun').textContent=lr&&lr.at?new Date(lr.at).toLocaleString('ar-EG'):'لم يُشغّل بعد';
+      document.getElementById('cronProcessed').textContent=lr?((lr.processed||0)+' إشعار'+(lr.error?' (خطأ: '+escHtml(lr.error)+')':'')):'—';
+      document.getElementById('cronSecret').textContent=c.secretSet?'مضبوط ✅':'غير مضبوط ⚠️';
+      if(c.cronUrl)document.getElementById('cronUrl').value=c.cronUrl;
+      var cb=document.getElementById('cronStatusBadge');
+      if(lr&&!lr.error){cb.className='dev-badge dev-badge-ok';cb.innerHTML='<span class="status-dot green"></span> يعمل';}
+      else if(lr&&lr.error){cb.className='dev-badge dev-badge-err';cb.innerHTML='<span class="status-dot red"></span> خطأ';}
+      else{cb.className='dev-badge dev-badge-pending';cb.innerHTML='<span class="status-dot yellow"></span> بانتظار أول تشغيل';}
+      var mm=s.maintenance||{};
+      document.getElementById('mmMessage').value=mm.message||'';
+      var mb=document.getElementById('mmStatusBadge');
+      if(mm.enabled){mb.className='dev-badge dev-badge-err';mb.innerHTML='<span class="status-dot red"></span> المنصة متوقفة (صيانة)';}
+      else{mb.className='dev-badge dev-badge-ok';mb.innerHTML='<span class="status-dot green"></span> المنصة تعمل';}
+      var mmToggle=document.getElementById('mmToggle'); if(mmToggle) mmToggle.checked=!!mm.enabled;
+    })
+    .catch(function(){
+      var fail=function(id){var el=document.getElementById(id);if(el){el.className='dev-badge dev-badge-err';el.innerHTML='<span class="status-dot red"></span> فشل التحميل';}};
+      fail('zoomStatusBadge'); fail('cronStatusBadge'); fail('mmStatusBadge');
+    });
+}
+loadStatus();
+setInterval(loadStatus, 15000);
+
+/* ===================== Zoom form ===================== */
+document.getElementById('zoomForm').addEventListener('submit',function(e){
+  e.preventDefault();
+  var cid=document.getElementById('zoomClientIdInput').value.trim();
+  var csec=document.getElementById('zoomClientSecretInput').value.trim();
+  var ruri=document.getElementById('zoomRuriInput').value.trim();
+  var sk=document.getElementById('zoomSdkKeyInput').value.trim();
+  var ssec=document.getElementById('zoomSdkSecretInput').value.trim();
+  if(!cid){setMsg('zoomMsg',false,'يرجى إدخال Client ID');return;}
+  if(!csec){setMsg('zoomMsg',false,'يرجى إدخال Client Secret');return;}
+  fetch('/admin/zoom-app',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clientId:cid,clientSecret:csec,redirectUri:ruri,sdkKey:sk,sdkSecret:ssec})})
+    .then(function(r){return r.status;})
+    .then(function(st){
+      if(st>=200&&st<300){setMsg('zoomMsg',true,'تم حفظ إعدادات Zoom بنجاح في Firebase');loadStatus();}
+      else{setMsg('zoomMsg',false,'فشل الحفظ (كود '+st+')');}
+    })
+    .catch(function(){setMsg('zoomMsg',false,'فشل الاتصال بالخادم');});
+});
+
+/* ===================== Cron ===================== */
+function copyCronUrl(){
+  var u=document.getElementById('cronUrl').value;
+  if(!u)return;
+  navigator.clipboard.writeText(u).then(function(){setMsg('cronMsg',true,'تم نسخ رابط الكرون');}).catch(function(){setMsg('cronMsg',false,'تعذّر النسخ');});
+}
+function saveCronSecret(){
+  var s=document.getElementById('cronSecretInput').value.trim();
+  if(!s){setMsg('cronMsg',false,'يرجى إدخال السر');return;}
+  fetch('/api/admin/set-cron-secret?secret='+encodeURIComponent(s)).then(function(r){
+    if(r.ok){setMsg('cronMsg',true,'تم حفظ CRON_SECRET في Firebase');document.getElementById('cronSecretInput').value='';loadStatus();}
+    else{setMsg('cronMsg',false,'فشل حفظ السر');}
+  }).catch(function(){setMsg('cronMsg',false,'فشل الاتصال بالخادم');});
+}
+function runCronNow(){
+  setMsg('cronMsg',true,'جاري تشغيل الفحص...');
+  fetch('/api/admin/notifications/check-scheduled').then(function(r){return r.json();}).then(function(d){
+    setMsg('cronMsg',true,'تم الفحص: '+(d.processed||0)+' إشعار مجدول تم إرساله'+(d.error?(' (خطأ: '+escHtml(d.error)+')'):''));
+    loadStatus();
+  }).catch(function(){setMsg('cronMsg',false,'فشل الاتصال بالخادم');});
+}
+/* ===================== Support Key ===================== */
+function saveSupportKey(){
+  var key=document.getElementById('supportKeyInput').value.trim();
+  if(!key){setMsg('supportKeyMsg',false,'يرجى إدخال مفتاح الدعم');return;}
+  fetch('/api/dev/support-key',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:key})})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d.success){setMsg('supportKeyMsg',true,'تم حفظ مفتاح الدعم الفني');}
+      else{setMsg('supportKeyMsg',false,d.error||'فشل الحفظ');}
+    }).catch(function(){setMsg('supportKeyMsg',false,'فشل الاتصال بالخادم');});
+}
+/* ===================== Maintenance ===================== */
+function setMaintenance(enabled){
+  var msg=document.getElementById('mmMessage').value.trim();
+  fetch('/api/dev/maintenance',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:enabled,message:msg})})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d.success){setMsg('mmMsg',true,enabled?'تم تفعيل وضع الصيانة وإيقاف المنصة للطلاب':'تم تشغيل المنصة وعودة العمل');loadStatus();}
+      else{setMsg('mmMsg',false,d.error||'فشل الحفظ');}
+    })
+    .catch(function(){setMsg('mmMsg',false,'فشل الاتصال بالخادم');});
+}
+
+/* ===================== Notify Teacher ===================== */
+function notifyTeacher(){
+  var title=document.getElementById('ntTitle').value.trim();
+  var body=document.getElementById('ntBody').value.trim();
+  var url=document.getElementById('ntUrl').value.trim()||'/admin';
+  if(!title||!body){setMsg('ntMsg',false,'يرجى إدخال العنوان والنص');return;}
+  fetch('/api/dev/notify-teacher',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:title,body:body,url:url})})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d.success){setMsg('ntMsg',true,'تم إرسال الإشعار للمدرس ('+ (d.sent||0) +' جهاز)');document.getElementById('ntTitle').value='';document.getElementById('ntBody').value='';}
+      else{setMsg('ntMsg',false,d.error||'فشل الإرسال');}
+    })
+    .catch(function(){setMsg('ntMsg',false,'فشل الاتصال بالخادم');});
+}
+
+/* ===================== Logout ===================== */
+function logout(){
+  fetch('/dev/logout',{method:'POST'})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d.success) window.location.href='/dev';
+    })
+    .catch(function(){alert('فشل الخروج');});
+}
+
+/* ===================== Prefill Zoom ===================== */
+(function(){
+  document.getElementById('zoomClientIdInput').value='<%= clientIdFull %>'||'';
+  document.getElementById('zoomClientSecretInput').value='<%= clientSecretFull %>'||'';
+  document.getElementById('zoomRuriInput').value='<%= redirectUri %>'||'';
+  document.getElementById('zoomSdkKeyInput').value='<%= sdkKeyFull %>'||'';
+  document.getElementById('zoomSdkSecretInput').value='<%= sdkSecretFull %>'||'';
+})();
+
+/* ===================== Usage Statistics ===================== */
+function loadUsage(){
+  var badge=document.getElementById('usageBadge');
+  fetch('/api/dev/usage').then(function(r){return r.json();}).then(function(d){
+    var content=document.getElementById('usageContent');
+    var empty=document.getElementById('usageEmpty');
+    var hasData=false;
+    function renderService(svc, totalId, dailyId){
+      var s=d.services&&d.services[svc];
+      if(s&&s.total){
+        hasData=true;
+        document.getElementById(totalId).textContent=s.total;
+        var html='';
+        var days=Object.keys(s.daily||{}).sort().reverse().slice(0,14);
+        var vals=Object.values(s.daily||{});
+        var maxC=Math.max(1,Math.max.apply(null,vals.length?vals:[1]));
+        days.forEach(function(day){
+          var cnt=s.daily[day];
+          var pct=Math.round((cnt/maxC)*100);
+          var color=cnt>maxC*0.75?'#22c55e':cnt>maxC*0.4?'#f59e0b':'#666';
+          html+='<div style="display:flex;flex-direction:column;align-items:center;gap:2px;" title="'+day+': '+cnt+'">';
+          html+='<div style="width:18px;height:'+Math.max(4,pct*0.6)+'px;background:'+color+';border-radius:3px;min-height:4px;"></div>';
+          html+='<span style="font-size:8px;color:#666;">'+day.slice(5)+'</span></div>';
+        });
+        document.getElementById(dailyId).innerHTML=html||'<span style="font-size:12px;color:#666;">لا توجد بيانات يومية</span>';
+      } else {
+        document.getElementById(totalId).textContent='0';
+        document.getElementById(dailyId).innerHTML='<span style="font-size:12px;color:#666;">لا توجد بيانات</span>';
+      }
+    }
+    renderService('brevo','brevoTotal','brevoDaily');
+    // Real Brevo API data
+    var b = d._brevo;
+    if(b && b.plan){
+      hasData = true;
+      var credsEl = document.getElementById('brevoCredits');
+      var planInfo = b.plan.map(function(p){ return p.creditsType==='sendLimit' ? 'Credits: <strong style="color:#22c55e">'+p.credits+'</strong>' : p.creditsType+': '+p.credits; }).join(' | ');
+      var total30 = b.smtp30 ? b.smtp30.requests || 0 : '—';
+      credsEl.innerHTML = 'Plan: '+(b.companyName||'')+' | Email: '+(b.email||'')+' | Sent(30d): '+total30+' | '+planInfo;
+    }
+    if(b && b.daily7 && b.daily7.length){
+      var bhtml=''; var bmax=Math.max(1,Math.max.apply(null,b.daily7.map(function(r){return r.requests||0;})));
+      b.daily7.forEach(function(r){
+        var cnt=r.requests||0; var bpct=Math.round((cnt/bmax)*100);
+        var color=cnt>bmax*0.75?'#22c55e':cnt>bmax*0.4?'#f59e0b':'#666';
+        bhtml+='<div style="display:flex;flex-direction:column;align-items:center;gap:2px;" title="'+r.date+': '+cnt+' sent, '+ (r.delivered||0)+' delivered">';
+        bhtml+='<div style="width:18px;height:'+Math.max(4,bpct*0.6)+'px;background:'+color+';border-radius:3px;min-height:4px;"></div>';
+        bhtml+='<span style="font-size:8px;color:#666;">'+(r.date?r.date.slice(5):'')+'</span></div>';
+      });
+      if(bhtml) document.getElementById('brevoDaily').innerHTML=bhtml;
+    }
+    if(hasData){
+      content.style.display='block';
+      empty.style.display='none';
+      badge.className='dev-badge dev-badge-ok';
+      badge.innerHTML='<i class="fas fa-check-circle"></i> Updated';
+    } else {
+      content.style.display='none';
+      empty.style.display='block';
+      badge.className='dev-badge dev-badge-pending';
+      badge.innerHTML='<i class="fas fa-clock"></i> No Data';
+    }
+  }).catch(function(){
+    badge.className='dev-badge dev-badge-err';
+    badge.innerHTML='<i class="fas fa-times-circle"></i> Failed';
+  });
+}
+
+loadUsage();
+setInterval(loadUsage, 30000);
+  </script>
+</body>
+</html>

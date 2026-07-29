@@ -1,0 +1,304 @@
+<!DOCTYPE html><html lang="ar" dir="rtl" style=""><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block" rel="stylesheet"><script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script><script id="tailwind-config">try{try{
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        "colors": {
+                "primary-container": "#8455ef",
+                "on-error": "#ffffff",
+                "secondary-fixed": "#c9e6ff",
+                "error": "#ba1a1a",
+                "surface-container-highest": "#d3e4fe",
+                "on-tertiary-container": "#fffbff",
+                "surface-bright": "#f8f9ff",
+                "on-primary-container": "#fffbff",
+                "on-secondary-fixed": "#001e2f",
+                "error-container": "#ffdad6",
+                "on-error-container": "#93000a",
+                "outline-variant": "#cbc3d7",
+                "tertiary": "#a12e70",
+                "secondary-container": "#39b8fd",
+                "on-primary-fixed": "#23005c",
+                "on-primary": "#ffffff",
+                "surface-container-low": "#eff4ff",
+                "on-background": "#0b1c30",
+                "background": "#f8f9ff",
+                "primary": "#6b38d4",
+                "primary-fixed-dim": "#d0bcff",
+                "on-tertiary": "#ffffff",
+                "tertiary-fixed-dim": "#ffafd3",
+                "on-surface-variant": "#494454",
+                "tertiary-fixed": "#ffd8e7",
+                "surface-variant": "#d3e4fe",
+                "inverse-primary": "#d0bcff",
+                "on-secondary": "#ffffff",
+                "outline": "#7b7486",
+                "on-secondary-container": "#004666",
+                "surface-tint": "#6d3bd7",
+                "on-surface": "#0b1c30",
+                "inverse-on-surface": "#eaf1ff",
+                "surface-container": "#e5eeff",
+                "primary-fixed": "#e9ddff",
+                "surface-dim": "#cbdbf5",
+                "on-tertiary-fixed-variant": "#85145a",
+                "on-secondary-fixed-variant": "#004c6e",
+                "tertiary-container": "#c0488a",
+                "surface-container-high": "#dce9ff",
+                "surface-container-lowest": "#ffffff",
+                "inverse-surface": "#213145",
+                "surface": "#f8f9ff",
+                "secondary": "#006591",
+                "secondary-fixed-dim": "#89ceff",
+                "on-primary-fixed-variant": "#5516be",
+                "on-tertiary-fixed": "#3d0026"
+        },
+        "borderRadius": {
+                "DEFAULT": "1rem",
+                "lg": "2rem",
+                "xl": "3rem",
+                "full": "9999px"
+        },
+        "spacing": {
+                "container-margin": "32px",
+                "card-padding": "24px",
+                "base": "8px",
+                "gutter": "24px",
+                "stack-gap": "16px"
+        },
+        "fontFamily": {
+                "headline-md": [
+                        "IBM Plex Sans"
+                ],
+                "display-lg": [
+                        "IBM Plex Sans"
+                ],
+                "body-md": [
+                        "IBM Plex Sans"
+                ],
+                "headline-lg-mobile": [
+                        "IBM Plex Sans"
+                ],
+                "headline-lg": [
+                        "IBM Plex Sans"
+                ],
+                "label-sm": [
+                        "IBM Plex Sans"
+                ],
+                "body-lg": [
+                        "IBM Plex Sans"
+                ],
+                "label-lg": [
+                        "IBM Plex Sans"
+                ]
+        },
+        "fontSize": {
+                "headline-md": [
+                        "24px",
+                        {
+                                "lineHeight": "32px",
+                                "fontWeight": "600"
+                        }
+                ],
+                "display-lg": [
+                        "48px",
+                        {
+                                "lineHeight": "56px",
+                                "letterSpacing": "-0.02em",
+                                "fontWeight": "700"
+                        }
+                ],
+                "body-md": [
+                        "16px",
+                        {
+                                "lineHeight": "24px",
+                                "fontWeight": "400"
+                        }
+                ],
+                "headline-lg-mobile": [
+                        "28px",
+                        {
+                                "lineHeight": "34px",
+                                "fontWeight": "600"
+                        }
+                ],
+                "headline-lg": [
+                        "36px",
+                        {
+                                "lineHeight": "44px",
+                                "letterSpacing": "-0.01em",
+                                "fontWeight": "600"
+                        }
+                ],
+                "label-sm": [
+                        "12px",
+                        {
+                                "lineHeight": "16px",
+                                "fontWeight": "500"
+                        }
+                ],
+                "body-lg": [
+                        "18px",
+                        {
+                                "lineHeight": "28px",
+                                "fontWeight": "400"
+                        }
+                ],
+                "label-lg": [
+                        "14px",
+                        {
+                                "lineHeight": "20px",
+                                "letterSpacing": "0.05em",
+                                "fontWeight": "600"
+                        }
+                ]
+        },
+        boxShadow: {
+            'soft-3d': '0 8px 24px -8px rgba(107, 56, 212, 0.15), 0 4px 12px -4px rgba(107, 56, 212, 0.1)',
+        }
+      }
+    }
+  }
+}catch(_e){}}catch(_e){}</script></head><body class="bg-background text-on-surface antialiased relative min-h-screen pb-32">
+
+    <!-- Top Navigation (Shared Component) -->
+    <header class="flex justify-between items-center px-container-margin py-base w-full z-50 bg-surface-bright shadow-sm sticky top-0">
+        <div class="flex items-center gap-4 text-primary">
+            
+        </div>
+        <div class="font-headline-lg-mobile text-headline-lg-mobile text-primary font-bold">المُميز</div>
+        <div class="flex items-center gap-4">
+            
+        </div>
+    </header>
+
+    <!-- Main Content Canvas -->
+    <main class="pt-8 pb-12 px-gutter max-w-md mx-auto relative z-10 flex flex-col gap-stack-gap">
+        
+        <!-- Hero Section -->
+        <section class="text-center mt-4 mb-4">
+            <h1 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface mb-stack-gap leading-tight">
+                مميزات منصة <br>
+                <span class="text-primary relative inline-block">
+                    المُميز
+                    <svg class="absolute w-full h-3 -bottom-1 left-0 text-secondary-container/50" viewBox="0 0 100 10" preserveAspectRatio="none">
+                        <path d="M0 5 Q 50 10 100 5" stroke="currentColor" stroke-width="6" fill="none" stroke-linecap="round" class=""></path>
+                    </svg>
+                </span>
+                للطالب
+            </h1>
+            <p class="font-body-md text-body-md text-on-surface-variant mx-auto max-w-[280px]">
+                تجربة تعليمية متكاملة تجمع بين التنظيم والابتكار لتمكين الطالب من تحقيق التميز.
+            </p>
+        </section>
+
+        <!-- Feature Grid (Bento Style) -->
+        <div class="grid grid-cols-1 gap-stack-gap">
+
+            <!-- Learning Experience Card (Hero) -->
+            <div class="bg-surface-container-lowest rounded-xl shadow-soft-3d p-card-padding flex flex-col items-center text-center relative overflow-hidden group hover:-translate-y-1 transition-transform duration-300">
+                <div class="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent opacity-50"></div>
+                <div class="w-20 h-20 rounded-full bg-primary-fixed flex items-center justify-center mb-4 relative z-10 text-primary shadow-[0_0_30px_rgba(107,56,212,0.3)]">
+                    <span class="material-symbols-outlined text-4xl" style="font-variation-settings: &quot;FILL&quot; 1;">menu_book</span>
+                </div>
+                <h3 class="font-headline-md text-headline-md text-on-surface mb-2 relative z-10">تجربة التعلم</h3>
+                <p class="font-body-md text-body-md text-on-surface-variant relative z-10">
+                    واجهة دراسية منظمة تركز على توفير بيئة خالية من المشتتات لزيادة التركيز والإنتاجية.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-stack-gap">
+                <!-- Videos -->
+                <div class="bg-surface-container-lowest rounded-xl shadow-soft-3d p-4 flex flex-col items-center text-center relative overflow-hidden group hover:-translate-y-1 transition-transform duration-300">
+                    <div class="w-16 h-16 rounded-full bg-secondary-fixed flex items-center justify-center mb-4 text-secondary shadow-[0_0_20px_rgba(57,184,253,0.3)]">
+                        <span class="material-symbols-outlined text-3xl" style="font-variation-settings: &quot;FILL&quot; 1;">smart_display</span>
+                    </div>
+                    <h3 class="font-label-lg text-label-lg text-on-surface mb-1">الفيديوهات</h3>
+                    <p class="font-label-sm text-label-sm text-on-surface-variant">مشغل ذكي بجودة عالية وخيارات تحكم متقدمة.</p>
+                </div>
+
+                <!-- Files -->
+                <div class="bg-surface-container-lowest rounded-xl shadow-soft-3d p-4 flex flex-col items-center text-center relative overflow-hidden group hover:-translate-y-1 transition-transform duration-300">
+                    <div class="w-16 h-16 rounded-full bg-tertiary-fixed flex items-center justify-center mb-4 text-tertiary shadow-[0_0_20px_rgba(161,46,112,0.3)]">
+                        <span class="material-symbols-outlined text-3xl" style="font-variation-settings: &quot;FILL&quot; 1;">picture_as_pdf</span>
+                    </div>
+                    <h3 class="font-label-lg text-label-lg text-on-surface mb-1">الملفات</h3>
+                    <p class="font-label-sm text-label-sm text-on-surface-variant">مكتبة شاملة للملخصات والمراجع بصيغة PDF.</p>
+                </div>
+            </div>
+
+            <!-- Exams Card -->
+            <div class="bg-surface-container-lowest rounded-xl shadow-soft-3d p-card-padding flex items-center gap-4 relative overflow-hidden group hover:-translate-y-1 transition-transform duration-300">
+                <div class="w-16 h-16 rounded-full bg-error-container flex-shrink-0 flex items-center justify-center text-error shadow-[0_0_20px_rgba(186,26,26,0.2)]">
+                    <span class="material-symbols-outlined text-3xl" style="font-variation-settings: &quot;FILL&quot; 1;">quiz</span>
+                </div>
+                <div>
+                    <h3 class="font-headline-md text-[20px] font-semibold text-on-surface mb-1">الاختبارات</h3>
+                    <p class="font-body-md text-[14px] text-on-surface-variant">تقييم مستمر مع تحليلات فورية للأداء وتحديد نقاط الضعف.</p>
+                </div>
+            </div>
+
+            <!-- Dashboard Card -->
+            <div class="bg-surface-container-lowest rounded-xl shadow-soft-3d p-card-padding flex flex-col relative overflow-hidden group hover:-translate-y-1 transition-transform duration-300 border-l-8 border-primary">
+                 <div class="flex items-center gap-3 mb-3">
+                    <div class="w-12 h-12 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container shadow-[0_0_20px_rgba(132,85,239,0.4)]">
+                        <span class="material-symbols-outlined text-2xl" style="font-variation-settings: &quot;FILL&quot; 1;">dashboard</span>
+                    </div>
+                    <h3 class="font-headline-md text-[20px] font-semibold text-on-surface">لوحة الطالب</h3>
+                </div>
+                <p class="font-body-md text-body-md text-on-surface-variant">
+                    مركز تحكم شخصي يتابع التقدم، يعرض الإنجازات، وينظم الجدول الدراسي اليومي.
+                </p>
+            </div>
+
+             <div class="grid grid-cols-2 gap-stack-gap">
+                <!-- Live Classes -->
+                <div class="bg-surface-container-lowest rounded-xl shadow-soft-3d p-4 flex flex-col items-center text-center relative overflow-hidden group hover:-translate-y-1 transition-transform duration-300">
+                    <div class="w-16 h-16 rounded-full bg-secondary-container flex items-center justify-center mb-3 text-on-secondary-container shadow-[0_0_20px_rgba(57,184,253,0.3)]">
+                        <span class="material-symbols-outlined text-3xl" style="font-variation-settings: &quot;FILL&quot; 1;">cast_for_education</span>
+                    </div>
+                    <h3 class="font-label-lg text-label-lg text-on-surface mb-1">الحصص المباشرة</h3>
+                    <p class="font-label-sm text-label-sm text-on-surface-variant">تفاعل حي ومباشر مع المعلمين.</p>
+                </div>
+
+                <!-- Notifications -->
+                <div class="bg-surface-container-lowest rounded-xl shadow-soft-3d p-4 flex flex-col items-center text-center relative overflow-hidden group hover:-translate-y-1 transition-transform duration-300">
+                    <div class="w-16 h-16 rounded-full bg-surface-container-highest flex items-center justify-center mb-3 text-on-surface-variant relative shadow-[0_0_20px_rgba(211,228,254,0.5)]">
+                        <div class="absolute top-3 right-3 w-3 h-3 rounded-full bg-error border-2 border-surface-container-lowest"></div>
+                        <span class="material-symbols-outlined text-3xl" style="font-variation-settings: &quot;FILL&quot; 1;">notifications_active</span>
+                    </div>
+                    <h3 class="font-label-lg text-label-lg text-on-surface mb-1">الإشعارات</h3>
+                    <p class="font-label-sm text-label-sm text-on-surface-variant">تنبيهات ذكية للمواعيد والواجبات.</p>
+                </div>
+            </div>
+
+            <!-- Communication & Parents Cards in a row -->
+            <div class="flex flex-col gap-stack-gap mt-2">
+                 <!-- Communication -->
+                <div class="bg-surface-container-lowest rounded-xl shadow-soft-3d p-card-padding flex items-center gap-4 relative overflow-hidden group hover:-translate-y-1 transition-transform duration-300">
+                    <div class="w-14 h-14 rounded-full bg-primary-fixed flex-shrink-0 flex items-center justify-center text-on-primary-fixed-variant shadow-[0_0_20px_rgba(233,221,255,0.8)]">
+                        <span class="material-symbols-outlined text-2xl" style="font-variation-settings: &quot;FILL&quot; 1;">forum</span>
+                    </div>
+                    <div>
+                        <h3 class="font-label-lg text-label-lg text-on-surface mb-1">التواصل</h3>
+                        <p class="font-label-sm text-label-sm text-on-surface-variant">قنوات مباشرة لسؤال المعلمين والنقاش.</p>
+                    </div>
+                </div>
+
+                <!-- Parents -->
+                 <div class="bg-surface-container-lowest rounded-xl shadow-soft-3d p-card-padding flex items-center gap-4 relative overflow-hidden group hover:-translate-y-1 transition-transform duration-300">
+                    <div class="w-14 h-14 rounded-full bg-tertiary-fixed flex-shrink-0 flex items-center justify-center text-on-tertiary-fixed-variant shadow-[0_0_20px_rgba(255,216,231,0.8)]">
+                        <span class="material-symbols-outlined text-2xl" style="font-variation-settings: &quot;FILL&quot; 1;">family_restroom</span>
+                    </div>
+                    <div>
+                        <h3 class="font-label-lg text-label-lg text-on-surface mb-1">ولي الأمر</h3>
+                        <p class="font-label-sm text-label-sm text-on-surface-variant">تقارير دورية ومتابعة مستمرة لولي الأمر.</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Bottom Navigation Bar (Shared Component) -->
+    </body></html>

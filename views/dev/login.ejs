@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Developer Panel — Almumayaz</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap');
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      font-family: 'Cairo', sans-serif;
+      background: #0a0a0f;
+      color: #e0e0e0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      direction: rtl;
+    }
+    .dev-bg {
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse at 20% 50%, rgba(59,130,246,0.06) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 50%, rgba(139,92,246,0.06) 0%, transparent 50%);
+      z-index: 0;
+    }
+    .dev-grid {
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(59,130,246,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59,130,246,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      z-index: 0;
+    }
+    .login-container {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 420px;
+      padding: 20px;
+    }
+    .login-card {
+      background: rgba(16,16,24,0.95);
+      border: 1px solid rgba(59,130,246,0.2);
+      border-radius: 16px;
+      padding: 40px 32px 32px;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 0 40px rgba(59,130,246,0.05), 0 0 120px rgba(59,130,246,0.02);
+    }
+    .login-header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    .login-header .logo-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 56px;
+      height: 56px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      font-size: 24px;
+      font-weight: 900;
+      color: #fff;
+      margin-bottom: 16px;
+      font-family: 'JetBrains Mono', monospace;
+      box-shadow: 0 4px 20px rgba(59,130,246,0.3);
+    }
+    .login-header h1 {
+      font-size: 20px;
+      font-weight: 800;
+      color: #f0f0f0;
+      letter-spacing: 0.5px;
+    }
+    .login-header p {
+      font-size: 13px;
+      color: #888;
+      margin-top: 6px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .login-header p .blink {
+      display: inline-block;
+      width: 8px;
+      height: 14px;
+      background: #3b82f6;
+      animation: blink 1s step-end infinite;
+      vertical-align: middle;
+      margin-right: 4px;
+    }
+    @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+    .form-group { margin-bottom: 20px; }
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #aaa;
+      margin-bottom: 8px;
+      font-family: 'JetBrains Mono', monospace;
+      letter-spacing: 0.3px;
+    }
+    .input-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      transition: border-color 0.2s;
+    }
+    .input-wrap:focus-within {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+    }
+    .input-wrap .prefix {
+      font-family: 'JetBrains Mono', monospace;
+      color: #666;
+      font-size: 13px;
+      padding: 0 14px 0 8px;
+      user-select: none;
+    }
+    .input-wrap input {
+      width: 100%;
+      padding: 14px 0 14px 14px;
+      background: none;
+      border: none;
+      outline: none;
+      color: #e0e0e0;
+      font-size: 15px;
+      font-family: 'JetBrains Mono', monospace;
+      direction: ltr;
+    }
+    .input-wrap input::placeholder {
+      color: #555;
+      font-size: 13px;
+    }
+    .error-msg {
+      display: none;
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.2);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 13px;
+      color: #ef4444;
+      margin-bottom: 16px;
+      text-align: center;
+      font-weight: 600;
+    }
+    .error-msg.show { display: block; }
+    .btn-login {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      font-size: 15px;
+      font-weight: 700;
+      font-family: 'Cairo', sans-serif;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+    .btn-login:hover { opacity: 0.9; }
+    .btn-login:active { transform: scale(0.98); }
+    .btn-login:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-login .spinner {
+      display: none;
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      margin: 0 auto;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .btn-login.loading .spinner { display: inline-block; }
+    .btn-login.loading .btn-text { display: none; }
+    .footer-note {
+      text-align: center;
+      margin-top: 20px;
+      font-size: 12px;
+      color: #555;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .footer-note a {
+      color: #3b82f6;
+      text-decoration: none;
+    }
+    .footer-note a:hover { text-decoration: underline; }
+    @media (max-width: 480px) {
+      .login-card { padding: 28px 20px 24px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="dev-bg"></div>
+  <div class="dev-grid"></div>
+  <div class="login-container">
+    <div class="login-card">
+      <div class="login-header">
+        <div class="logo-icon">DM</div>
+        <h1>Developer Panel</h1>
+        <p>almumayaz.online<span class="blink"></span></p>
+      </div>
+      <div id="errorMsg" class="error-msg"></div>
+      <form id="loginForm">
+        <div class="form-group">
+          <label>> PASSWORD</label>
+          <div class="input-wrap">
+            <span class="prefix">$</span>
+            <input type="password" id="password" placeholder="********" autocomplete="off">
+          </div>
+        </div>
+        <button type="submit" class="btn-login" id="loginBtn">
+          <span class="btn-text">تأكيد الدخول</span>
+          <span class="spinner"></span>
+        </button>
+      </form>
+      <div class="footer-note">
+        <a href="/">العودة للموقع</a> &middot; v2.0
+      </div>
+    </div>
+  </div>
+  <script>
+document.getElementById('loginForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  var btn = document.getElementById('loginBtn');
+  var err = document.getElementById('errorMsg');
+  var pw = document.getElementById('password').value;
+  err.classList.remove('show');
+  btn.classList.add('loading');
+  btn.disabled = true;
+  fetch('/dev/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: pw })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.success) {
+      window.location.href = '/dev';
+    } else {
+      err.textContent = d.error || 'كلمة المرور غير صحيحة';
+      err.classList.add('show');
+      btn.classList.remove('loading');
+      btn.disabled = false;
+    }
+  })
+  .catch(function() {
+    err.textContent = 'فشل الاتصال بالخادم';
+    err.classList.add('show');
+    btn.classList.remove('loading');
+    btn.disabled = false;
+  });
+});
+  </script>
+</body>
+</html>

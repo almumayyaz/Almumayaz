@@ -1,0 +1,43 @@
+{
+  "label": "run-phase-5",
+  "startTime": "2026-07-27T02:58:56.755Z",
+  "endTime": "2026-07-27T02:59:06.107Z",
+  "counts": {
+    "success": 3,
+    "failure": 0,
+    "skipped": 0,
+    "total": 5
+  },
+  "logs": [
+    {
+      "timestamp": "2026-07-27T02:58:56.755Z",
+      "event": "migration.start",
+      "detail": "Phase 5",
+      "status": "info"
+    },
+    {
+      "timestamp": "2026-07-27T02:59:02.828Z",
+      "event": "backup.complete",
+      "detail": "Backup backup-2026-07-27T02-58-56 (local + cloud verified)",
+      "status": "success"
+    },
+    {
+      "timestamp": "2026-07-27T02:59:02.828Z",
+      "event": "phase.start",
+      "detail": "Phase 5",
+      "status": "info"
+    },
+    {
+      "timestamp": "2026-07-27T02:59:06.106Z",
+      "event": "phase.complete",
+      "detail": "Phase 5 finished",
+      "status": "success"
+    },
+    {
+      "timestamp": "2026-07-27T02:59:06.107Z",
+      "event": "migration.complete",
+      "detail": "Phase 5",
+      "status": "success"
+    }
+  ]
+}

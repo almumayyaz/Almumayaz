@@ -1,0 +1,72 @@
+<%- include('../partials/header', { title: title, navPageTitle: 'الدفع', bodyClass: 'student-body' }) %>
+<div class="main-content" style="max-width:500px;margin:40px auto;text-align:center;">
+  <% if (status === 'success') { %>
+  <div style="background:var(--card);border-radius:var(--radius-lg);padding:40px 24px;box-shadow:var(--shadow-lg);">
+    <div style="font-size:64px;color:var(--success);margin-bottom:20px;">
+      <i class="fas fa-check-circle"></i>
+    </div>
+    <h2 style="font-size:22px;font-weight:800;margin-bottom:12px;">تم استلام عملية الدفع</h2>
+    <p style="font-size:14px;color:var(--text-light);margin-bottom:24px;line-height:1.8;">
+      جارٍ التحقق من عملية الدفع وتفعيل اشتراكك...
+    </p>
+    <div id="pollingStatus" style="font-size:13px;color:var(--text-muted);">
+      <i class="fas fa-spinner fa-spin"></i> يرجى الانتظار
+    </div>
+  </div>
+  <% } else if (status === 'fail') { %>
+  <div style="background:var(--card);border-radius:var(--radius-lg);padding:40px 24px;box-shadow:var(--shadow-lg);">
+    <div style="font-size:64px;color:var(--danger);margin-bottom:20px;">
+      <i class="fas fa-times-circle"></i>
+    </div>
+    <h2 style="font-size:22px;font-weight:800;margin-bottom:12px;">لم تتم عملية الدفع</h2>
+    <p style="font-size:14px;color:var(--text-light);margin-bottom:24px;line-height:1.8;">
+      يبدو أن عملية الدفع لم تكتمل. يمكنك المحاولة مرة أخرى.
+    </p>
+    <a href="/student/subscription" class="btn btn-primary btn-lg">
+      <i class="fas fa-arrow-right"></i> العودة للاشتراك
+    </a>
+  </div>
+  <% } else { %>
+  <div style="background:var(--card);border-radius:var(--radius-lg);padding:40px 24px;box-shadow:var(--shadow-lg);">
+    <div style="font-size:64px;color:var(--accent);margin-bottom:20px;">
+      <i class="fas fa-hourglass-half"></i>
+    </div>
+    <h2 style="font-size:22px;font-weight:800;margin-bottom:12px;">في انتظار تأكيد الدفع</h2>
+    <p style="font-size:14px;color:var(--text-light);margin-bottom:24px;line-height:1.8;">
+      تم تحويلك إلى بوابة الدفع. بمجرد اكتمال الدفع، سيتم تفعيل اشتراكك تلقائياً.
+    </p>
+    <a href="/student/subscription" class="btn btn-outline">
+      <i class="fas fa-arrow-right"></i> العودة للاشتراك
+    </a>
+  </div>
+  <% } %>
+</div>
+<% if (status === 'success') { %>
+<script>
+(function() {
+  var pollCount = 0;
+  var maxPolls = 60;
+  function poll() {
+    pollCount++;
+    fetch('/api/student/me').then(function(r) { return r.json(); }).then(function(d) {
+      if (d.user && d.user.subscriptionStatus === 'active') {
+        document.getElementById('pollingStatus').innerHTML = '<span style="color:var(--success);"><i class="fas fa-check-circle"></i> تم تفعيل اشتراكك! جاري تحويلك...</span>';
+        setTimeout(function() { window.location.href = '/student/dashboard'; }, 2000);
+        return;
+      }
+      if (pollCount < maxPolls) {
+        setTimeout(poll, 5000);
+      } else {
+        document.getElementById('pollingStatus').innerHTML = '<span style="color:var(--text-muted);">لم يتم التفعيل بعد. <a href="/student/subscription" style="color:var(--accent);">تحقق من حالة اشتراكك</a></span>';
+      }
+    }).catch(function() {
+      if (pollCount < maxPolls) {
+        setTimeout(poll, 5000);
+      }
+    });
+  }
+  setTimeout(poll, 3000);
+})();
+</script>
+<% } %>
+<%- include('../partials/footer') %>

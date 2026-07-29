@@ -1,0 +1,25 @@
+{
+  "label": "run-phase-2",
+  "startTime": "2026-07-27T02:47:06.630Z",
+  "endTime": "2026-07-27T02:47:09.802Z",
+  "counts": {
+    "success": 0,
+    "failure": 1,
+    "skipped": 0,
+    "total": 2
+  },
+  "logs": [
+    {
+      "timestamp": "2026-07-27T02:47:06.631Z",
+      "event": "migration.start",
+      "detail": "Phase 2",
+      "status": "info"
+    },
+    {
+      "timestamp": "2026-07-27T02:47:09.801Z",
+      "event": "fatal",
+      "detail": "FIREBASE_STORAGE_BUCKET not set",
+      "status": "failure"
+    }
+  ]
+}

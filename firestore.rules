@@ -1,0 +1,113 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===========================================
+    //  GLOBAL DEFAULTS
+    // ===========================================
+    function isAuthenticated() { return request.auth != null; }
+    function isAdmin() { return isAuthenticated() && request.auth.token.role == 'admin'; }
+    function isOwner(uid) { return isAuthenticated() && request.auth.uid == uid; }
+
+    function isNotSensitiveField() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['name', 'phone', 'email', 'governorate', 'fcmToken', 'avatar',
+                  'parentPhone', 'parentName', 'parentEmail', 'phoneVerified',
+                  'fcmEnabled', 'lastLogin', 'password']);
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ===========================================
+    //  USERS
+    // ===========================================
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow create: if isAdmin();
+      allow update: if isAdmin() || (isOwner(uid) && isNotSensitiveField());
+      allow delete: if isAdmin();
+
+      match /progress/{document=**} { allow read, write: if isOwner(uid) || isAdmin(); }
+      match /notifications/{document=**} { allow read, write: if isOwner(uid) || isAdmin(); }
+      match /bookmarks/{document=**} { allow read, write: if isOwner(uid) || isAdmin(); }
+      match /watchHistory/{document=**} { allow read: if isOwner(uid) || isAdmin(); }
+      match /subscriptions/{document=**} { allow read, write: if isAdmin(); }
+      match /devices/{document=**} { allow read, write: if isOwner(uid) || isAdmin(); }
+    }
+
+    // ===========================================
+    //  COURSES
+    // ===========================================
+    match /courses/{courseId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin();
+
+      match /branches/{branchId} {
+        allow read: if isAuthenticated();
+        allow create, update, delete: if isAdmin();
+        match /lessons/{lessonId} {
+          allow read: if isAuthenticated();
+          allow create, update, delete: if isAdmin();
+          match /quizzes/{quizId} {
+            allow read: if isAuthenticated();
+            allow create, update, delete: if isAdmin();
+            match /questions/{questionId} {
+              allow read: if isAuthenticated();
+              allow create, update, delete: if isAdmin();
+            }
+          }
+        }
+      }
+    }
+
+    // ===========================================
+    //  SETTINGS & THEME
+    // ===========================================
+    match /settings/{document} { allow read: if true; allow write: if isAdmin(); }
+    match /theme/{document} { allow read: if true; allow write: if isAdmin(); }
+
+    // ===========================================
+    //  ANNOUNCEMENTS
+    // ===========================================
+    match /announcements/{id} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ===========================================
+    //  NOTIFICATIONS
+    // ===========================================
+    match /notifications/{id} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin();
+      allow update, delete: if isAdmin();
+    }
+
+    // ===========================================
+    //  PAYMENTS, SUBSCRIPTIONS, REVIEWS, SUPPORT
+    // ===========================================
+    match /payments/{id} { allow read, write: if isAdmin(); }
+    match /subscriptions/{id} { allow read: if isAuthenticated(); allow write: if isAdmin(); }
+    match /reviews/{id} { allow read: if isAuthenticated(); allow create, update, delete: if isAdmin(); }
+    match /supportTickets/{id} { allow read, write: if isAdmin(); }
+
+    // ===========================================
+    //  OTHER COLLECTIONS
+    // ===========================================
+    match /notes/{id} { allow read, write: if isAdmin(); }
+    match /quotes/{id} { allow read: if true; allow write: if isAdmin(); }
+    match /questionBanks/{id} { allow read, write: if isAdmin(); }
+    match /liveSessions/{id} { allow read: if isAuthenticated(); allow write: if isAdmin(); }
+    match /parentInvites/{id} { allow read: if isAdmin(); allow write: if isAdmin(); }
+    match /chargeCodes/{id} { allow read, write: if isAdmin(); }
+    match /maintenanceMode/{document} { allow read: if true; allow write: if isAdmin(); }
+    match /contacts/{id} { allow read: if isAdmin(); allow create: if true; }
+    match /appConfig/{document} { allow read: if true; allow write: if isAdmin(); }
+    match /cronLastRun/{document} { allow read, write: if isAdmin(); }
+    match /dismissed/{id} { allow read, write: if isAdmin(); }
+    match /studentAnalytics/{id} { allow read, write: if isAdmin(); }
+  }
+}

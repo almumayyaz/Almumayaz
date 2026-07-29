@@ -1,0 +1,25 @@
+{
+  "label": "run-phase-2",
+  "startTime": "2026-07-27T02:45:25.176Z",
+  "endTime": "2026-07-27T02:45:25.451Z",
+  "counts": {
+    "success": 0,
+    "failure": 1,
+    "skipped": 0,
+    "total": 2
+  },
+  "logs": [
+    {
+      "timestamp": "2026-07-27T02:45:25.177Z",
+      "event": "migration.start",
+      "detail": "Phase 2",
+      "status": "info"
+    },
+    {
+      "timestamp": "2026-07-27T02:45:25.444Z",
+      "event": "fatal",
+      "detail": "Cannot read properties of null (reading 'collection')",
+      "status": "failure"
+    }
+  ]
+}

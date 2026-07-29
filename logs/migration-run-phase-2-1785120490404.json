@@ -1,0 +1,25 @@
+{
+  "label": "run-phase-2",
+  "startTime": "2026-07-27T02:48:06.471Z",
+  "endTime": "2026-07-27T02:48:10.404Z",
+  "counts": {
+    "success": 0,
+    "failure": 1,
+    "skipped": 0,
+    "total": 2
+  },
+  "logs": [
+    {
+      "timestamp": "2026-07-27T02:48:06.471Z",
+      "event": "migration.start",
+      "detail": "Phase 2",
+      "status": "info"
+    },
+    {
+      "timestamp": "2026-07-27T02:48:10.401Z",
+      "event": "fatal",
+      "detail": "{\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"The specified bucket does not exist.\",\n    \"errors\": [\n      {\n        \"message\": \"The specified bucket does not exist.\",\n        \"domain\": \"global\",\n        \"reason\": \"notFound\"\n      }\n    ]\n  }\n}\n",
+      "status": "failure"
+    }
+  ]
+}

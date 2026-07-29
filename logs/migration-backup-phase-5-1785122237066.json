@@ -1,0 +1,25 @@
+{
+  "label": "backup-phase-5",
+  "startTime": "2026-07-27T03:17:11.803Z",
+  "endTime": "2026-07-27T03:17:17.066Z",
+  "counts": {
+    "success": 1,
+    "failure": 0,
+    "skipped": 0,
+    "total": 2
+  },
+  "logs": [
+    {
+      "timestamp": "2026-07-27T03:17:11.803Z",
+      "event": "backup.start",
+      "detail": "Phase 5",
+      "status": "info"
+    },
+    {
+      "timestamp": "2026-07-27T03:17:17.064Z",
+      "event": "backup.complete",
+      "detail": "Backup backup-2026-07-27T03-17-11",
+      "status": "success"
+    }
+  ]
+}

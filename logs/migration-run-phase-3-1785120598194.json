@@ -1,0 +1,43 @@
+{
+  "label": "run-phase-3",
+  "startTime": "2026-07-27T02:49:52.560Z",
+  "endTime": "2026-07-27T02:49:58.195Z",
+  "counts": {
+    "success": 1,
+    "failure": 2,
+    "skipped": 0,
+    "total": 5
+  },
+  "logs": [
+    {
+      "timestamp": "2026-07-27T02:49:52.560Z",
+      "event": "migration.start",
+      "detail": "Phase 3",
+      "status": "info"
+    },
+    {
+      "timestamp": "2026-07-27T02:49:58.188Z",
+      "event": "backup.complete",
+      "detail": "Backup backup-2026-07-27T02-49-52 (local + cloud verified)",
+      "status": "success"
+    },
+    {
+      "timestamp": "2026-07-27T02:49:58.190Z",
+      "event": "phase.start",
+      "detail": "Phase 3",
+      "status": "info"
+    },
+    {
+      "timestamp": "2026-07-27T02:49:58.193Z",
+      "event": "phase.error",
+      "detail": "Phase 3 failed: Cannot read properties of undefined (reading 'batch')",
+      "status": "failure"
+    },
+    {
+      "timestamp": "2026-07-27T02:49:58.194Z",
+      "event": "fatal",
+      "detail": "Cannot read properties of undefined (reading 'batch')",
+      "status": "failure"
+    }
+  ]
+}

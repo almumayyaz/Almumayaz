@@ -1,0 +1,1032 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ── Base entity mixin fields replicated on models that need them ──
+// createdAt, updatedAt are on every model
+// deletedAt, deletedBy on models requiring soft delete
+// Tracking fields: createdBy, updatedBy on audit-worthy models
+
+model User {
+  id              String   @id @default(cuid())
+  uid             String   @default("")
+  name            String
+  email           String   @unique
+  passwordHash    String?
+  role            String   @default("student")
+  phone           String   @default("")
+  parentName      String   @default("")
+  parentPhone     String   @default("")
+  parentEmail     String   @default("")
+  parentId        String?
+  parentStudentId String?
+  childrenIds     Json     @default("[]")
+  parentOf        Json     @default("[]")
+  stage           String   @default("")
+  grade           String   @default("")
+  governorate     String   @default("")
+  avatar          String   @default("")
+  fcmEnabled      Boolean  @default(true)
+
+  // Legacy subscription fields — kept until Phase 6 migration to UserSubscription
+  subscriptionStatus  String   @default("inactive")
+  subscriptionStart   DateTime?
+  subscriptionEnd     DateTime?
+  subscribedStage     String   @default("")
+  planName            String   @default("")
+  planPeriod          String   @default("")
+
+  referralCode    String   @default("")
+  referredBy      String?
+  referralDiscount Decimal  @default(0)
+  referralUsedAt  DateTime?
+  referrals       Json     @default("[]")
+
+  fcmToken        String   @default("")
+
+  emailVerified   Boolean  @default(false)
+  emailCode       String?
+  emailCodeExpiry DateTime?
+  resetCode       String?
+  resetCodeExpiry DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  lastLogin       DateTime?
+  phoneVerified   Boolean  @default(false)
+  phoneVerifiedAt DateTime?
+
+  progress        Json     @default("{}")
+
+  deletedAt DateTime?
+  deletedBy String?
+
+  refreshTokens       RefreshToken[]
+  payments            Payment[]
+  subRequests         SubRequest[]
+  chatMessages        ChatMessage[]
+  notifications       Notification[]
+  supportTickets      SupportTicket[]
+  ticketReplies       TicketReply[]
+  examAttempts        ExamAttempt[]
+  examAnswers         ExamAnswer[]
+  zoomCredentials     ZoomCredential[]
+  usageLogs           UsageLog[]
+  enrollments         Enrollment[]
+  dismissed           Dismissed[]
+  videoProgress       VideoProgress[]
+  lessonProgress      LessonProgress[]
+  subscriptions       UserSubscription[]
+  referralsGiven      Referral[]     @relation("referrer")
+  referralReceived    Referral?      @relation("referred")
+  children            ChildRelation[] @relation("parent")
+  parents             ChildRelation[] @relation("child")
+  auditLogs           AuditLog[]
+
+  @@index([role])
+  @@index([email])
+  @@index([referralCode])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([token])
+}
+
+// ═══════════════════════════════════════════════
+// SUBSCRIPTIONS (Foundation for Phase 5 migration)
+// ═══════════════════════════════════════════════
+
+model UserSubscription {
+  id          String             @id @default(cuid())
+  userId      String
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planName    String
+  planId      String             @default("")
+  status      String             @default("active")
+  startDate   DateTime
+  endDate     DateTime?
+  cancelledAt DateTime?
+  period      String             @default("شهرياً")
+  stage       String             @default("")
+  discount    Decimal       @default(0)
+  price       Decimal?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([userId, status])
+  @@index([endDate])
+}
+
+// ═══════════════════════════════════════════════
+// REFERRALS (Foundation for Phase 5 migration)
+// ═══════════════════════════════════════════════
+
+model Referral {
+  id           String   @id @default(cuid())
+  referrerId   String
+  referrer     User     @relation("referrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  referredId   String   @unique
+  referred     User     @relation("referred", fields: [referredId], references: [id], onDelete: Cascade)
+  discount     Decimal @default(25)
+  code         String
+  createdAt    DateTime @default(now())
+
+  @@index([referrerId, createdAt])
+  @@index([code])
+}
+
+// ═══════════════════════════════════════════════
+// PARENT-CHILD RELATION
+// ═══════════════════════════════════════════════
+
+model ChildRelation {
+  id        String   @id @default(cuid())
+  parentId  String
+  parent    User     @relation("parent", fields: [parentId], references: [id], onDelete: Cascade)
+  childId   String
+  child     User     @relation("child", fields: [childId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([parentId, childId])
+  @@index([parentId])
+  @@index([childId])
+}
+
+// ═══════════════════════════════════════════════
+// COURSES
+// ═══════════════════════════════════════════════
+
+model Course {
+  id           String   @id @default(cuid())
+  title        String
+  subtitle     String   @default("")
+  description  String   @default("")
+  icon         String   @default("fa-book")
+  color        String   @default("#A07200")
+  gradient     String   @default("")
+  image        String?
+  stage        String   @default("all")
+  grade        String   @default("")
+  semester     String   @default("all")
+  order        Int      @default(0)
+  active       Boolean  @default(true)
+  guestVisible Boolean  @default(false)
+  price        Decimal?
+  sections     Json     @default("[]")
+  quiz         Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  deletedAt    DateTime?
+  deletedBy    String?
+
+  units              Unit[]
+  lessons            Lesson[]
+  questionBanks      QuestionBank[]
+  notes              Note[]
+  enrollments        Enrollment[]
+  examAttempts       ExamAttempt[]
+  liveSessions       LiveSession[]
+  studentAnalytics   StudentAnalytic[]
+  planAllowedCourses PlanAllowedCourse[]
+
+  @@index([stage])
+  @@index([grade])
+  @@index([active, order])
+}
+
+// ═══════════════════════════════════════════════
+// UNITS (replaces sections JSON in Phase 3)
+// ═══════════════════════════════════════════════
+
+model Unit {
+  id          String   @id @default(cuid())
+  courseId    String
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title       String
+  description String   @default("")
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+  deletedBy   String?
+
+  lessons    Lesson[]
+
+  @@index([courseId, order])
+}
+
+// ═══════════════════════════════════════════════
+// LESSONS
+// ═══════════════════════════════════════════════
+
+model Lesson {
+  id           String   @id @default(cuid())
+  courseId     String
+  course       Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  unitId       String?
+  unit         Unit?    @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  title        String
+  description  String   @default("")
+  duration     String   @default("00:00")
+  order        Int      @default(0)
+  isFree       Boolean  @default(false)
+  guestVisible Boolean  @default(false)
+  sectionId    String   @default("")
+  videos       Json     @default("[]")
+  pdfFiles     Json     @default("[]")
+  quiz         Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  deletedAt    DateTime?
+  deletedBy    String?
+
+  // Normalized relations (populated in Phase 3+)
+  videosNormalized Video[]
+  files            LessonFile[]
+  videoProgress    VideoProgress[]
+  lessonProgress   LessonProgress[]
+
+  @@index([courseId, order])
+  @@index([unitId])
+}
+
+// ═══════════════════════════════════════════════
+// VIDEOS (replaces Lesson.videos JSON in Phase 3)
+// ═══════════════════════════════════════════════
+
+model Video {
+  id           String   @id @default(cuid())
+  lessonId     String
+  lesson       Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  order        Int      @default(0)
+  title        String   @default("")
+  url          String
+  duration     Int?
+  thumbnail    String?
+  isPreview    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  deletedAt    DateTime?
+  deletedBy    String?
+
+  videoProgress VideoProgress[]
+
+  @@index([lessonId, order])
+}
+
+// ═══════════════════════════════════════════════
+// LESSON FILES (replaces Lesson.pdfFiles JSON in Phase 3)
+// ═══════════════════════════════════════════════
+
+model LessonFile {
+  id        String   @id @default(cuid())
+  lessonId  String
+  lesson    Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  order     Int      @default(0)
+  title     String   @default("")
+  url       String
+  filePath  String   @default("")
+  type      String   @default("pdf")
+  size      Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+  deletedBy String?
+
+  @@index([lessonId, order])
+}
+
+// ═══════════════════════════════════════════════
+// VIDEO PROGRESS
+// ═══════════════════════════════════════════════
+
+model VideoProgress {
+  id              String   @id @default(cuid())
+  studentId       String
+  student         User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  lessonId        String
+  lesson          Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  videoId         String
+  video           Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  lastPosition    Int      @default(0)
+  watchedSeconds  Int      @default(0)
+  watchPercentage Float    @default(0)
+  completed       Boolean  @default(false)
+  startedAt       DateTime @default(now())
+  lastWatchAt     DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([studentId, lessonId, videoId])
+  @@index([studentId])
+  @@index([lessonId])
+  @@index([videoId])
+}
+
+// ═══════════════════════════════════════════════
+// LESSON PROGRESS (replaces progress JSON lessons{}.watchTime in Phase 3)
+// ═══════════════════════════════════════════════
+
+model LessonProgress {
+  id          String   @id @default(cuid())
+  studentId   String
+  student     User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  lessonId    String
+  lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  completed   Boolean  @default(false)
+  completedAt DateTime?
+  watchTime   Int      @default(0)
+  lastAccess  DateTime @default(now())
+
+  @@unique([studentId, lessonId])
+  @@index([studentId])
+  @@index([lessonId])
+}
+
+// ═══════════════════════════════════════════════
+// QUIZZES & QUESTIONS (replaces embedded quiz JSON in Phase 3)
+// ═══════════════════════════════════════════════
+
+// Polymorphic: entityId references Course.id, Lesson.id, Review.id, or QuestionBank.id
+// No FK constraint — the referenced table depends on entityType
+model Quiz {
+  id             String   @id @default(cuid())
+  entityType     String
+  entityId       String
+  title          String   @default("")
+  passPercentage Int      @default(60)
+  timerMinutes   Int?
+  shuffleQuestions Boolean @default(false)
+  maxAttempts    Int?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  deletedAt      DateTime?
+  deletedBy      String?
+
+  questions Question[]
+
+  @@index([entityType, entityId])
+}
+
+model Question {
+  id          String   @id @default(cuid())
+  quizId      String
+  quiz        Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  type        String   @default("single_choice")
+  text        String
+  image       String?
+  explanation String?
+  points      Int      @default(1)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+  deletedBy   String?
+
+  choices  Choice[]
+  examAnswers ExamAnswer[]
+
+  @@index([quizId, order])
+}
+
+model Choice {
+  id         String   @id @default(cuid())
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  text       String
+  isCorrect  Boolean  @default(false)
+  order      Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  @@index([questionId, order])
+}
+
+// ═══════════════════════════════════════════════
+// EXAM ATTEMPTS + ANSWERS (replaces answers JSON in Phase 3)
+// ═══════════════════════════════════════════════
+
+model ExamAttempt {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId  String?
+  course    Course?  @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  type      String   @default("exam")
+  examId    String?
+  status    String   @default("in_progress")
+  answers   Json     @default("{}")
+  score     Decimal?
+  total     Decimal?
+  startTime DateTime?
+  endTime   DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+  deletedBy String?
+
+  answersRows ExamAnswer[]
+
+  @@index([userId])
+  @@index([courseId])
+  @@index([examId, userId])
+}
+
+model ExamAnswer {
+  id              String   @id @default(cuid())
+  attemptId       String
+  attempt         ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  userId          String?
+  user            User?      @relation(fields: [userId], references: [id])
+  questionId      String?
+  question        Question?  @relation(fields: [questionId], references: [id])
+  selectedChoice  String?
+  textAnswer      String?
+  isCorrect       Boolean?
+  answeredAt      DateTime @default(now())
+
+  @@unique([attemptId, questionId])
+  @@index([attemptId])
+  @@index([questionId])
+}
+
+// ═══════════════════════════════════════════════
+// PAYMENTS (Float → Decimal)
+// ═══════════════════════════════════════════════
+
+model Payment {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userName      String   @default("")
+  amount        Decimal?
+  currency      String   @default("جنيه")
+  method        String   @default("")
+  transactionId String   @default("")
+  status        String   @default("pending")
+  planName      String   @default("")
+  invoiceRef    String?
+  receiptImage  String   @default("")
+  rejectReason  String   @default("")
+  gatewayData   Json?
+  date          DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
+  deletedBy     String?
+
+  @@index([userId])
+  @@index([status, date])
+}
+
+// ═══════════════════════════════════════════════
+// SUBSCRIPTION REQUESTS (Float → Decimal)
+// ═══════════════════════════════════════════════
+
+model SubRequest {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userName      String   @default("")
+  userPhone     String   @default("")
+  planName      String   @default("")
+  planId        String   @default("")
+  price         Decimal?
+  period        String   @default("")
+  durationDays  Int      @default(30)
+  planStage     String   @default("")
+  transactionId String   @default("")
+  paymentMethod String   @default("vodafone-cash")
+  receiptImage  String   @default("")
+  status        String   @default("pending")
+  discount      Decimal   @default(0)
+  date          DateTime @default(now())
+  reviewedBy    String?
+  reviewedAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
+  deletedBy     String?
+
+  @@index([userId])
+  @@index([status])
+}
+
+// ═══════════════════════════════════════════════
+// SUBSCRIPTION PLANS
+// ═══════════════════════════════════════════════
+
+model Subscription {
+  id              String   @id @default(cuid())
+  name            String
+  price           String   @default("0")
+  currency        String   @default("جنيه")
+  period          String   @default("شهرياً")
+  durationDays    Int      @default(30)
+  stage           String   @default("")
+  popular         Boolean  @default(false)
+  features        Json     @default("[]")
+  allowedBranches Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  deletedBy       String?
+
+  // Normalized relations (populated in Phase 3+)
+  planFeatures    SubscriptionFeature[]
+  allowedCourses  PlanAllowedCourse[]
+}
+
+model SubscriptionFeature {
+  id       String   @id @default(cuid())
+  planId   String
+  plan     Subscription @relation(fields: [planId], references: [id], onDelete: Cascade)
+  text     String
+  order    Int      @default(0)
+
+  @@index([planId, order])
+}
+
+model PlanAllowedCourse {
+  id       String   @id @default(cuid())
+  planId   String
+  plan     Subscription @relation(fields: [planId], references: [id], onDelete: Cascade)
+  courseId String?
+  course   Course?  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, courseId])
+}
+
+// ═══════════════════════════════════════════════
+// CHARGE CODES
+// ═══════════════════════════════════════════════
+
+model ChargeCode {
+  id           String   @id @default(cuid())
+  code         String   @unique
+  durationDays Int      @default(30)
+  uses         Int      @default(0)
+  maxUses      Int      @default(1)
+  createdBy    String?
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime?
+  deletedAt    DateTime?
+  deletedBy    String?
+
+  @@index([code])
+}
+
+// ═══════════════════════════════════════════════
+// CHAT
+// ═══════════════════════════════════════════════
+
+model ChatSession {
+  id          String   @id @default(cuid())
+  studentId   String
+  studentName String   @default("")
+  adminId     String?
+  status      String   @default("open")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  messages    ChatMessage[]
+  deletedAt   DateTime?
+  deletedBy   String?
+
+  @@index([studentId])
+  @@index([status])
+}
+
+model ChatMessage {
+  id         String   @id @default(cuid())
+  sessionId  String
+  session    ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  senderId   String?                         // null for guest messages, real User.id for authenticated
+  sender     User?     @relation(fields: [senderId], references: [id])
+  senderName String   @default("")
+  senderRole String   @default("student")
+  text       String
+  image      String?
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  attachments ChatAttachment[]
+
+  @@index([sessionId])
+  @@index([createdAt])
+}
+
+model ChatAttachment {
+  id        String   @id @default(cuid())
+  messageId String
+  message   ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  type      String   @default("image")
+  url       String
+  name      String   @default("")
+  size      Int?
+  metadata  Json?
+
+  @@index([messageId])
+}
+
+// ═══════════════════════════════════════════════
+// NOTIFICATIONS
+// ═══════════════════════════════════════════════
+
+model Notification {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title      String
+  body       String   @default("")
+  url        String   @default("")
+  actionType String?
+  actionData Json?
+  read       Boolean  @default(false)
+  type       String   @default("general")
+  createdAt  DateTime @default(now())
+  deletedAt  DateTime?
+  deletedBy  String?
+
+  @@index([userId, read, createdAt])
+  @@index([createdAt])
+}
+
+// ═══════════════════════════════════════════════
+// LIVE SESSIONS
+// ═══════════════════════════════════════════════
+
+model LiveSession {
+  id          String   @id @default(cuid())
+  title       String
+  description String   @default("")
+  courseId    String?
+  course      Course?  @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  grade       String   @default("")
+  stage       String   @default("")
+  startTime   DateTime
+  endTime     DateTime?
+  joinUrl     String?
+  password    String?
+  status      String   @default("scheduled")
+  recording   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  attendance  LiveSessionAttendance[]
+  deletedAt   DateTime?
+  deletedBy   String?
+
+  @@index([startTime])
+  @@index([status])
+  @@index([courseId])
+}
+
+model LiveSessionAttendance {
+  id        String   @id @default(cuid())
+  sessionId String
+  session   LiveSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId    String
+  joinTime  DateTime @default(now())
+  leaveTime DateTime?
+
+  @@index([sessionId])
+  @@index([userId])
+}
+
+// ═══════════════════════════════════════════════
+// QUESTION BANKS
+// ═══════════════════════════════════════════════
+
+model QuestionBank {
+  id            String   @id @default(cuid())
+  courseId      String
+  course        Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title         String
+  questions     Json?
+  timeSettings  Json?
+  timerMinutes  Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
+  deletedBy     String?
+
+  @@index([courseId])
+}
+
+// ═══════════════════════════════════════════════
+// NOTES
+// ═══════════════════════════════════════════════
+
+model Note {
+  id          String   @id @default(cuid())
+  courseId    String?
+  course      Course?  @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  title       String
+  description String   @default("")
+  filePath    String   @default("")
+  fileUrl     String?
+  type        String   @default("pdf")
+  stage       String   @default("")
+  grade       String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+  deletedBy   String?
+
+  @@index([courseId])
+  @@index([stage])
+  @@index([grade])
+}
+
+// ═══════════════════════════════════════════════
+// REVIEWS
+// ═══════════════════════════════════════════════
+
+model Review {
+  id        String   @id @default(cuid())
+  title     String   @default("")
+  course    String   @default("")
+  courseId  String   @default("")
+  color     String   @default("#A07200")
+  icon      String   @default("fa-book-open")
+  desc      String   @default("")
+  videos    Json     @default("[]")
+  pdfFiles  Json     @default("[]")
+  stage     String   @default("all")
+  grade     String   @default("")
+  order     Int      @default(0)
+  isFree    Boolean  @default(false)
+  date      DateTime?
+  quiz      Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+  deletedBy String?
+
+  // Normalized relations (populated in Phase 3+)
+  videosNormalized ReviewVideo[]
+  pdfFilesNormalized ReviewFile[]
+
+  @@index([courseId])
+  @@index([stage])
+  @@index([grade])
+  @@index([order])
+}
+
+model ReviewVideo {
+  id        String   @id @default(cuid())
+  reviewId  String
+  review    Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  order     Int      @default(0)
+  title     String   @default("")
+  url       String
+  duration  Int?
+  createdAt DateTime @default(now())
+
+  @@index([reviewId, order])
+}
+
+model ReviewFile {
+  id        String   @id @default(cuid())
+  reviewId  String
+  review    Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  order     Int      @default(0)
+  title     String   @default("")
+  url       String
+  filePath  String   @default("")
+  type      String   @default("pdf")
+  size      Int?
+  createdAt DateTime @default(now())
+
+  @@index([reviewId, order])
+}
+
+// ═══════════════════════════════════════════════
+// SUPPORT TICKETS
+// ═══════════════════════════════════════════════
+
+model SupportTicket {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject   String
+  message   String
+  status    String   @default("open")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+  deletedBy String?
+
+  replies TicketReply[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+model TicketReply {
+  id        String   @id @default(cuid())
+  ticketId  String
+  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  senderId  String
+  sender    User     @relation(fields: [senderId], references: [id])
+  message   String
+  createdAt DateTime @default(now())
+
+  @@index([ticketId])
+}
+
+// ═══════════════════════════════════════════════
+// ANNOUNCEMENTS
+// ═══════════════════════════════════════════════
+
+model Announcement {
+  id        String   @id @default(cuid())
+  title     String
+  content   String
+  important Boolean  @default(false)
+  active    Boolean  @default(true)
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+  deletedBy String?
+
+  @@index([active, createdAt])
+}
+
+// ═══════════════════════════════════════════════
+// REMAINING MODELS
+// ═══════════════════════════════════════════════
+
+model Quote {
+  id        String   @id @default(cuid())
+  text      String
+  author    String   @default("")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model Setting {
+  id    String @id @default(cuid())
+  key   String @unique
+  value Json?
+
+  @@index([key])
+}
+
+model ZoomCredential {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  encryptedToken String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([userId])
+}
+
+model ZoomAppCredential {
+  id           String   @id @default(cuid())
+  clientId     String
+  clientSecret String
+  redirectUri  String
+  sdkKey       String?
+  sdkSecret    String?
+  updatedAt    DateTime @updatedAt
+}
+
+model UsageLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  service   String   @default("")
+  operation String   @default("")
+  endpoint  String?
+  duration  Int?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([service, createdAt])
+}
+
+model CronClaim {
+  id        String   @id @default(cuid())
+  jobName   String   @unique
+  claimedAt DateTime @default(now())
+  expiresAt DateTime
+  instance  String   @default("")
+
+  @@index([jobName])
+}
+
+model ParentInvite {
+  id          String   @id @default(cuid())
+  studentId   String
+  studentName String   @default("")
+  studentStage String  @default("")
+  studentGrade String  @default("")
+  parentName  String   @default("")
+  parentPhone String   @default("")
+  parentEmail String
+  token       String   @unique
+  status      String   @default("pending")
+  acceptedAt  DateTime?
+  parentUserId String?
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+
+  @@index([token])
+  @@index([studentId])
+}
+
+model StudentAnalytic {
+  id             String   @id @default(cuid())
+  userId         String
+  courseId       String?
+  course         Course?  @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  totalWatchTime Int      @default(0)
+  completedCount Int      @default(0)
+  quizAvgScore   Decimal?
+  lastActivity   DateTime?
+  data           Json     @default("{}")
+
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@index([courseId])
+}
+
+model Dismissed {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  key       String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, key])
+  @@index([userId])
+}
+
+model SystemStat {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Json?
+  updatedAt DateTime @updatedAt
+
+  @@index([key])
+}
+
+model ContactMessage {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  phone     String   @default("")
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  actor     User?    @relation(fields: [actorId], references: [id])
+  action    String
+  entity    String
+  entityId  String?
+  metadata  Json?
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([actorId])
+  @@index([action, entity])
+  @@index([createdAt])
+}
+
+model Enrollment {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId       String
+  course         Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  subscriptionId String?
+  status         String   @default("active")
+  enrolledAt     DateTime @default(now())
+  completedAt    DateTime?
+  deletedAt      DateTime?
+  deletedBy      String?
+
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@index([courseId])
+}
