@@ -94,6 +94,27 @@ function _kvStorageKey(collectionName) {
   return '__' + collectionName;
 }
 
+// ── Cache of valid Prisma model fields ──
+const _MODEL_FIELDS_CACHE = {};
+
+function _getModelFields(prisma, modelName) {
+  if (_MODEL_FIELDS_CACHE[modelName]) return _MODEL_FIELDS_CACHE[modelName];
+  try {
+    // Use Prisma DMMF to get scalar field names
+    const model = prisma._dmmf?.modelMap?.[modelName];
+    if (model && Array.isArray(model.fields)) {
+      const set = new Set(model.fields.map(f => f.name));
+      _MODEL_FIELDS_CACHE[modelName] = set;
+      return set;
+    }
+  } catch (e) {
+    // silently fall through
+  }
+  // Fallback: empty set passes all fields through
+  _MODEL_FIELDS_CACHE[modelName] = new Set();
+  return _MODEL_FIELDS_CACHE[modelName];
+}
+
 // ── Helpers ──
 
 function _modelHasSoftDelete(modelName) {
@@ -311,19 +332,29 @@ async function writeData(key, data) {
 
       const items = Array.isArray(data) ? data : [data];
 
+      // Get valid scalar fields for this model (remove extra Firebase fields)
+      const validFields = _getModelFields(prisma, modelName);
+
       // Batch upsert each item
       await prisma.$transaction(
         items.map(item => {
           const fixed = _fixTimestamps(_clone(item));
           const clean = _stripTimestamps(fixed);
+          // Keep only fields that exist in the Prisma model
+          const pruned = {};
+          for (const key of Object.keys(clean)) {
+            if (validFields.has(key)) {
+              pruned[key] = clean[key];
+            }
+          }
           if (item.id) {
             return prisma[modelName].upsert({
               where: { id: item.id },
-              create: { ...clean, id: item.id },
-              update: clean,
+              create: { ...pruned, id: item.id },
+              update: pruned,
             });
           }
-          return prisma[modelName].create({ data: clean });
+          return prisma[modelName].create({ data: pruned });
         })
       );
 
