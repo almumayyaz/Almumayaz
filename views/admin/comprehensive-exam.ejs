@@ -105,6 +105,29 @@
 </main>
 
 <script>
+function editExam() {
+  document.getElementById('uploadSection').style.display = 'none';
+  document.getElementById('editorSection').style.display = 'block';
+  renderQuestions();
+  updateQuestionCount();
+}
+
+function deleteExam() {
+  if (!confirm('هل أنت متأكد من حذف الاختبار الشامل؟ لا يمكن التراجع.')) return;
+  fetch('/api/admin/comprehensive-exam', {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest'
+    }
+  })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (d.success) { alert('تم حذف الاختبار'); location.reload(); }
+      else { alert(d.error || 'فشل الحذف'); }
+    }).catch(function(){ alert('خطأ في الاتصال'); });
+}
+
 var parsedData = null;
 var currentQuestions = [];
 
