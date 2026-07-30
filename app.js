@@ -21,7 +21,7 @@ const https = require('https');
 const zoom = require('./zoom-oauth');
 const analytics = require('./analytics-engine');
 const settingService = require('./src/services/setting.service');
-const { buildLegacyUser } = require('./src/services/legacyUser.service');
+
 const { getPrisma } = require('./src/database');
 const { getFirebaseErrorMessage } = require('./src/utils/firebaseErrorMessages');
 const perf = require('./perf');
@@ -203,7 +203,8 @@ app.use((req, res, next) => {
 });
 
 const _rateBuckets = {};
-// Rate limiter (best-effort on Vercel serverless — each invocation has fresh state)
+const _rateLimiterMem = {}; // fallback in-memory when FB unavailable
+// Rate limiter — uses RTDB transaction for cross-instance atomicity on Vercel
 const RATE_LIMITS = {
   'AUTH_LIMIT': { window: 15 * 60 * 1000, max: 30 },
   'ANALYTICS_LIMIT': { window: 15 * 60 * 1000, max: 400 },
@@ -212,7 +213,10 @@ const RATE_LIMITS = {
 function getRateLimitKey(limitName, suffix) {
   return limitName + ':' + suffix;
 }
-app.use(function(req, res, next) {
+const _rateLimiterFbReady = (function() {
+  try { return require('./prisma-bridge').transactionData ? true : false; } catch(e) { return false; }
+})();
+app.use(async function(req, res, next) {
   var path = req.path;
   var limitName = null;
   if (path.indexOf('/api/auth/') === 0 || path === '/login' || path === '/register' || path === '/forgot-password' || path === '/demo' || path.indexOf('/api/parent/') === 0 || path.indexOf('/api/student/redeem-code') === 0 || path.indexOf('/api/student/apply-referral') === 0) limitName = 'AUTH_LIMIT';
@@ -222,8 +226,31 @@ app.use(function(req, res, next) {
   var cfg = RATE_LIMITS[limitName];
   var ip = (req.headers['x-forwarded-for'] || '').split(',')[0] || req.ip || 'unknown';
   var key = getRateLimitKey(limitName, ip + ':' + path);
-  var bucket = _rateBuckets[key];
   var now = Date.now();
+
+  if (_rateLimiterFbReady) {
+    try {
+      const { transactionData } = require('./prisma-bridge');
+      var allowed = false;
+      await transactionData('rateLimits/' + key, function(current) {
+        if (!current || now - (current.start || 0) > cfg.window) {
+          allowed = true;
+          return { start: now, count: 1 };
+        }
+        current.count = (current.count || 0) + 1;
+        if (current.count > cfg.max) { allowed = false; return current; }
+        allowed = true;
+        return current;
+      });
+      if (!allowed) { usageTracker.trackRateLimit(limitName); return res.status(429).json({ error: 'طلبات كثيرة جداً، يرجى الانتظار' }); }
+      return next();
+    } catch (e) {
+      // fall through to in-memory fallback
+    }
+  }
+
+  // In-memory fallback (single-instance or dev)
+  var bucket = _rateBuckets[key];
   if (!bucket || now - bucket.start > cfg.window) {
     _rateBuckets[key] = { start: now, count: 1 };
     return next();
@@ -281,7 +308,18 @@ var upload = multer({
   limits: { fileSize: 50 * 1024 * 1024 },
   fileFilter: function(req, file, cb) {
     var allowedMimes = ['image/jpeg','image/png','image/webp','image/gif','application/pdf','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/vnd.ms-powerpoint','application/vnd.openxmlformats-officedocument.presentationml.presentation','text/plain','application/zip'];
-    if (allowedMimes.indexOf(file.mimetype) !== -1 || file.mimetype.indexOf('image/') === 0) return cb(null, true);
+    if (allowedMimes.indexOf(file.mimetype) !== -1) return cb(null, true);
+    cb(null, false);
+  }
+});
+
+var uploadWord = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 },
+  fileFilter: function(req, file, cb) {
+    var allowedMimes = ['application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/octet-stream','application/zip'];
+    var ext = path.extname(file.originalname || '').toLowerCase();
+    if (allowedMimes.indexOf(file.mimetype) !== -1 || ext === '.doc' || ext === '.docx') return cb(null, true);
     cb(null, false);
   }
 });
@@ -297,7 +335,7 @@ function stripBOM(s) {
 
 function escHtml(s) {
   if (!s) return '';
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
 }
 
 function sessionUser(u) {
@@ -313,14 +351,27 @@ function sessionUser(u) {
 function genEmailCode() { return String(crypto.randomInt(100000, 1000000)); }
 const EMAIL_CODE_TTL = 30 * 60 * 1000;
 
+// Safe error helper — logs actual error, returns generic message to client
+function safeErr(e, fallback) {
+  console.error('[safeErr]', e && (e.stack || e.message || e));
+  return fallback || 'تعذر إتمام العملية، حاول مرة أخرى.';
+}
+
 function requireAuth(req, res, next) {
   if (!req.session.user) return res.redirect('/login');
   next();
 }
 
 function requireAdmin(req, res, next) {
-  if (!req.session.user || req.session.user.role !== 'admin') return res.redirect('/login');
-  next();
+  if (!req.session.user) return res.redirect('/login');
+  // Re-verify role from DB to guard against stale session after role downgrade
+  getPrisma().user.findUnique({ where: { id: req.session.user.id }, select: { role: true } }).then(function(u) {
+    if (!u || u.role !== 'admin') return res.redirect('/login');
+    req.session.user.role = u.role;
+    next();
+  }).catch(function() {
+    next();
+  });
 }
 
 function requireDevAccess(req, res, next) {
@@ -345,11 +396,17 @@ function checkSubscription(req, res, next) {
     const end = new Date(user.subscriptionEnd);
     if (end < new Date()) {
       user.subscriptionStatus = 'expired';
-      readData('users').then(users => {
-        const idx = users.findIndex(u => u.id === user.id);
-        if (idx !== -1) { users[idx].subscriptionStatus = 'expired'; writeData('users', users); }
+      (async () => {
+        try {
+          const prisma = getPrisma();
+          await prisma.user.update({ where: { id: user.id }, data: { subscriptionStatus: 'expired' } });
+          await prisma.userSubscription.updateMany({
+            where: { userId: user.id, status: 'active', deletedAt: null },
+            data: { status: 'expired', endDate: new Date() }
+          });
+        } catch (_) {}
         sendFCM(user.id, 'انتهى اشتراكك في المُميز', 'لقد انتهت صلاحية اشتراكك. قم بتجديد الاشتراك للاستمرار في مشاهدة المحاضرات.', '/student/subscription');
-      }).catch(() => {});
+      })();
     }
   }
   next();
@@ -362,8 +419,7 @@ async function refreshSession(req, res, next) {
   const now = Date.now();
   if (user._lastSync && (now - user._lastSync) < 30000) return next();
   try {
-    const users = await readData('users');
-    const fresh = users.find(u => u.id === user.id);
+    const fresh = await readUserById(user.id);
     if (fresh) {
       ['subscriptionStatus','subscriptionEnd','subscriptionStart','name','phone','parentPhone','stage','grade','governorate','referralCode','referralDiscount'].forEach(k => {
         req.session.user[k] = fresh[k];
@@ -386,11 +442,7 @@ app.use(async (req, res, next) => {
       res.locals.user.progress !== undefined && res.locals.user.referrals !== undefined;
     if (!haveSessionFields) {
       try {
-        // readData('users') is served from the short-TTL cache (stage 1/6), so this
-        // is normally a cache hit with zero Firebase reads.
-        const _us = await readData('users');
-        const _list = Array.isArray(_us) ? _us : (_us ? Object.values(_us) : []);
-        const _full = _list.find(u => u.uid === res.locals.user.uid);
+        const _full = res.locals.user.id ? await readUserById(res.locals.user.id) : null;
         if (_full) {
           res.locals.user.avatar = _full.avatar || '';
           if (res.locals.user.avatar && !res.locals.user.avatar.startsWith('data:') && storageConfig.isR2Enabled()) {
@@ -776,14 +828,7 @@ app.use(refreshSession);
       if (r.isFree === undefined) { r.isFree = false; reviewsChanged = true; }
     });
     if (reviewsChanged) await writeData('reviews', reviews);
-    // Migrate users: add referralDiscount
-    var users = await readData('users');
-    var usersChanged = false;
-    users.forEach(function(u) {
-      if (u.referralDiscount === undefined) { u.referralDiscount = 0; usersChanged = true; }
-      if (!u.referralCode) { u.referralCode = 'REF-' + Math.random().toString(36).substr(2, 8).toUpperCase(); usersChanged = true; }
-    });
-    if (usersChanged) await writeData('users', users);
+    // Migrate users: add referralDiscount — deferred to Prisma schema defaults
     // Delete lughati-chat if it exists
     try {
 const { fbRemove } = require('./prisma-bridge');
@@ -828,29 +873,14 @@ app.post('/api/auth/firebase-login', async (req, res) => {
       decoded = { uid: account.localId, email: account.email, displayName: account.displayName };
     }
     const uid = decoded.uid;
-    let users = await readData('users');
-    if (!Array.isArray(users)) users = users ? Object.values(users) : [];
-    let user = users.find(u => u && u.uid === uid);
+    const prisma = getPrisma();
+    let user = await prisma.user.findFirst({
+      where: { OR: [{ id: uid }, { uid }], deletedAt: null }
+    });
 
     if (!user) {
-      // Fallback: check RTDB for user data before creating a new user
-      if (fbDb) {
-        try {
-          const snap = await fbDb.ref('users').orderByChild('uid').equalTo(uid).once('value');
-          const rtdbVal = snap.val();
-          if (rtdbVal) {
-            const rtdbUser = Object.values(rtdbVal).find(u => u && u.uid === uid);
-            if (rtdbUser) {
-              user = rtdbUser;
-              user.lastLogin = new Date().toISOString();
-              users.push(user);
-              await writeData('users', users);
-            }
-          }
-        } catch (e) { console.error('RTDB fallback error:', e.message); }
-      }
-      if (!user) {
-        user = {
+      user = await prisma.user.create({
+        data: {
           id: uid,
           uid,
           name: decoded.displayName || 'طالب',
@@ -862,26 +892,17 @@ app.post('/api/auth/firebase-login', async (req, res) => {
           governorate: '',
           role: 'student',
           subscriptionStatus: 'inactive',
-          subscriptionStart: null,
-          subscriptionEnd: null,
-          referralCode: '',
-          referredBy: '',
-          fcmToken: '',
+          referralCode: 'REF-' + crypto.randomBytes(4).toString('hex').toUpperCase(),
           referralDiscount: 0,
-          createdAt: new Date().toISOString(),
-          lastLogin: new Date().toISOString(),
-          progress: {}
-        };
-        users.push(user);
-        await writeData('users', users);
-      }
+          createdAt: new Date(),
+          lastLogin: new Date(),
+        }
+      });
     } else {
-      // Ensure fields exist for existing users
-      if (user.referralDiscount === undefined) user.referralDiscount = 0;
-      user.lastLogin = new Date().toISOString();
-      const idx = users.findIndex(u => u.uid === uid);
-      users[idx] = user;
-      await writeData('users', users);
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { lastLogin: new Date() }
+      });
     }
 
     // Block login if email verification was sent but not completed
@@ -889,7 +910,7 @@ app.post('/api/auth/firebase-login', async (req, res) => {
       return res.json({ error: 'email_not_verified', email: user.email });
     }
 
-    req.session.user = sessionUser(user);
+    req.session = { user: sessionUser(user), darkMode: req.session.darkMode || false };
     if (user.role === 'student') {
     analytics.trackLogin(user.uid, { device: req.headers['user-agent'] || '', browser: req.headers['user-agent'] || '', ip: req.ip || req.connection.remoteAddress || '' }).catch(function(){});
   }
@@ -902,13 +923,13 @@ app.post('/api/auth/firebase-login', async (req, res) => {
 app.post('/api/auth/firebase-register', async (req, res) => {
   try {
     if (!fbAuth) return res.status(503).json({ error: 'خدمة المصادقة غير متاحة حالياً' });
-    const { idToken, name, email, phone, parentPhone, grade, stage, governorate, referralCode, phoneVerified } = req.body;
+    const { idToken, name, email, phone, parentPhone, grade, stage, governorate, phoneVerified } = req.body;
     const decoded = await fbAuth.verifyIdToken(idToken);
     const uid = decoded.uid;
 
-    let users = await readData('users');
-    if (!Array.isArray(users)) users = users ? Object.values(users) : [];
-    if (users.find(u => u.email === email)) {
+    const prisma = getPrisma();
+    const existing = await prisma.user.findFirst({ where: { email, deletedAt: null } });
+    if (existing) {
       return res.status(409).json({ error: 'حدث خطأ في التسجيل، يرجى المحاولة مرة أخرى' });
     }
 
@@ -924,36 +945,17 @@ app.post('/api/auth/firebase-register', async (req, res) => {
       governorate: governorate || '',
       role: 'student',
       subscriptionStatus: 'inactive',
-      subscriptionStart: null,
-      subscriptionEnd: null,
-    referralCode: 'REF-' + crypto.randomBytes(4).toString('hex').toUpperCase(),
-      referredBy: referralCode || '',
-      fcmToken: '',
-      createdAt: new Date().toISOString(),
-      lastLogin: new Date().toISOString(),
-      progress: {},
+      referralCode: 'REF-' + crypto.randomBytes(4).toString('hex').toUpperCase(),
+      createdAt: new Date(),
+      lastLogin: new Date(),
       emailVerified: false,
       emailCode: genEmailCode(),
-      emailCodeExpiry: Date.now() + EMAIL_CODE_TTL,
+      emailCodeExpiry: new Date(Date.now() + EMAIL_CODE_TTL),
       phoneVerified: !!phoneVerified,
-      phoneVerifiedAt: phoneVerified ? new Date().toISOString() : null
+      phoneVerifiedAt: phoneVerified ? new Date() : null
     };
 
-    if (referralCode) {
-      const referrer = users.find(u => u.referralCode === referralCode);
-      if (referrer) {
-        newUser.referredBy = referrer.id;
-        if (!referrer.referrals) referrer.referrals = [];
-        var settingsRef = await readData('settings') || {};
-        var refDiscount = settingsRef.referralDiscount != null ? settingsRef.referralDiscount : 25;
-        referrer.referrals.push({ userId: uid, discount: refDiscount, date: new Date().toISOString() });
-        const ri = users.findIndex(u => u.referralCode === referralCode);
-        if (ri !== -1) users[ri] = referrer;
-      }
-    }
-
-    users.push(newUser);
-    await writeData('users', users);
+    await prisma.user.create({ data: newUser });
 
     const sent = await emailService.sendVerificationEmail(email, name, newUser.emailCode);
     res.json({ success: true, emailSent: sent, email });
@@ -964,21 +966,23 @@ app.post('/api/auth/firebase-register', async (req, res) => {
 });
 
 async function loadUsers() {
-  const users = await readData('users');
-  return Array.isArray(users) ? users : (users ? Object.values(users) : []);
+  const prisma = getPrisma();
+  return prisma.user.findMany({ where: { deletedAt: null } });
 }
 
 app.post('/api/auth/send-verify-code', async (req, res) => {
   try {
     const { email } = req.body;
     if (!email) return res.status(400).json({ error: 'البريد الإلكتروني مطلوب' });
-    const users = await loadUsers();
-    const user = users.find(u => u.email === email);
+    const prisma = getPrisma();
+    const user = await prisma.user.findFirst({ where: { email, deletedAt: null } });
     if (!user) return res.status(404).json({ error: 'إذا كان الحساب موجوداً، تم إرسال التعليمات' });
-    user.emailCode = genEmailCode();
-    user.emailCodeExpiry = Date.now() + EMAIL_CODE_TTL;
-    await writeData('users', users);
-    const sent = await emailService.sendVerificationEmail(email, user.name, user.emailCode);
+    const code = genEmailCode();
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { emailCode: code, emailCodeExpiry: new Date(Date.now() + EMAIL_CODE_TTL) }
+    });
+    const sent = await emailService.sendVerificationEmail(email, user.name, code);
     res.json({ success: true, emailSent: sent });
   } catch (e) { console.error('send-verify-code error:', e); res.status(500).json({ error: 'تعذر إرسال الكود' }); }
 });
@@ -987,22 +991,22 @@ app.post('/api/auth/verify-email', async (req, res) => {
   try {
     const { email, code } = req.body;
     if (!email || !code) return res.status(400).json({ error: 'البريد والكود مطلوبان' });
-    const users = await loadUsers();
-    const idx = users.findIndex(u => u.email === email);
-    if (idx === -1) return res.status(404).json({ error: 'إذا كان الحساب موجوداً، تم إرسال التعليمات' });
-    const user = users[idx];
+    const prisma = getPrisma();
+    const user = await prisma.user.findFirst({ where: { email, deletedAt: null } });
+    if (!user) return res.status(404).json({ error: 'إذا كان الحساب موجوداً، تم إرسال التعليمات' });
     if (user.emailVerified) return res.json({ success: true });
-    if (!user.emailCode || !user.emailCodeExpiry || Date.now() > user.emailCodeExpiry)
+    if (!user.emailCode || !user.emailCodeExpiry || new Date() > user.emailCodeExpiry)
       return res.status(400).json({ error: 'الكود غير صالح أو منتهي الصلاحية' });
     if (String(user.emailCode) !== String(code)) return res.status(400).json({ error: 'الكود غير صحيح' });
-    user.emailVerified = true;
-    user.emailCode = null; user.emailCodeExpiry = null;
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { emailVerified: true, emailCode: null, emailCodeExpiry: null }
+    });
     if (fbAuth && user.uid) {
       try { await fbAuth.updateUser(user.uid, { emailVerified: true }); } catch (e) { console.error('fb verify update error:', e.message); }
     }
-    users[idx] = user;
-    await writeData('users', users);
-    req.session.user = sessionUser(user);
+    const updated = await prisma.user.findUnique({ where: { id: user.id } });
+    req.session = { user: sessionUser(updated), darkMode: req.session.darkMode || false };
     res.json({ success: true });
   } catch (e) { console.error('verify-email error:', e); res.status(500).json({ error: 'تعذر تأكيد البريد' }); }
 });
@@ -1011,13 +1015,15 @@ app.post('/api/auth/forgot-password', async (req, res) => {
   try {
     const { email } = req.body;
     if (!email) return res.status(400).json({ error: 'البريد الإلكتروني مطلوب' });
-    const users = await loadUsers();
-    const user = users.find(u => u.email === email);
+    const prisma = getPrisma();
+    const user = await prisma.user.findFirst({ where: { email, deletedAt: null } });
     if (!user) return res.status(404).json({ error: 'إذا كان الحساب موجوداً، تم إرسال التعليمات' });
-    user.resetCode = genEmailCode();
-    user.resetCodeExpiry = Date.now() + EMAIL_CODE_TTL;
-    await writeData('users', users);
-    const sent = await emailService.sendResetPasswordEmail(email, user.name, user.resetCode);
+    const code = genEmailCode();
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { resetCode: code, resetCodeExpiry: new Date(Date.now() + EMAIL_CODE_TTL) }
+    });
+    const sent = await emailService.sendResetPasswordEmail(email, user.name, code);
     res.json({ success: true, emailSent: sent });
   } catch (e) { console.error('forgot-password error:', e); res.status(500).json({ error: 'تعذر إرسال الكود' }); }
 });
@@ -1026,20 +1032,20 @@ app.post('/api/auth/reset-password', async (req, res) => {
   try {
     const { email, code, newPassword } = req.body;
     if (!email || !code || !newPassword) return res.status(400).json({ error: 'جميع الحقول مطلوبة' });
-    const users = await loadUsers();
-    const idx = users.findIndex(u => u.email === email);
-    if (idx === -1) return res.status(404).json({ error: 'إذا كان الحساب موجوداً، تم إرسال التعليمات' });
-    const user = users[idx];
-    if (!user.resetCode || !user.resetCodeExpiry || Date.now() > user.resetCodeExpiry)
+    const prisma = getPrisma();
+    const user = await prisma.user.findFirst({ where: { email, deletedAt: null } });
+    if (!user) return res.status(404).json({ error: 'إذا كان الحساب موجوداً، تم إرسال التعليمات' });
+    if (!user.resetCode || !user.resetCodeExpiry || new Date() > user.resetCodeExpiry)
       return res.status(400).json({ error: 'الكود غير صالح أو منتهي الصلاحية' });
     if (String(user.resetCode) !== String(code)) return res.status(400).json({ error: 'الكود غير صحيح' });
-    user.password = await scryptHash(newPassword);
-    user.resetCode = null; user.resetCodeExpiry = null;
+    const passwordHash = await scryptHash(newPassword);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash, resetCode: null, resetCodeExpiry: null }
+    });
     if (fbAuth && user.uid) {
       try { await fbAuth.updateUser(user.uid, { password: newPassword }); } catch (e) { console.error('fb password update error:', e.message); }
     }
-    users[idx] = user;
-    await writeData('users', users);
     res.json({ success: true });
   } catch (e) { console.error('reset-password error:', e); res.status(500).json({ error: 'تعذر تغيير كلمة المرور' }); }
 });
@@ -1048,11 +1054,12 @@ app.post('/api/auth/firebase-admin-login', async (req, res) => {
   try {
     const { idToken } = req.body;
     const decoded = await fbAuth.verifyIdToken(idToken);
-    const users = await readData('users');
-    const user = Array.isArray(users) ? users.find(u => u && u.uid === decoded.uid && u.role === 'admin') : null;
+    const prisma = getPrisma();
+    const user = await prisma.user.findFirst({
+      where: { OR: [{ id: decoded.uid }, { uid: decoded.uid }], role: 'admin', deletedAt: null }
+    });
     if (!user) return res.status(403).json({ error: 'غير مصرح بالدخول' });
-
-    req.session.user = sessionUser(user);
+    req.session = { user: sessionUser(user), darkMode: req.session.darkMode || false };
     res.json({ success: true, redirect: '/admin' });
   } catch (e) {
     console.error('[Firebase Admin Login Error]', e);
@@ -1272,22 +1279,20 @@ app.get('/parent-login', (req, res) => {
 
 app.post('/login', async (req, res) => {
   const { email, password } = req.body;
-  let users = await readData('users');
-  if (!Array.isArray(users)) users = Object.values(users || {});
-  const idx = users.findIndex(u => u && u.email === email);
-  if (idx === -1) return res.render('auth/login', { title: 'تسجيل الدخول - المُميز', error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة' });
-  const user = users[idx];
-  const ok = await verifyPassword(user.password, password);
+  const prisma = getPrisma();
+  const user = await prisma.user.findFirst({ where: { email, deletedAt: null } });
+  if (!user) return res.render('auth/login', { title: 'تسجيل الدخول - المُميز', error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة' });
+  const ok = await verifyPassword(user.passwordHash, password);
   if (!ok) return res.render('auth/login', { title: 'تسجيل الدخول - المُميز', error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة' });
   if (user.emailVerified === false) {
     return res.render('auth/login', { title: 'تسجيل الدخول - المُميز', error: 'يرجى تأكيد بريدك الإلكتروني أولاً. تم إرسال كود التأكيد إلى بريدك.' });
   }
-  if (typeof user.password === 'string' && !user.password.startsWith('scrypt$') && password) {
-    user.password = await scryptHash(password);
-    users[idx] = user;
-    await writeData('users', users);
+  if (typeof user.passwordHash === 'string' && !user.passwordHash.startsWith('scrypt$') && password) {
+    const hash = await scryptHash(password);
+    await prisma.user.update({ where: { id: user.id }, data: { passwordHash: hash } });
+    user.passwordHash = hash;
   }
-  req.session.user = sessionUser(user);
+  req.session = { user: sessionUser(user), darkMode: req.session.darkMode || false };
   if (user.role === 'admin') return res.redirect('/admin');
   res.redirect('/student');
 });
@@ -1299,35 +1304,36 @@ app.get('/register', (req, res) => {
 
 app.post('/register', async (req, res) => {
   const { name, email, phone, parentPhone, grade, stage, governorate, password, referralCode } = req.body;
-  let users = await readData('users');
-  if (!Array.isArray(users)) users = users ? Object.values(users) : [];
-  if (users.find(u => u.email === email)) return res.render('auth/register', { title: 'إنشاء حساب - المُميز', error: 'حدث خطأ في التسجيل، يرجى المحاولة مرة أخرى' });
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.render('auth/register', { title: 'إنشاء حساب - المُميز', error: 'البريد الإلكتروني غير صالح' });
+  if (!password || password.length < 6) return res.render('auth/register', { title: 'إنشاء حساب - المُميز', error: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل' });
+  const prisma = getPrisma();
+  const existing = await prisma.user.findFirst({ where: { email, deletedAt: null } });
+  if (existing) return res.render('auth/register', { title: 'إنشاء حساب - المُميز', error: 'حدث خطأ في التسجيل، يرجى المحاولة مرة أخرى' });
   const uid = uuidv4();
+  const passwordHash = password ? await scryptHash(password) : '';
   const newUser = {
     id: uid, uid, name, email, phone: phone || '', parentPhone: parentPhone || '',
     grade, stage: stage || '', governorate: governorate || '', role: 'student',
-    subscriptionStatus: 'inactive', subscriptionStart: null, subscriptionEnd: null,
+    subscriptionStatus: 'inactive',
     referralCode: 'REF-' + crypto.randomBytes(4).toString('hex').toUpperCase(),
     referredBy: referralCode || '',
     referralDiscount: 0,
-    fcmToken: '', createdAt: new Date().toISOString(), lastLogin: new Date().toISOString(), progress: {},
-    password: password ? await scryptHash(password) : ''
+    passwordHash,
+    createdAt: new Date(), lastLogin: new Date(),
   };
   if (referralCode) {
-    const referrer = users.find(u => u.referralCode === referralCode);
+    const referrer = await prisma.user.findFirst({ where: { referralCode, deletedAt: null } });
     if (referrer) {
       newUser.referredBy = referrer.id;
-      if (!referrer.referrals) referrer.referrals = [];
-      var refSettings = await readData('settings') || {};
-      var refDiscount = refSettings.referralDiscount != null ? refSettings.referralDiscount : 25;
-      referrer.referrals.push({ userId: uid, discount: refDiscount, date: new Date().toISOString() });
-      const ri = users.findIndex(u => u.referralCode === referralCode);
-      if (ri !== -1) users[ri] = referrer;
+      const settingsRef = await readData('settings') || {};
+      const refDiscount = settingsRef.referralDiscount != null ? settingsRef.referralDiscount : 25;
+      await prisma.referral.create({
+        data: { referrerId: referrer.id, referredId: uid, discount: refDiscount, code: referralCode }
+      }).catch(() => {});
     }
   }
-  users.push(newUser);
-  await writeData('users', users);
-  req.session.user = sessionUser(newUser);
+  await prisma.user.create({ data: newUser });
+  req.session = { user: sessionUser(newUser), darkMode: req.session.darkMode || false };
   res.redirect('/student');
 });
 
@@ -1471,9 +1477,11 @@ app.post('/support/submit', async (req, res) => {
     var tickets = await readData('supportTickets') || [];
     var ticket = {
       id: 'ticket-' + Date.now() + '-' + Math.random().toString(36).slice(2,7),
-      name, email, phone: phone || '', subject, message,
-      status: 'open', createdAt: new Date().toISOString(), replies: []
+      requesterName: name, requesterEmail: email, requesterPhone: phone || '', subject, message,
+      status: 'open', createdAt: new Date().toISOString()
     };
+    // also save userId if logged in student
+    if (isStudent && u && u.id) ticket.userId = u.id;
     tickets.push(ticket);
     await writeData('supportTickets', tickets);
     // notify admins
@@ -1484,15 +1492,13 @@ app.post('/support/submit', async (req, res) => {
         title: 'تذكرة دعم جديدة',
         body: name + ' — ' + subject,
         target: 'admin', targetValue: '',
-        url: '/support/admin/ticket/' + ticket.id,
-        sentAt: new Date().toISOString(), recipientCount: 1, source: 'support'
+        url: '/support/admin/ticket/' + ticket.id
       });
       await writeData('notifications', notifs);
     } catch(e) {}
     // email + push notifications to admins
     try {
-      var allUsers = await readData('users') || [];
-      var admins = allUsers.filter(function(u){return u.role==='admin';});
+      var admins = await getPrisma().user.findMany({ where: { role: 'admin', deletedAt: null } });
       for (var ai=0; ai<admins.length; ai++) {
         var au = admins[ai];
         if (au.email) {
@@ -1680,15 +1686,13 @@ app.get('/support/admin', requireSupport, async (req, res) => {
       (tickets.length === 0 ?
       '<div class="empty"><i class="fas fa-inbox"></i><p>لا توجد تذاكر دعم حتى الآن</p></div>' :
       tickets.map(function(t) {
-        var rc = t.replies ? t.replies.length : 0;
         var d = new Date(t.createdAt);
         var ds = d.toLocaleDateString("ar-EG",{year:"numeric",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});
         return '<a href="/support/admin/ticket/' + t.id + '" class="ticket">' +
           '<div class="top"><span class="subj">' + escHtml(t.subject) + '</span>' +
           '<span class="badge ' + t.status + '">' + (t.status==='open'?'مفتوحة':'مغلقة') + '</span></div>' +
-          '<div class="meta"><span><i class="fas fa-user"></i>' + escHtml(t.name) + '</span>' +
-          '<span><i class="fas fa-clock"></i>' + ds + '</span>' +
-          '<span><i class="fas fa-reply"></i>' + rc + ' ردود</span></div></a>';
+          '<div class="meta"><span><i class="fas fa-user"></i>' + escHtml(t.requesterName) + '</span>' +
+          '<span><i class="fas fa-clock"></i>' + ds + '</span></div></a>';
       }.bind(this)).join('')
       ) +
       '</div>' +
@@ -1707,12 +1711,27 @@ app.get('/support/admin/ticket/:id', requireSupport, async (req, res) => {
     var d = new Date(ticket.createdAt);
     var ds = d.toLocaleDateString("ar-EG",{year:"numeric",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});
     var repliesHtml = '';
-    if (ticket.replies && ticket.replies.length) {
+    try {
+      var prisma = getPrisma();
+      var dbReplies = await prisma.ticketReply.findMany({ where: { ticketId: ticket.id }, orderBy: { createdAt: 'asc' } });
+      dbReplies.forEach(function(r) {
+        var rd = new Date(r.createdAt);
+        var rds = rd.toLocaleDateString("ar-EG",{year:"numeric",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});
+        var isAdmin = r.senderRole === 'admin';
+        var senderName = isAdmin ? 'فريق الدعم' : escHtml(ticket.requesterName);
+        repliesHtml += '<div class="reply ' + (isAdmin?'admin':'user') + '">' +
+          '<div class="r-header"><span class="r-name">' + senderName + '</span>' +
+          '<span class="r-time">' + rds + '</span></div>' +
+          '<div class="r-text">' + escHtml(r.message) + '</div></div>';
+      });
+    } catch(e) {}
+    // fallback: legacy embedded replies
+    if (!repliesHtml && ticket.replies && ticket.replies.length) {
       ticket.replies.forEach(function(r) {
         var rd = new Date(r.createdAt);
         var rds = rd.toLocaleDateString("ar-EG",{year:"numeric",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});
         repliesHtml += '<div class="reply ' + (r.isAdmin?'admin':'user') + '">' +
-          '<div class="r-header"><span class="r-name">' + (r.isAdmin?'فريق الدعم':escHtml(ticket.name)) + '</span>' +
+          '<div class="r-header"><span class="r-name">' + (r.isAdmin?'فريق الدعم':escHtml(ticket.requesterName)) + '</span>' +
           '<span class="r-time">' + rds + '</span></div>' +
           '<div class="r-text">' + escHtml(r.text) + '</div></div>';
       });
@@ -1779,9 +1798,9 @@ app.get('/support/admin/ticket/:id', requireSupport, async (req, res) => {
       '<div class="ticket-card">' +
       '<div class="subj">' + escHtml(ticket.subject) + '</div>' +
       '<span class="badge ' + ticket.status + '">' + (ticket.status==='open'?'مفتوحة':'مغلقة') + '</span>' +
-      '<div class="meta"><span><i class="fas fa-user"></i>' + escHtml(ticket.name) + '</span>' +
-      '<span><i class="fas fa-envelope"></i>' + escHtml(ticket.email) + '</span>' +
-      (ticket.phone ? '<span><i class="fas fa-phone"></i>' + escHtml(ticket.phone) + '</span>' : '') +
+      '<div class="meta"><span><i class="fas fa-user"></i>' + escHtml(ticket.requesterName) + '</span>' +
+      '<span><i class="fas fa-envelope"></i>' + escHtml(ticket.requesterEmail) + '</span>' +
+      (ticket.requesterPhone ? '<span><i class="fas fa-phone"></i>' + escHtml(ticket.requesterPhone) + '</span>' : '') +
       '<span><i class="fas fa-clock"></i>' + ds + '</span></div>' +
       '<div class="msg-text">' + escHtml(ticket.message) + '</div>' +
       '</div>' +
@@ -1823,12 +1842,18 @@ app.post('/support/admin/ticket/:id/reply', requireSupport, async (req, res) => 
     var tickets = await readData('supportTickets') || [];
     var idx = tickets.findIndex(function(t){return t.id===req.params.id;});
     if (idx===-1) return res.json({ success: false, error: 'التذكرة غير موجودة' });
-    if (!tickets[idx].replies) tickets[idx].replies = [];
-    tickets[idx].replies.push({
-      id: 'r-' + Date.now() + '-' + Math.random().toString(36).slice(2,7),
-      text: text, isAdmin: true, createdAt: new Date().toISOString()
-    });
     tickets[idx].status = 'open';
+    var prisma = getPrisma();
+    await prisma.ticketReply.create({
+      data: {
+        ticketId: tickets[idx].id,
+        senderId: req.session.user ? req.session.user.id : null,
+        senderRole: 'admin',
+        senderName: req.session.user ? (req.session.user.name || 'Support') : 'Support',
+        message: text,
+        createdAt: new Date()
+      }
+    });
     await writeData('supportTickets', tickets);
     // notify ticket submitter by email
     try {
@@ -1841,7 +1866,7 @@ app.post('/support/admin/ticket/:id/reply', requireSupport, async (req, res) => 
         '<div style="width:40px;height:3px;background:linear-gradient(90deg,#F59E0B,#FBBF24);border-radius:2px;margin:12px auto;"></div>' +
         '<div style="color:#fde68a;font-size:16px;margin-top:8px;font-weight:600;">رد على تذكرتك</div></div>' +
         '<div style="padding:28px;background:#fff;border-radius:0 0 16px 16px;color:#374151;">' +
-        '<p style="font-size:16px;margin:0 0 16px;">مرحباً <strong>' + escHtml(ticket.name) + '</strong>،</p>' +
+        '<p style="font-size:16px;margin:0 0 16px;">مرحباً <strong>' + escHtml(ticket.requesterName) + '</strong>،</p>' +
         '<p style="color:#666;margin:0 0 8px;">قام فريق الدعم بالرد على تذكرتك:</p>' +
         '<p style="color:#666;margin:0 0 20px;font-size:13px;">الموضوع: ' + escHtml(ticket.subject) + '</p>' +
         '<div style="padding:16px 18px;background:#f8f8f8;border-radius:8px;border-right:3px solid #f59e0b;margin:0 0 24px;">' +
@@ -1850,7 +1875,7 @@ app.post('/support/admin/ticket/:id/reply', requireSupport, async (req, res) => 
         '<a href="https://almumayaz.online/support/my-tickets" style="display:inline-block;padding:13px 34px;' +
         'background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;text-decoration:none;border-radius:8px;font-size:15px;font-weight:bold;">متابعة التذكرة</a></div>' +
         '<p style="font-size:12px;color:#999;text-align:center;margin:0;">هذه الرسالة مرسلة بشكل آلي، يرجى عدم الرد.</p></div></div>';
-      await emailService.sendMail(ticket.email, subjLine, emailHtml);
+      await emailService.sendMail(ticket.requesterEmail, subjLine, emailHtml);
     } catch(e) { console.error('[Support] Email notify failed:', e.message); }
     res.json({ success: true });
   } catch (e) { res.json({ success: false, error: 'حدث خطأ' }); }
@@ -1874,8 +1899,10 @@ app.post('/support/admin/ticket/:id/delete', requireSupport, async (req, res) =>
     var tickets = await readData('supportTickets') || [];
     var idx = tickets.findIndex(function(t){return t.id===req.params.id;});
     if (idx===-1) return res.json({ success: false, error: 'التذكرة غير موجودة' });
+    var ticketId = tickets[idx].id;
     tickets.splice(idx, 1);
     await writeData('supportTickets', tickets);
+    try { await getPrisma().ticketReply.deleteMany({ where: { ticketId } }); } catch(e) {}
     res.json({ success: true });
   } catch (e) { res.json({ success: false, error: 'حدث خطأ' }); }
 });
@@ -1890,22 +1917,32 @@ app.get('/support/logout', function(req, res) {
 app.post('/support/ticket/:id/reply', async (req, res) => {
   try {
     var { text, email } = req.body;
-    if (!text || !email) return res.json({ success: false, error: 'الرد والبريد مطلوبان' });
+    if (!text) return res.json({ success: false, error: 'الرد مطلوب' });
+    // Logged-in user: use session email; guest: require email in body
+    if (req.session.user && req.session.user.email) {
+      email = req.session.user.email;
+    }
+    if (!email) return res.json({ success: false, error: 'البريد الإلكتروني مطلوب' });
     var tickets = await readData('supportTickets') || [];
     var idx = tickets.findIndex(function(t){return t.id===req.params.id;});
     if (idx===-1) return res.json({ success: false, error: 'التذكرة غير موجودة' });
     if (tickets[idx].status !== 'open') return res.json({ success: false, error: 'التذكرة مغلقة ولا يمكن الرد' });
-    if (tickets[idx].email.toLowerCase() !== email.toLowerCase()) return res.json({ success: false, error: 'البريد الإلكتروني غير مطابق' });
-    if (!tickets[idx].replies) tickets[idx].replies = [];
-    tickets[idx].replies.push({
-      id: 'r-' + Date.now() + '-' + Math.random().toString(36).slice(2,7),
-      text: text, isAdmin: false, createdAt: new Date().toISOString()
+    if (tickets[idx].requesterEmail.toLowerCase() !== email.toLowerCase()) return res.json({ success: false, error: 'البريد الإلكتروني غير مطابق' });
+    var prisma = getPrisma();
+    await prisma.ticketReply.create({
+      data: {
+        ticketId: tickets[idx].id,
+        senderRole: 'student',
+        senderName: tickets[idx].requesterName,
+        message: text,
+        createdAt: new Date()
+      }
     });
     await writeData('supportTickets', tickets);
     // notify admins by email + push
     try {
-      var allUsers = await readData('users') || [];
-      var admins = allUsers.filter(function(u){return u.role==='admin';});
+      var prisma = getPrisma();
+      var admins = await prisma.user.findMany({ where: { role: 'admin', deletedAt: null } });
       for (var ai=0; ai<admins.length; ai++) {
         var au = admins[ai];
         if (au.email) {
@@ -1917,20 +1954,20 @@ app.post('/support/ticket/:id/reply', async (req, res) => {
               '<div style="width:40px;height:3px;background:linear-gradient(90deg,#F59E0B,#FBBF24);border-radius:2px;margin:12px auto;"></div>' +
               '<div style="color:#fde68a;font-size:16px;margin-top:8px;font-weight:600;">رد جديد على تذكرة دعم</div></div>' +
               '<div style="padding:28px;background:#fff;border-radius:0 0 16px 16px;color:#374151;">' +
-              '<p style="margin:0 0 16px;"><strong>' + escHtml(tickets[idx].name) + '</strong> أرسل رداً على تذكرته:</p>' +
+              '<p style="margin:0 0 16px;"><strong>' + escHtml(tickets[idx].requesterName) + '</strong> أرسل رداً على تذكرته:</p>' +
               '<div style="padding:16px;background:#f8f8f8;border-right:3px solid #f59e0b;border-radius:8px;margin:0 0 20px;">' +
               '<p style="margin:0;color:#333;line-height:1.9;font-size:14px;">' + escHtml(text).replace(/\n/g,'<br>') + '</p></div>' +
               '<div style="text-align:center;"><a href="https://almumayaz.online/support/admin/ticket/' + tickets[idx].id + '" ' +
               'style="display:inline-block;padding:13px 34px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;' +
               'text-decoration:none;border-radius:8px;font-size:15px;font-weight:bold;">عرض الرد</a></div></div></div>';
-            await emailService.sendMail(au.email, '💬 رد من ' + tickets[idx].name + ' على تذكرة الدعم', html);
+            await emailService.sendMail(au.email, '💬 رد من ' + tickets[idx].requesterName + ' على تذكرة الدعم', html);
           } catch(e) { console.error('[support] notify admin reply error:', e.message); }
         }
         if (au.fcmToken) {
           try {
             await admin.messaging().send({
               token: au.fcmToken,
-              notification: { title: 'رد من ' + tickets[idx].name + ' 💬', body: 'على تذكرة: ' + tickets[idx].subject },
+              notification: { title: 'رد من ' + tickets[idx].requesterName + ' 💬', body: 'على تذكرة: ' + tickets[idx].subject },
               data: { url: '/support/admin/ticket/' + tickets[idx].id }
             });
           } catch(e) {}
@@ -1943,13 +1980,35 @@ app.post('/support/ticket/:id/reply', async (req, res) => {
 
 // GET /support/my-tickets — public ticket lookup by email
 app.get('/support/my-tickets', async function(req, res) {
-  var email = req.query.email ? req.query.email.trim().toLowerCase() : '';
+  // Logged-in user: auto-use session email; guest: require query param
+  var email = '';
+  if (req.session.user && req.session.user.email) {
+    email = req.session.user.email.trim().toLowerCase();
+  } else {
+    email = req.query.email ? req.query.email.trim().toLowerCase() : '';
+  }
+  var isLoggedIn = !!(req.session.user && req.session.user.email);
   var tickets = [];
   if (email) {
     try {
       var all = await readData('supportTickets') || [];
-      tickets = all.filter(function(t){return t.email && t.email.toLowerCase()===email;});
+      tickets = all.filter(function(t){return t.requesterEmail && t.requesterEmail.toLowerCase()===email;});
       tickets.sort(function(a,b){return new Date(b.createdAt)-new Date(a.createdAt);});
+    } catch(e) {}
+  }
+  // Fetch replies from Prisma for all matching tickets
+  var repliesByTicket = {};
+  if (tickets.length) {
+    try {
+      var prisma = getPrisma();
+      var allReplies = await prisma.ticketReply.findMany({
+        where: { ticketId: { in: tickets.map(function(t){return t.id;}) } },
+        orderBy: { createdAt: 'asc' }
+      });
+      allReplies.forEach(function(r) {
+        if (!repliesByTicket[r.ticketId]) repliesByTicket[r.ticketId] = [];
+        repliesByTicket[r.ticketId].push(r);
+      });
     } catch(e) {}
   }
   res.send(
@@ -2022,52 +2081,60 @@ app.get('/support/my-tickets', async function(req, res) {
     '<a href="/" class="logo"><span class="ar">المُميز</span></a>' +
     '<div class="card">' +
     '<h2>تذاكري</h2>' +
+    (isLoggedIn ?
+    '<p>عرض جميع تذاكر الدعم الخاصة بك مع الردود</p>' :
     '<p>أدخل بريدك الإلكتروني لعرض جميع تذاكر الدعم الخاصة بك مع الردود</p>' +
     '<form class="search-box" method="GET" action="/support/my-tickets">' +
     '<input type="email" name="email" required placeholder="بريدك الإلكتروني" value="' + (email ? escHtml(email) : '') + '">' +
     '<button type="submit"><i class="fas fa-search"></i> بحث</button>' +
-    '</form>' +
+    '</form>') +
     '</div>' +
     (email && tickets.length === 0 ?
     '<div class="card" style="text-align:center;color:#64748b;"><i class="fas fa-inbox" style="font-size:36px;opacity:.3;display:block;margin-bottom:12px;"></i>لا توجد تذاكر لهذا البريد</div>' : '') +
     (tickets.length ? tickets.map(function(t) {
       var d = new Date(t.createdAt);
       var ds = d.toLocaleDateString("ar-EG",{year:"numeric",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});
+      var tReplies = repliesByTicket[t.id] || [];
+      // Fallback to legacy embedded replies
+      if (!tReplies.length && t.replies && t.replies.length) tReplies = t.replies;
       var repliesHtml = '';
-      if (t.replies && t.replies.length) {
-        repliesHtml += '<div class="reply-thread">' + t.replies.map(function(r) {
+      if (tReplies.length) {
+        repliesHtml += '<div class="reply-thread">' + tReplies.map(function(r) {
           var rd = new Date(r.createdAt);
           var rds = rd.toLocaleDateString("ar-EG",{year:"numeric",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});
-          return '<div class="thread-item ' + (r.isAdmin?'admin':'user') + '">' +
-            '<div class="th-hdr"><span class="th-name">' + (r.isAdmin?'الدعم الفني':escHtml(t.name)) + '</span>' +
+          var isAdmin = r.senderRole ? r.senderRole === 'admin' : r.isAdmin;
+          var text = r.message || r.text || '';
+          return '<div class="thread-item ' + (isAdmin?'admin':'user') + '">' +
+            '<div class="th-hdr"><span class="th-name">' + (isAdmin?'الدعم الفني':escHtml(t.requesterName)) + '</span>' +
             '<span>' + rds + '</span></div>' +
-            '<div>' + escHtml(r.text) + '</div></div>';
+            '<div>' + escHtml(text) + '</div></div>';
         }).join('') + '</div>';
       }
       return '<div class="ticket" id="ticket-' + t.id + '">' +
         '<div class="top"><span class="subj">' + escHtml(t.subject) + '</span>' +
         '<span class="badge ' + t.status + '">' + (t.status==='open'?'مفتوحة':'مغلقة') + '</span></div>' +
         '<div class="meta"><span><i class="fas fa-clock"></i>' + ds + '</span>' +
-        (t.replies ? '<span style="margin-right:12px;"><i class="fas fa-reply"></i>' + t.replies.length + ' ردود</span>' : '') +
+        (tReplies.length ? '<span style="margin-right:12px;"><i class="fas fa-reply"></i>' + tReplies.length + ' ردود</span>' : '') +
         '</div>' + repliesHtml +
         (t.status === 'open' ?
-        '<div style="margin-top:8px;"><button class="reply-toggle" onclick="toggleR(\'' + t.id + '\',\'' + escHtml(email) + '\')"><i class="fas fa-reply"></i> رد</button></div>' +
+        '<div style="margin-top:8px;"><button class="reply-toggle" onclick="toggleR(\'' + t.id + '\')"><i class="fas fa-reply"></i> رد</button></div>' +
         '<div id="rf-' + t.id + '" class="reply-form" style="display:none;">' +
         '<textarea id="rt-' + t.id + '" placeholder="اكتب ردك..."></textarea>' +
         '<div class="r-actions">' +
         '<button class="r-send" onclick="sendReply(\'' + t.id + '\',\'' + escHtml(email) + '\')"><i class="fas fa-paper-plane"></i> إرسال</button>' +
-        '<button class="r-cancel" onclick="toggleR(\'' + t.id + '\',\'' + escHtml(email) + '\')">إلغاء</button></div></div>'
+        '<button class="r-cancel" onclick="toggleR(\'' + t.id + '\')">إلغاء</button></div></div>'
         : '') +
         '</div>';
     }).join('') : '') +
     '<div style="text-align:center;margin-top:12px;"><a href="/support" class="back"><i class="fas fa-arrow-right"></i> العودة للدعم الفني</a></div>' +
     '</div>' +
     '<script>' +
-    'function toggleR(id,email){var f=document.getElementById("rf-"+id);if(f.style.display==="none"){f.style.display="block";}else{f.style.display="none";}}' +
+    'function toggleR(id){var f=document.getElementById("rf-"+id);if(f.style.display==="none"){f.style.display="block";}else{f.style.display="none";}}' +
     'function sendReply(id,email){var ta=document.getElementById("rt-"+id);if(!ta||!ta.value.trim())return;var text=ta.value.trim();' +
     'var btn=ta.parentElement.querySelector(".r-send");btn.disabled=true;btn.innerHTML=\'<i class="fas fa-spinner fa-spin"></i>\';' +
+    'var payload={text:text};if(email)payload.email=email;' +
     'fetch("/support/ticket/"+id+"/reply",{method:"POST",headers:{"Content-Type":"application/json"},' +
-    'body:JSON.stringify({text:text,email:email})}).then(function(r){return r.json()}).then(function(d){' +
+    'body:JSON.stringify(payload)}).then(function(r){return r.json()}).then(function(d){' +
     'if(d.success){window.location.reload();}else{btn.disabled=false;btn.innerHTML=\'<i class="fas fa-paper-plane"></i> إرسال\';alert(d.error||"حدث خطأ");}' +
     '}).catch(function(){btn.disabled=false;btn.innerHTML=\'<i class="fas fa-paper-plane"></i> إرسال\';alert("حدث خطأ في الاتصال");});}' +
     '</script>' +
@@ -2109,8 +2176,8 @@ app.get('/student', requireStudentOrGuest, async (req, res) => {
   let progress = {};
   let analyticsData = null;
   if (!isGuest && req.session.user) {
-    const userData = await readData('users');
-    const u = userData && userData[req.session.user.uid];
+    const prisma = getPrisma();
+    const u = await prisma.user.findUnique({ where: { id: req.session.user.id }, select: { progress: true } });
     progress = (u && u.progress) || {};
     try { analyticsData = await analytics.getStudentDashboardData(req.session.user.uid); } catch(e) {}
   }
@@ -2220,19 +2287,7 @@ app.get('/student/courses', requireStudentOrGuest, async (req, res) => {
   // Teacher's setting (currentSemester) controls which term is visible to the student (no manual student selection)
   var currentSemester = res.locals.currentSemester || 'all';
   if (currentSemester !== 'all') courses = courses.filter(function(c) { return c.semester === currentSemester || c.semester === 'all'; });
-  // Plan-based branch filtering: if the user's subscription plan restricts branches, apply filter
-  var isSubActive = user && user.subscriptionStatus === 'active' && (!user.subscriptionEnd || new Date(user.subscriptionEnd) > new Date());
-  if (isSubActive && user.planName) {
-    try {
-      var allPlans = await readData('subscriptions') || [];
-      var userPlan = allPlans.find(function(p) {
-        return p.name === user.planName && p.period === user.planPeriod && (!p.stage || p.stage === user.subscribedStage);
-      });
-      if (userPlan && userPlan.allowedBranches && Array.isArray(userPlan.allowedBranches) && userPlan.allowedBranches.length > 0 && userPlan.allowedBranches[0] !== '*') {
-        courses = courses.filter(function(c) { return userPlan.allowedBranches.indexOf(c.id) !== -1; });
-      }
-    } catch(e) { console.error('[branch filter]', e.message); }
-  }
+  // Plan-based lesson filtering is done per-lesson on the lesson page
   res.render('student/courses', { courses: courses, userStage: userStage, userGrade: userGrade, currentSemester: currentSemester, title: 'المحاضرات - المُميز' });
 });
 
@@ -2240,6 +2295,9 @@ app.get('/student/course/:id', requireStudentOrGuest, async (req, res) => {
   const courses = await readData('courses');
   const course = courses.find(c => c.id === req.params.id);
   if (!course) return res.redirect('/student/courses');
+
+  // filter out unpublished lessons
+  if (course.lessons) course.lessons = course.lessons.filter(function(l){ return l.published !== false; });
 
   const user = req.session.user;
   const isGuest = req.session.demoMode;
@@ -2250,11 +2308,10 @@ app.get('/student/course/:id', requireStudentOrGuest, async (req, res) => {
   if (!isGuest && user.uid) {
     try {
       const a = await analytics.getAnalyticsFresh(user.uid);
-      // Read fresh progress from Firebase (not stale session)
+      // Read fresh progress from Prisma (not stale session)
       let freshProgress = {};
       try {
-        const freshUsers = await readData('users', true);
-        const fu = freshUsers.find(u => u.uid === user.uid || u.id === user.uid);
+        const fu = await readUserById(user.uid);
         if (fu && fu.progress) freshProgress = fu.progress;
       } catch(e) {}
       const fromProgress = (freshProgress[course.id] && freshProgress[course.id].completedLessons) || [];
@@ -2277,26 +2334,22 @@ app.get('/student/lesson/:courseId/:lessonId', requireStudentOrGuest, async (req
   if (!course) return res.redirect('/student/courses');
   const lesson = (course.lessons||[]).find(l => l.id === req.params.lessonId);
   if (!lesson) return res.redirect(`/student/course/${course.id}`);
+  if (lesson.published === false) return res.redirect(`/student/course/${course.id}`);
 
   const user = req.session.user;
   const isGuest = req.session.demoMode;
   const isSubscribed = !isGuest && user.subscriptionStatus === 'active' && (!user.subscriptionEnd || new Date(user.subscriptionEnd) > new Date());
   const isFree = lesson.isFree === true;
 
-  if (!isFree && !isSubscribed && !(isGuest && lesson.guestVisible)) {
-    return res.render('student/subscription-locked', { title: 'الاشتراك مطلوب - المُميز', isGuest });
-  }
-
   // Read fresh user data for progress (not from stale session)
   let freshUserData = null;
   try {
-    const freshUsers = await readData('users', true);
-    freshUserData = freshUsers.find(u => u.uid === user.uid || u.id === user.uid);
+    freshUserData = await readUserById(user.uid);
   } catch(e) {}
   const freshProgress = (freshUserData && freshUserData.progress) || {};
 
   let lessonStatuses = null;
-  let isSequentiallyLocked = false;
+  let lockReason = null;
   let hasVideo = !!(lesson.videos && lesson.videos.length) || !!lesson.videoUrl;
 
   if (!isGuest && user.uid) {
@@ -2309,30 +2362,36 @@ app.get('/student/lesson/:courseId/:lessonId', requireStudentOrGuest, async (req
       lessonStatuses = computed.lessonStatuses;
       const thisLesson = lessonStatuses.find(s => s.lessonId === lesson.id);
       if (thisLesson && !thisLesson.isUnlocked && !isFree) {
-        isSequentiallyLocked = true;
+        lockReason = 'sequential';
       }
-      if (!hasVideo && !(lesson.quiz && lesson.quiz.enabled) && !isSequentiallyLocked && thisLesson && !thisLesson.isCompleted) {
-        if (freshUserData) {
-          if (!freshUserData.progress) freshUserData.progress = {};
-          if (!freshUserData.progress[course.id]) freshUserData.progress[course.id] = { completedLessons: [], percentage: 0, positions: {} };
-          if (!freshUserData.progress[course.id].completedLessons.includes(lesson.id)) {
-            freshUserData.progress[course.id].completedLessons.push(lesson.id);
-            freshUserData.progress[course.id].percentage = 100;
-            await writeData('users', freshUserData);
-          }
-        }
-        // Also write to normalized LessonProgress table
+      if (!hasVideo && !(lesson.quiz && lesson.quiz.enabled) && lockReason !== 'sequential' && thisLesson && !thisLesson.isCompleted) {
         try {
           const prisma = getPrisma();
           const lpId = `${user.id}_${lesson.id}`;
           await prisma.lessonProgress.upsert({
             where: { id: lpId },
-            create: { id: lpId, studentId: user.id, lessonId: lesson.id, courseId: course.id, completed: true, completedAt: new Date(), watchTime: 0, lastAccess: new Date(), createdAt: new Date(), updatedAt: new Date() },
-            update: { completed: true, completedAt: new Date(), updatedAt: new Date() },
+            create: { id: lpId, studentId: user.id, lessonId: lesson.id, completed: true, completedAt: new Date(), watchTime: 0, lastAccess: new Date() },
+            update: { completed: true, completedAt: new Date() },
           });
         } catch(e2) {}
       }
     } catch(e) {}
+  }
+
+  // Check subscription lock (overrides sequential if also not subscribed)
+  if (!isFree && !isSubscribed && !(isGuest && lesson.guestVisible)) {
+    lockReason = 'subscription';
+  // Check if the plan includes this specific lesson
+  } else if (!isFree && isSubscribed && !isGuest && user.planName && !lockReason) {
+    try {
+      const plans = await readData('subscriptions') || [];
+      const userPlan = plans.find(p => p.name === user.planName && p.period === user.planPeriod && (!p.stage || p.stage === user.subscribedStage));
+      if (userPlan && userPlan.allowedLessons && Array.isArray(userPlan.allowedLessons) && userPlan.allowedLessons[0] !== '*') {
+        if (userPlan.allowedLessons.indexOf(lesson.id) === -1) {
+          lockReason = 'plan';
+        }
+      }
+    } catch(e) { /* silently degrade to full access */ }
   }
 
   // Check if lesson quiz already attempted (one-time guard)
@@ -2343,9 +2402,9 @@ app.get('/student/lesson/:courseId/:lessonId', requireStudentOrGuest, async (req
       user.progress[course.id].completedLessons.includes(lesson.id);
     let qFirebaseDone = false;
     let qExamDone = false;
+    let qPrismaDone = false;
     try {
-      const users2 = await readData('users', true);
-      const u2 = (users2 || []).find(u => u.uid === user.uid || u.id === user.uid);
+      const u2 = await readUserById(user.uid);
       if (u2) {
         if (u2.progress && u2.progress[course.id] && u2.progress[course.id].completedLessons) {
           qFirebaseDone = u2.progress[course.id].completedLessons.includes(lesson.id);
@@ -2353,16 +2412,17 @@ app.get('/student/lesson/:courseId/:lessonId', requireStudentOrGuest, async (req
         var qr = u2.quizResults && u2.quizResults[course.id] && u2.quizResults[course.id][lesson.id];
         qExamDone = qr && qr.passed === true;
       }
+      const prisma = getPrisma();
+      const passedAttempt = await prisma.examAttempt.findFirst({
+        where: { userId: user.id, examId: lesson.id, status: 'passed' }
+      });
+      qPrismaDone = !!passedAttempt;
     } catch(e) {}
-    quizDone = qSessionDone || qFirebaseDone || qExamDone || (req.session.quizDoneLessons && req.session.quizDoneLessons.includes(lesson.id));
-  }
-
-  if (isSequentiallyLocked) {
-    return res.render('student/lesson-locked', { course, title: 'الدرس مقفول - المُميز' });
+    quizDone = qSessionDone || qFirebaseDone || qExamDone || qPrismaDone || (req.session.quizDoneLessons && req.session.quizDoneLessons.includes(lesson.id));
   }
 
   res.render('student/lesson', {
-    course, lesson, user, isGuest, isSubscribed, isFree, hasVideo, lessonStatuses, quizDone,
+    course, lesson, user, isGuest, isSubscribed, isFree, hasVideo, lessonStatuses, quizDone, lockReason,
     title: `${lesson.title} - المُميز`
   });
 });
@@ -2373,6 +2433,7 @@ app.get('/student/lesson-quiz/:courseId/:lessonId', requireStudentOrGuest, async
   if (!course) return res.redirect('/student/courses');
   const lesson = (course.lessons||[]).find(l => l.id === req.params.lessonId);
   if (!lesson) return res.redirect(`/student/course/${course.id}`);
+  if (lesson.published === false) return res.redirect(`/student/course/${course.id}`);
   if (!lesson.quiz || !lesson.quiz.enabled) return res.redirect(`/student/lesson/${course.id}/${lesson.id}`);
 
   const user = req.session.user;
@@ -2386,9 +2447,22 @@ app.get('/student/lesson-quiz/:courseId/:lessonId', requireStudentOrGuest, async
   // Load saved quiz result for review (passed quiz = show answers, failed = retry)
   let quizResult = null;
   try {
-    const legacyUser = await buildLegacyUser(user.id);
-    if (legacyUser && legacyUser.quizResults && legacyUser.quizResults[course.id] && legacyUser.quizResults[course.id][lesson.id]) {
-      quizResult = legacyUser.quizResults[course.id][lesson.id];
+    const prisma = getPrisma();
+    const bestAttempt = await prisma.examAttempt.findFirst({
+      where: { userId: user.id, examId: lesson.id, status: 'passed' },
+      orderBy: { endTime: 'desc' }
+    });
+    if (bestAttempt) {
+      const nScore = Number(bestAttempt.score) || 0;
+      const nTotal = Number(bestAttempt.total) || 1;
+      quizResult = {
+        score: nScore,
+        total: nTotal,
+        percentage: Math.round(nScore / nTotal * 100),
+        passed: bestAttempt.status === 'passed',
+        answers: Array.isArray(bestAttempt.answers) ? bestAttempt.answers : {},
+        completedAt: bestAttempt.endTime ? bestAttempt.endTime.getTime() : null,
+      };
     }
   } catch(e) {}
   const quizPassed = quizResult && quizResult.passed === true;
@@ -2398,8 +2472,11 @@ app.get('/student/lesson-quiz/:courseId/:lessonId', requireStudentOrGuest, async
   let nextLesson = null;
   if (!isGuest && user.uid) {
     try {
+      var prisma = getPrisma();
+      var dbUser = await prisma.user.findUnique({ where: { id: user.id }, select: { progress: true } });
+      var freshProgress = (dbUser && dbUser.progress) || {};
       const a = await analytics.getAnalyticsFresh(user.uid);
-      const fromProgress = (user.progress && user.progress[course.id] && user.progress[course.id].completedLessons) || [];
+      const fromProgress = (freshProgress[course.id] && freshProgress[course.id].completedLessons) || [];
       const fromSession = req.session.quizDoneLessons || [];
       const userCompleted = [...new Set([...fromProgress, ...fromSession])];
       const computed = analytics.computeLessonStatuses(user.uid, course, a.lessonProgress || {}, a.courseProgress || {}, userCompleted);
@@ -2453,6 +2530,8 @@ app.get('/student/review-pdf/:reviewId/:pdfIdx', requireStudent, async (req, res
   const reviews = (await readData('reviews')) || [];
   const review = reviews.find(r => r.id === req.params.reviewId);
   if (!review) return res.redirect('/student/reviews');
+  // check access code for code-protected reviews
+  if (review.accessCode && (!req.session.reviewAccess || !req.session.reviewAccess[review.id])) return res.redirect('/student/review/' + review.id);
   const idx = parseInt(req.params.pdfIdx);
   const entry = review.pdfFiles && review.pdfFiles[idx];
   if (!entry || !entry.path) return res.redirect(`/student/review/${review.id}`);
@@ -2559,7 +2638,7 @@ function makePdfToken(kind, authMiddleware, requireSubscription) {
     } catch (e) {
       const status = (e && e.status) || 401;
       console.error('[pdf-token] error:', { kind, message: e && e.message, status });
-      return res.status(status).json({ error: e && e.message || 'Unauthorized' });
+      return res.status(status).json({ error: safeErr(e, 'Unauthorized') });
     }
   }];
 }
@@ -2617,7 +2696,7 @@ function makePdfStream(kind, authMiddleware, requireSubscription) {
       }
     } catch (e) {
       const status = (e && e.status) || 500;
-      if (!res.headersSent) res.status(status).end(e && e.message || 'Stream error');
+      if (!res.headersSent) res.status(status).end('Stream error');
       else res.end();
     }
   }];
@@ -2630,7 +2709,41 @@ app.get('/api/student/pdf-stream/lesson/:c/:l/:i', ...makePdfStream('lesson', re
 app.get('/api/student/pdf-stream/review/:id/:i', ...makePdfStream('review', requireStudent, false));
 app.get('/api/student/pdf-stream/note/:id', ...makePdfStream('note', requireStudent, true));
 
+// Student download note PDF (write to /tmp, then res.download)
+app.get('/student/note-download/:noteId', requireStudent, async (req, res) => {
+  try {
+    const user = req.session.user;
+    const sub = user && user.subscriptionStatus === 'active' && (!user.subscriptionEnd || new Date(user.subscriptionEnd) > new Date());
+    if (!sub) return res.status(403).render('student/subscription-locked', { title: 'الاشتراك مطلوب - المُميز', isGuest: false });
 
+    const notes = await readData('notes');
+    const note = notes.find(n => String(n.id) === String(req.params.noteId));
+    if (!note || !note.filePath) return res.redirect('/student/notes');
+
+    const { path } = await getPdfTarget('note', req);
+    const filename = path.split('/').pop() || (note.title || 'note') + '.pdf';
+    const safeFilename = filename.replace(/"/g, '');
+
+    const signed = storageConfig.isR2Enabled()
+      ? await getStorageService().createSignedUrl(path, 300)
+      : await supabaseStorage.createSignedUrl(path, 60);
+
+    const upstream = await fetch(signed);
+    if (!upstream.ok) {
+      console.error('[note-download] storage fetch failed:', upstream.status, upstream.statusText);
+      return res.status(502).end('Storage error');
+    }
+
+    const buf = Buffer.from(await upstream.arrayBuffer());
+    const tmpFile = require('path').join(require('os').tmpdir(), 'dl-' + Date.now() + '-' + safeFilename);
+    require('fs').writeFileSync(tmpFile, buf);
+    console.log('[note-download] serving:', { filename: safeFilename, size: buf.length, tmpFile });
+    res.download(tmpFile, safeFilename);
+  } catch (e) {
+    console.error('[note-download] error:', e && e.message, e && e.stack);
+    if (!res.headersSent) res.redirect('/student/notes');
+  }
+});
 
 /* ===================== ADMIN: upload PDF to private Supabase bucket ===================== */
 /* Flow (avoids Vercel's ~4.5MB serverless body limit / HTTP 413):
@@ -2719,6 +2832,14 @@ const ExamTimeEngine = require('./src/services/examTimeEngine');
 app.post('/api/exam/start', requireAuth, async (req, res) => {
   try {
     const { examId, examType, courseId, timeSettings } = req.body;
+    // التحقق من وجود محاولة مسلمة مسبقاً
+    const existing = (await readData('examAttempts')) || [];
+    var submitted = existing.find(function(a) {
+      return a.userId === req.session.user.uid && a.courseId === courseId &&
+        (a.status === 'submitted' || a.status === 'auto-submitted');
+    });
+    if (submitted) return res.json({ success: false, error: 'تم تسليم هذا الامتحان مسبقاً ولا يمكن إعادة أدائه.' });
+
     const attempt = await ExamTimeEngine.getOrCreateAttempt(
       req.session.user.uid, examId, examType, courseId, timeSettings
     );
@@ -2726,8 +2847,8 @@ app.post('/api/exam/start', requireAuth, async (req, res) => {
       success: true,
       attempt: {
         id: attempt.id,
-        startedAt: attempt.startedAt,
-        realEndTime: attempt.realEndTime,
+        startedAt: attempt.startTime,
+        realEndTime: attempt.endTime,
         status: attempt.status,
         answers: attempt.answers || {}
       },
@@ -2735,7 +2856,7 @@ app.post('/api/exam/start', requireAuth, async (req, res) => {
     });
   } catch (e) {
     if (e.code === 'AVAILABILITY') {
-      return res.json({ success: false, error: e.message, code: 'AVAILABILITY' });
+      return res.json({ success: false, error: safeErr(e), code: 'AVAILABILITY' });
     }
     res.status(500).json({ success: false, error: 'تعذر بدء الامتحان، حاول مرة أخرى.' });
   }
@@ -2748,13 +2869,13 @@ app.post('/api/exam/sync', requireAuth, async (req, res) => {
     const attempt = attempts.find(a => a.id === attemptId && a.userId === req.session.user.uid);
     if (!attempt) return res.json({ success: false, error: 'المحاولة غير موجودة' });
 
-    const remaining = ExamTimeEngine.calculateRemaining(attempt.realEndTime);
+    const remaining = ExamTimeEngine.calculateRemaining(attempt.endTime);
     res.json({
       success: true,
       serverTime: Date.now(),
       remaining: remaining,
       status: attempt.status,
-      realEndTime: attempt.realEndTime
+      realEndTime: attempt.endTime
     });
   } catch (e) {
     res.status(500).json({ success: false, error: 'خطأ في المزامنة' });
@@ -2767,7 +2888,7 @@ app.post('/api/exam/save-answers', requireAuth, async (req, res) => {
     const attempt = await ExamTimeEngine.saveAnswers(attemptId, req.session.user.uid, answers);
     res.json({ success: true });
   } catch (e) {
-    res.json({ success: false, error: e.message });
+    res.json({ success: false, error: safeErr(e) });
   }
 });
 
@@ -2775,13 +2896,36 @@ app.post('/api/exam/submit', requireAuth, async (req, res) => {
   try {
     const { attemptId, answers } = req.body;
     const attempt = await ExamTimeEngine.submitAttempt(attemptId, req.session.user.uid, answers, false);
+
+    // Grade the attempt server-side (without exposing correct answers to client)
+    var score = 0, total = 0;
+    try {
+      if (attempt.courseId) {
+        var courses = await readData('courses');
+        var course = courses.find(c => c.id === attempt.courseId);
+        if (course && course.quiz && course.quiz.questions) {
+          var questions = course.quiz.questions;
+          total = questions.length;
+          var ans = attempt.answers || {};
+          questions.forEach(function(q, idx) {
+            if (ans[String(idx)] !== undefined && parseInt(ans[String(idx)]) === q.correct) {
+              score++;
+            }
+          });
+          await ExamTimeEngine.saveGrade(attemptId, req.session.user.uid, score, total);
+        }
+      }
+    } catch(e) {}
+
     res.json({
       success: true,
       status: attempt.status,
-      submittedAt: attempt.submittedAt
+      submittedAt: new Date().toISOString(),
+      score: score,
+      total: total
     });
   } catch (e) {
-    res.json({ success: false, error: e.message });
+    res.json({ success: false, error: safeErr(e) });
   }
 });
 
@@ -2789,27 +2933,6 @@ app.post('/api/exam/grade', requireAuth, async (req, res) => {
   try {
     const { attemptId, score, total } = req.body;
     await ExamTimeEngine.saveGrade(attemptId, req.session.user.uid, score, total);
-
-    // Also save to legacy examResults for backward compatibility
-    const users = await readData('users');
-    const uidx = users.findIndex(u => u.uid === req.session.user.uid);
-    if (uidx !== -1) {
-      users[uidx].examResults = users[uidx].examResults || [];
-      users[uidx].examResults.push({
-        examId: attemptId,
-        courseId: '',
-        examName: '',
-        score: score,
-        total: total,
-        correct: score,
-        wrong: total - score,
-        timeTaken: 0,
-        percentage: total > 0 ? Math.round((score / total) * 100) : 0,
-        date: new Date().toISOString(),
-        completedAt: new Date().toISOString()
-      });
-      await writeData('users', users);
-    }
 
     res.json({ success: true });
   } catch (e) {
@@ -2821,7 +2944,16 @@ app.get('/student/exam/:courseId', requireStudent, async (req, res) => {
   const courses = await readData('courses');
   const course = courses.find(c => c.id === req.params.courseId);
   if (!course || !course.quiz) return res.redirect('/student/courses');
-  res.render('student/exam', { course, title: `الاختبار - ${course.title} - المُميز` });
+  var existingAttempt = null;
+  try {
+    const attempts = (await readData('examAttempts')) || [];
+    var submitted = attempts.find(function(a) {
+      return a.userId === req.session.user.uid && a.courseId === req.params.courseId &&
+        (a.status === 'submitted' || a.status === 'auto-submitted');
+    });
+    if (submitted) existingAttempt = submitted;
+  } catch(e) {}
+  res.render('student/exam', { course, title: `الاختبار - ${course.title} - المُميز`, existingAttempt: existingAttempt });
 });
 
 app.get('/student/question-bank', requireStudent, async (req, res) => {
@@ -2880,7 +3012,28 @@ app.get('/student/review/:id', requireStudent, async (req, res) => {
   // Storage can return arrays as objects with numeric keys - normalize so the template's .length works.
   if (review.videos && !Array.isArray(review.videos)) review.videos = Object.values(review.videos);
   if (review.pdfFiles && !Array.isArray(review.pdfFiles)) review.pdfFiles = Object.values(review.pdfFiles);
-  res.render('student/review-detail', { review, title: `${review.title} - المُميز` });
+  var codeRequired = !!(review.accessCode && !req.session.reviewAccess);
+  var codeValid = !!(req.session.reviewAccess && req.session.reviewAccess[review.id]);
+  res.render('student/review-detail', { review, title: `${review.title} - المُميز`, codeRequired, codeValid });
+});
+
+// POST /api/student/verify-review-code — verify access code for a review
+app.post('/api/student/verify-review-code', requireStudent, async (req, res) => {
+  try {
+    const { reviewId, code } = req.body;
+    if (!reviewId || !code) return res.json({ success: false, error: 'الكود مطلوب' });
+    const reviews = (await readData('reviews')) || [];
+    const review = reviews.find(r => r.id === reviewId);
+    if (!review) return res.json({ success: false, error: 'المراجعة غير موجودة' });
+    if (String(code).trim() === String(review.accessCode).trim()) {
+      if (!req.session.reviewAccess) req.session.reviewAccess = {};
+      req.session.reviewAccess[reviewId] = true;
+      return res.json({ success: true });
+    }
+    res.json({ success: false, error: 'الكود غير صحيح' });
+  } catch (e) {
+    res.status(500).json({ error: 'حدث خطأ' });
+  }
 });
 
 app.get('/student/subscription', requireAuth, async (req, res) => {
@@ -2986,7 +3139,7 @@ app.post('/api/payments/shakeout/webhook', async (req, res) => {
   } catch (e) {
     var code = e.statusCode || 500;
     console.error('[ShakeOut] webhook error:', e.message);
-    res.status(code).json({ error: e.message });
+    res.status(code).json({ error: safeErr(e) });
   }
 });
 
@@ -3007,10 +3160,10 @@ app.get('/student/profile', requireStudent, async (req, res) => {
 
 app.put('/api/student/profile', requireAuth, async (req, res) => {
   try {
-    const users = await readData('users');
-    const idx = users.findIndex(u => u.id === req.session.user.id);
-    if (idx === -1) return res.status(404).json({ error: 'المستخدم غير موجود' });
-    const u = users[idx];
+    const prisma = getPrisma();
+    const userId = req.session.user.id;
+    const u = await prisma.user.findUnique({ where: { id: userId } });
+    if (!u) return res.status(404).json({ error: 'المستخدم غير موجود' });
     const isSubscribed = u.subscriptionStatus === 'active' && (!u.subscriptionEnd || new Date(u.subscriptionEnd) > new Date());
     const ALLOWED = ['name', 'phone', 'parentPhone', 'parentName', 'parentEmail', 'avatar', 'governorate'];
     const allowed = {};
@@ -3019,7 +3172,6 @@ app.put('/api/student/profile', requireAuth, async (req, res) => {
       if (req.body.stage !== undefined) allowed.stage = req.body.stage;
       if (req.body.grade !== undefined) allowed.grade = req.body.grade;
     }
-    allowed.lastLogin = new Date().toISOString();
     if (allowed.avatar !== undefined && storageConfig.isR2Enabled()) {
       try {
         if (allowed.avatar) {
@@ -3030,8 +3182,8 @@ app.put('/api/student/profile', requireAuth, async (req, res) => {
           var validation = validateUpload({ buffer: raw, originalName: 'avatar' + ext, declaredMime: mime, type: 'avatar' });
           if (!validation.valid) return res.status(400).json({ error: validation.error });
           var storage = getStorageService();
-          var objectKey = storage.generateObjectKey('avatars', req.session.user.id, 'avatar', 'avatar' + ext);
-          await storage.upload({ key: objectKey, body: raw, contentType: mime, visibility: 'public', metadata: { type: 'avatar', entityId: req.session.user.id, uploadedBy: req.session.user.id, uploadedAt: new Date().toISOString() } });
+          var objectKey = storage.generateObjectKey('avatars', userId, 'avatar', 'avatar' + ext);
+          await storage.upload({ key: objectKey, body: raw, contentType: mime, visibility: 'public', metadata: { type: 'avatar', entityId: userId, uploadedBy: userId, uploadedAt: new Date().toISOString() } });
           allowed.avatar = objectKey;
         }
         if (u.avatar && !u.avatar.startsWith('data:')) {
@@ -3042,16 +3194,17 @@ app.put('/api/student/profile', requireAuth, async (req, res) => {
         return res.status(500).json({ error: 'تعذر رفع الصورة، حاول مرة أخرى.' });
       }
     }
-    Object.assign(u, allowed);
-    users[idx] = u;
-    req.session.user = sessionUser(users[idx]);
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: { ...allowed, lastLogin: new Date() }
+    });
+    req.session.user = sessionUser(updated);
     var safeUser = {};
     var safeFields = ['id','name','email','phone','role','stage','grade','governorate','avatar','subscriptionStatus','subscriptionEnd','referralCode','parentName','parentPhone','parentEmail','fcmEnabled','phoneVerified'];
-    safeFields.forEach(function(k) { if (users[idx][k] !== undefined) safeUser[k] = users[idx][k]; });
+    safeFields.forEach(function(k) { if (updated[k] !== undefined) safeUser[k] = updated[k]; });
     if (safeUser.avatar && !safeUser.avatar.startsWith('data:') && storageConfig.isR2Enabled()) {
       try { safeUser.avatar = await getStorageService().createPublicUrl(safeUser.avatar); } catch (_) {}
     }
-    await writeData('users', users);
     res.json({ success: true, user: safeUser });
   } catch (e) {
     if (!res.headersSent) res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' });
@@ -3065,37 +3218,38 @@ app.post('/api/student/apply-referral', requireAuth, async (req, res) => {
     const { code } = req.body;
     if (!code || !code.startsWith('REF-')) return res.status(400).json({ error: 'كود الدعوة غير صالح' });
 
-    const users = await readData('users');
-    const referrer = users.find(u => u.referralCode === code);
+    const prisma = getPrisma();
+    const userId = req.session.user.id;
+    const referrer = await prisma.user.findFirst({ where: { referralCode: code, deletedAt: null } });
     if (!referrer) return res.status(404).json({ error: 'كود الدعوة غير موجود' });
-    if (referrer.id === req.session.user.id) return res.status(400).json({ error: 'لا يمكنك استخدام كود دعوتك الشخصي' });
+    if (referrer.id === userId) return res.status(400).json({ error: 'لا يمكنك استخدام كود دعوتك الشخصي' });
 
-    const uidx = users.findIndex(u => u.id === req.session.user.id);
-    if (uidx === -1) return res.status(404).json({ error: 'المستخدم غير موجود' });
-
-    if (users[uidx].referralDiscount) return res.status(400).json({ error: 'لقد استخدمت كود دعوة من قبل' });
-    if (users[uidx].referralUsedAt) {
-      var daysSince = (Date.now() - new Date(users[uidx].referralUsedAt).getTime()) / 86400000;
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return res.status(404).json({ error: 'المستخدم غير موجود' });
+    if (user.referralDiscount) return res.status(400).json({ error: 'لقد استخدمت كود دعوة من قبل' });
+    if (user.referralUsedAt) {
+      var daysSince = (Date.now() - new Date(user.referralUsedAt).getTime()) / 86400000;
       if (daysSince < 30) {
         var daysLeft = 30 - Math.floor(daysSince);
         return res.status(400).json({ error: 'يمكنك استخدام كود دعوة جديد بعد ' + daysLeft + ' يومًا' });
       }
     }
 
-    // Apply discount from settings
     var settingsRef = await readData('settings') || {};
     var refDiscount = settingsRef.referralDiscount != null ? settingsRef.referralDiscount : 25;
-    users[uidx].referralDiscount = refDiscount;
-    users[uidx].referredBy = referrer.referralCode;
 
-    // Track on referrer
-    if (!referrer.referrals) referrer.referrals = [];
-    referrer.referrals.push({ userId: req.session.user.id, discount: refDiscount, date: new Date().toISOString() });
-    const ri = users.findIndex(u => u.id === referrer.id);
-    if (ri !== -1) users[ri] = referrer;
+    // Update current user
+    await prisma.user.update({
+      where: { id: userId },
+      data: { referralDiscount: refDiscount, referredBy: referrer.referralCode, referralUsedAt: new Date() }
+    });
 
-    await writeData('users', users);
-    req.session.user = sessionUser(users[uidx]);
+    // Track on referrer via Referral table + update referralDiscount on referrer
+    await prisma.referral.create({
+      data: { referrerId: referrer.id, referredId: userId, discount: refDiscount, code }
+    }).catch(() => {});
+
+    req.session.user = sessionUser({ ...user, referralDiscount: refDiscount, referredBy: referrer.referralCode });
 
     res.json({ success: true, discount: refDiscount, message: 'تم تطبيق خصم ' + refDiscount + '% على جميع خطط الاشتراك!' });
   } catch (e) {
@@ -3112,6 +3266,93 @@ app.get('/student/chat', requireStudent, (req, res) => {
   res.render('student/chat', { user, isGuest, chatId, title: 'اسأل عفيفي - المُميز' });
 });
 
+// Homework Chat
+app.get('/student/homework-chat', requireStudent, (req, res) => {
+  const user = req.session.user;
+  const chatId = 'homework-' + user.id;
+  res.render('student/homework-chat', { user, chatId, title: 'تسليم الواجب - المُميز' });
+});
+
+app.get('/student/comprehensive-exam', requireStudent, async (req, res) => {
+  try {
+    const user = req.session.user;
+    const isGuest = req.session.demoMode;
+    const examData = await readData('comprehensiveExam');
+    if (!examData || !examData.questions || !examData.questions.length || examData.enabled === false) {
+      return res.render('student/comprehensive-exam', { course: null, examFile: null, isGuest: isGuest, title: 'شامل المنهج - المُميز' });
+    }
+    const uid = user ? user.uid : (req.session.guestChatId || '');
+    let existingAttempt = null;
+    try {
+      const attempts = (await readData('examAttempts')) || [];
+      existingAttempt = attempts.find(function(a) {
+        return a.userId === uid && a.examId === 'comprehensive' && (a.status === 'submitted' || a.status === 'auto-submitted' || a.status === 'passed' || a.status === 'failed');
+      }) || null;
+    } catch(e) {}
+    if (!existingAttempt && user && user.id) {
+      try {
+        const prisma = getPrisma();
+        const prismaAttempts = await prisma.examAttempt.findMany({
+          where: { userId: user.id, deletedAt: null },
+          orderBy: { createdAt: 'desc' }
+        });
+        const compAttempt = prismaAttempts.find(function(a) {
+          return a.examId === 'comprehensive' && (a.status === 'passed' || a.status === 'failed' || a.status === 'submitted' || a.status === 'auto-submitted');
+        });
+        if (compAttempt) {
+          existingAttempt = {
+            userId: compAttempt.userId,
+            courseId: compAttempt.courseId,
+            score: Number(compAttempt.score) || 0,
+            total: Number(compAttempt.total) || 0,
+            status: compAttempt.status,
+            answers: compAttempt.answers || [],
+            createdAt: compAttempt.createdAt
+          };
+        }
+      } catch(e) {}
+    }
+    const quizDone = existingAttempt && existingAttempt.status === 'passed';
+    res.render('student/comprehensive-exam', {
+      course: { quiz: { title: examData.title || 'اختبار شامل المنهج', questions: examData.questions, timeSettings: examData.timeSettings, passPercentage: examData.passPercentage || 60, id: 'comprehensive' }, id: 'comprehensive' },
+      examFile: examData,
+      isGuest: isGuest,
+      title: 'اختبار شامل المنهج - المُميز',
+      existingAttempt: existingAttempt,
+      quizDone: quizDone
+    });
+  } catch (e) {
+    res.render('student/comprehensive-exam', { course: null, examFile: null, isGuest: false, title: 'شامل المنهج - المُميز' });
+  }
+});
+
+app.get('/api/student/comprehensive-exam/download', requireStudent, async (req, res) => {
+  try {
+    const exam = await readData('comprehensiveExam');
+    if (!exam || !exam.filePath) return res.status(404).json({ error: 'غير متاح' });
+
+    const { path } = exam;
+    const filename = exam.title || 'comprehensive-exam.docx';
+    const safeFilename = filename.replace(/"/g, '');
+
+    const signed = storageConfig.isR2Enabled()
+      ? await getStorageService().createSignedUrl(path, 300)
+      : await supabaseStorage.createSignedUrl(path, 60);
+
+    const upstream = await fetch(signed);
+    if (!upstream.ok) return res.status(502).end('Storage error');
+
+    const buf = Buffer.from(await upstream.arrayBuffer());
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    res.setHeader('Content-Disposition', 'attachment; filename="' + safeFilename + '"');
+    res.setHeader('Content-Length', buf.length);
+    res.status(200).end(buf);
+  } catch (e) {
+    console.error('[comprehensive-exam download] error:', e && e.message);
+    if (!res.headersSent) res.redirect('/student/comprehensive-exam');
+  }
+});
+
 /* ===================== PARENT ACCOUNT SYSTEM ===================== */
 
 function requireParent(req, res, next) {
@@ -3125,54 +3366,66 @@ app.post('/api/student/send-parent-invite', requireAuth, async (req, res) => {
     const { parentName, parentPhone, parentEmail } = req.body;
     console.log('[invite] received: name=' + parentName + ' phone=' + parentPhone + ' email=' + (parentEmail || '(empty)'));
     if (!parentName || !parentPhone) return res.status(400).json({ error: 'يرجى إدخال اسم ورقم هاتف ولي الأمر' });
-    var invites = await readData('parentInvites') || [];
-    // Check if already has active invite
-    var existing = invites.find(i => i.studentId === req.session.user.id && i.status === 'pending');
-    if (existing) {
-      // Update invite with fresh parent data
-      existing.parentName = parentName;
-      existing.parentPhone = parentPhone;
-      if (parentEmail) existing.parentEmail = parentEmail;
-      await writeData('parentInvites', invites);
-      var link = 'https://almumayaz.online/parent/invite/' + existing.token;
-      if (existing.parentEmail) {
-        var existingHtml = emailService.inviteEmailHtml(parentName, req.session.user.name, link);
-        var resent = await emailService.sendMail(existing.parentEmail, 'دعوة لمتابعة الطالب - منصة المُميز', existingHtml);
-        console.log('[invite] resent to ' + existing.parentEmail + ': ' + (resent ? 'OK' : 'FAILED'));
-      }
-      return res.json({ success: true, inviteLink: link });
-    }
-    // Save parent info to student profile
-    var users = await readData('users');
-    var uidx = users.findIndex(u => u.id === req.session.user.id);
-    if (uidx !== -1) {
-      users[uidx].parentName = parentName;
-      users[uidx].parentPhone = parentPhone;
-      users[uidx].parentEmail = parentEmail || '';
-      await writeData('users', users);
-      req.session.user = sessionUser(users[uidx]);
-    }
+
+    var prisma = getPrisma();
+    var { transactionData } = require('./prisma-bridge');
     var token = 'PINVITE-' + Date.now() + '-' + crypto.randomBytes(4).toString('hex');
-    var invite = {
-      id: 'PINV-' + Date.now(),
-      token: token,
-      parentName: parentName,
-      parentPhone: parentPhone,
-      parentEmail: parentEmail || '',
-      studentId: req.session.user.id,
-      studentName: req.session.user.name,
-      studentStage: req.session.user.stage || '',
-      studentGrade: req.session.user.grade || '',
-      status: 'pending',
-      createdAt: new Date().toISOString()
-    };
-    invites.push(invite);
-    await writeData('parentInvites', invites);
-    var inviteLink = 'https://almumayaz.online/parent/invite/' + token;
+    var existingToken = null;
+    var inviteLink = null;
+    var inviteObj = null;
+
+    // Atomic RTDB transaction to create/update parent invite
+    await transactionData('parentInvites', function(current) {
+      var invites = Array.isArray(current) ? current.slice() : [];
+      var existing = invites.find(function(i) { return i.studentId === req.session.user.id && i.status === 'pending'; });
+      if (existing) {
+        existing.parentName = parentName;
+        existing.parentPhone = parentPhone;
+        if (parentEmail) existing.parentEmail = parentEmail;
+        existingToken = existing.token;
+        inviteLink = 'https://almumayaz.online/parent/invite/' + existing.token;
+        inviteObj = existing;
+      } else {
+        var expiresDate = new Date();
+        expiresDate.setDate(expiresDate.getDate() + 30);
+        var invite = {
+          id: 'PINV-' + Date.now(),
+          token: token,
+          parentName: parentName,
+          parentPhone: parentPhone,
+          parentEmail: parentEmail || '',
+          studentId: req.session.user.id,
+          studentName: req.session.user.name,
+          studentStage: req.session.user.stage || '',
+          studentGrade: req.session.user.grade || '',
+          status: 'pending',
+          createdAt: new Date().toISOString(),
+          expiresAt: expiresDate.toISOString()
+        };
+        invites.push(invite);
+        inviteLink = 'https://almumayaz.online/parent/invite/' + token;
+        inviteObj = invite;
+      }
+      return invites;
+    });
+
+    // Save parent info to student profile
+    await prisma.user.update({
+      where: { id: req.session.user.id },
+      data: { parentName, parentPhone, parentEmail: parentEmail || '' }
+    });
+    req.session.user.parentName = parentName;
+    req.session.user.parentPhone = parentPhone;
+    req.session.user.parentEmail = parentEmail || '';
+
+    if (existingToken && parentEmail) {
+      var existingHtml = emailService.inviteEmailHtml(parentName, req.session.user.name, inviteLink);
+      var resent = await emailService.sendMail(parentEmail, 'دعوة لمتابعة الطالب - منصة المُميز', existingHtml);
+      console.log('[invite] resent to ' + parentEmail + ': ' + (resent ? 'OK' : 'FAILED'));
+    }
 
     // Send invite link to parent email
-    console.log('[invite] check email: val="' + (parentEmail||'') + '" len=' + (parentEmail?parentEmail.length:0));
-    if (parentEmail && parentEmail.indexOf('@') > 0) {
+    if (!existingToken && parentEmail && parentEmail.indexOf('@') > 0) {
       console.log('[invite] will send to ' + parentEmail);
       var inviteHtml = emailService.inviteEmailHtml(parentName, req.session.user.name, inviteLink);
       var emailSent = await emailService.sendMail(parentEmail, 'دعوة لمتابعة الطالب - منصة المُميز', inviteHtml);
@@ -3181,7 +3434,7 @@ app.post('/api/student/send-parent-invite', requireAuth, async (req, res) => {
       console.log('[invite] SKIP - no valid email');
     }
 
-    res.json({ success: true, inviteLink: inviteLink, invite: invite, emailSent: !!(parentEmail) });
+    res.json({ success: true, inviteLink: inviteLink, invite: inviteObj, emailSent: !!(parentEmail) });
   } catch (e) {
     res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' });
   }
@@ -3212,46 +3465,37 @@ app.post('/api/parent/accept-invite', async (req, res) => {
     var idx = invites.findIndex(i => i.token === token && i.status === 'pending');
     if (idx === -1) return res.status(404).json({ error: 'رابط الدعوة غير صالح أو منتهي الصلاحية' });
     var invite = invites[idx];
-    var users = await readData('users');
+    var prisma2 = getPrisma();
     // Check if parent already exists with this phone
-    var existingParent = users.find(u => u.role === 'parent' && u.phone === invite.parentPhone);
+    var existingParent = await prisma2.user.findFirst({ where: { role: 'parent', phone: invite.parentPhone, deletedAt: null } });
     if (existingParent) {
       // Link additional child to existing parent
-      if (!existingParent.childrenIds) existingParent.childrenIds = [];
-      if (!existingParent.childrenIds.includes(invite.studentId)) {
-        existingParent.childrenIds.push(invite.studentId);
-        await writeData('users', users);
-      }
+      await prisma2.childRelation.upsert({
+        where: { parentId_childId: { parentId: existingParent.id, childId: invite.studentId } },
+        create: { parentId: existingParent.id, childId: invite.studentId },
+        update: {}
+      });
       invites[idx].status = 'accepted';
       invites[idx].acceptedAt = new Date().toISOString();
       invites[idx].parentUserId = existingParent.id;
       await writeData('parentInvites', invites);
-      // Link student to parent
-      var suidx = users.findIndex(u => u.id === invite.studentId);
-      if (suidx !== -1) { users[suidx].parentId = existingParent.id; await writeData('users', users); }
+      await prisma2.user.update({ where: { id: invite.studentId }, data: { parentId: existingParent.id } });
       return res.json({ success: true, message: 'تم ربط الطالب بحساب ولي الأمر الحالي' });
     }
     // Create parent user with local password
     var parentId = 'PARENT-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4);
-    var newParent = {
-      id: parentId,
-      uid: parentId,
-      name: invite.parentName,
-      phone: invite.parentPhone,
-      email: invite.parentEmail || '',
-      password: await scryptHash(password),
-      role: 'parent',
-      childrenIds: [invite.studentId],
-      parentOf: [invite.studentName],
-      fcmToken: '',
-      createdAt: new Date().toISOString(),
-      lastLogin: new Date().toISOString()
-    };
-    users.push(newParent);
-    await writeData('users', users);
-    // Link student to parent
-    var suidx2 = users.findIndex(u => u.id === invite.studentId);
-    if (suidx2 !== -1) { users[suidx2].parentId = parentId; await writeData('users', users); }
+    var passwordHash = await scryptHash(password);
+    await prisma2.user.create({
+      data: {
+        id: parentId, uid: parentId,
+        name: invite.parentName, phone: invite.parentPhone,
+        email: invite.parentEmail || '', passwordHash,
+        role: 'parent',
+        createdAt: new Date(), lastLogin: new Date(),
+      }
+    });
+    await prisma2.childRelation.create({ data: { parentId, childId: invite.studentId } });
+    await prisma2.user.update({ where: { id: invite.studentId }, data: { parentId } });
     // Mark invite as accepted
     invites[idx].status = 'accepted';
     invites[idx].acceptedAt = new Date().toISOString();
@@ -3268,18 +3512,17 @@ app.post('/api/auth/parent-login', async (req, res) => {
   try {
     const { phone, password } = req.body;
     if (!phone || !password) return res.status(400).json({ error: 'يرجى إدخال رقم الهاتف وكلمة المرور' });
-    var users = await readData('users');
-    var idx = users.findIndex(u => u.role === 'parent' && u.phone === phone);
-    if (idx === -1) return res.status(401).json({ error: 'رقم الهاتف أو كلمة المرور غير صحيحة' });
-    var parent = users[idx];
-    const ok = await verifyPassword(parent.password, password);
+    var prisma3 = getPrisma();
+    var parent = await prisma3.user.findFirst({ where: { role: 'parent', phone, deletedAt: null } });
+    if (!parent) return res.status(401).json({ error: 'رقم الهاتف أو كلمة المرور غير صحيحة' });
+    const ok = await verifyPassword(parent.passwordHash, password);
     if (!ok) return res.status(401).json({ error: 'رقم الهاتف أو كلمة المرور غير صحيحة' });
-    if (typeof parent.password === 'string' && !parent.password.startsWith('scrypt$') && password) {
-      parent.password = await scryptHash(password);
-      users[idx] = parent;
-      await writeData('users', users);
+    if (typeof parent.passwordHash === 'string' && !parent.passwordHash.startsWith('scrypt$') && password) {
+      var hash = await scryptHash(password);
+      await prisma3.user.update({ where: { id: parent.id }, data: { passwordHash: hash } });
+      parent.passwordHash = hash;
     }
-    req.session.user = sessionUser(parent);
+    req.session = { user: sessionUser(parent), darkMode: req.session.darkMode || false };
     res.json({ success: true, redirect: '/parent/dashboard' });
   } catch (e) {
     console.error('parent-login error:', e);
@@ -3290,62 +3533,46 @@ app.post('/api/auth/parent-login', async (req, res) => {
 // Parent dashboard
 app.get('/parent/dashboard', requireParent, async (req, res) => {
   try {
-    var users = await readData('users');
-    var parent = users.find(u => u.id === req.session.user.id);
+    var prisma4 = getPrisma();
+    var parent = await prisma4.user.findUnique({ where: { id: req.session.user.id } });
     if (!parent) return res.redirect('/logout');
     req.session.user = sessionUser(parent);
-    var childrenIds = parent.childrenIds || [];
+    var childRelations = await prisma4.childRelation.findMany({ where: { parentId: parent.id } });
+    var childrenIds = childRelations.map(cr => cr.childId);
     if (childrenIds.length === 0) return res.render('parent/dashboard', { children: [], selectedChild: null, stats: {}, notifications: [], user: parent });
-    var children = users.filter(u => childrenIds.includes(u.id));
+    var children = await prisma4.user.findMany({ where: { id: { in: childrenIds }, deletedAt: null } });
     if (children.length === 0) return res.render('parent/dashboard', { children: [], selectedChild: null, stats: {}, notifications: [], user: parent });
     var selectedChildId = req.query.child || childrenIds[0];
-    var selectedChild = users.find(u => u.id === selectedChildId);
+    var selectedChild = children.find(u => u.id === selectedChildId);
     if (!selectedChild) selectedChild = children[0];
 
-    // Compute stats for selected child
+    // Compute stats for selected child from normalized tables
     var courses = await readData('courses') || [];
-    var progress = selectedChild.progress || {};
-    var completedLessons = 0;
+    var completedLessonsArr = await prisma4.lessonProgress.findMany({ where: { studentId: selectedChild.id, completed: true } });
+    var completedLessons = completedLessonsArr.length;
     var totalLessons = 0;
     courses.forEach(function(c) {
-      var cp = progress[c.id];
-      if (cp && cp.completedLessons) completedLessons += cp.completedLessons.length;
       totalLessons += (c.sections || []).reduce(function(sum, s) { return sum + (s.lessons || []).length; }, 0);
     });
     var progressPercentage = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
 
-    // Exam stats
-    var questionBanks = await readData('questionBanks') || [];
-    var examResults = selectedChild.examResults || [];
-    var completedExams = examResults.length;
-    var avgScore = completedExams > 0 ? Math.round(examResults.reduce(function(sum, r) { return sum + (r.score || 0); }, 0) / completedExams) : 0;
-    var lastExamResult = examResults.length > 0 ? examResults[examResults.length - 1] : null;
+    // Exam stats from ExamAttempt table
+    var examAttempts2 = await prisma4.examAttempt.findMany({ where: { userId: selectedChild.id, deletedAt: null } });
+    var completedExams = examAttempts2.length;
+    var avgScore = completedExams > 0 ? Math.round(examAttempts2.reduce(function(sum, r) { return sum + (Number(r.score) || 0); }, 0) / completedExams) : 0;
+    var lastExamResult = examAttempts2.length > 0 ? examAttempts2[examAttempts2.length - 1] : null;
 
-    // Total study hours (estimate from completed lessons)
     var totalHours = Math.round(completedLessons * 0.75);
 
-    // Recent activity
+    // Recent activity from progress + exam data
     var recentActivity = [];
-    if (selectedChild.activityLog) {
-      recentActivity = selectedChild.activityLog.sort(function(a, b) { return new Date(b.date) - new Date(a.date); });
-    }
-    // Generate from progress data if no activity log
-    if (recentActivity.length === 0) {
-      Object.keys(progress).forEach(function(cid) {
-        var cp = progress[cid];
-        if (cp && cp.completedLessons) {
-          cp.completedLessons.forEach(function(lid) {
-            recentActivity.push({ type: 'lesson', text: 'أكمل درس في ' + (cp.courseName || 'مادة'), date: cp.updatedAt || new Date().toISOString() });
-          });
-        }
-      });
-      if (examResults.length > 0) {
-        examResults.forEach(function(r) {
-          recentActivity.push({ type: 'exam', text: 'حل اختبار ' + (r.examName || ''), date: r.date || new Date().toISOString() });
-        });
-      }
-      recentActivity.sort(function(a, b) { return new Date(b.date) - new Date(a.date); });
-    }
+    completedLessonsArr.forEach(function(lp) {
+      recentActivity.push({ type: 'lesson', text: 'أكمل درس', date: lp.completedAt ? lp.completedAt.toISOString() : new Date().toISOString() });
+    });
+    examAttempts2.forEach(function(r) {
+      recentActivity.push({ type: 'exam', text: 'حل اختبار ' + (r.examName || ''), date: r.endTime ? r.endTime.toISOString() : (r.createdAt ? r.createdAt.toISOString() : new Date().toISOString()) });
+    });
+    recentActivity.sort(function(a, b) { return new Date(b.date) - new Date(a.date); });
 
     var lastLesson = recentActivity.find(function(a) { return a.type === 'lesson'; });
     var lastExam = recentActivity.find(function(a) { return a.type === 'exam'; });
@@ -3358,18 +3585,12 @@ app.get('/parent/dashboard', requireParent, async (req, res) => {
       progressPercentage: progressPercentage,
       lastLesson: lastLesson ? lastLesson.text : null,
       lastExam: lastExam ? lastExam.text : null,
-      lastExamScore: lastExamResult ? lastExamResult.score : null,
+      lastExamScore: lastExamResult ? Number(lastExamResult.score) : null,
       recentActivity: recentActivity
     };
 
-    // Notifications
-    var notifications = [];
-    if (selectedChild.notifications && Array.isArray(selectedChild.notifications)) {
-      notifications = selectedChild.notifications;
-    } else {
-      var allNotifs = await readData('notifications') || [];
-      notifications = allNotifs.filter(function(n) { return n.target === 'student' && n.targetValue === selectedChild.id; });
-    }
+    // Notifications from Notification table
+    var notifications = await prisma4.notification.findMany({ where: { userId: selectedChild.id, deletedAt: null }, orderBy: { createdAt: 'desc' } });
 
     res.render('parent/dashboard', { children: children, selectedChild: selectedChild, stats: stats, notifications: notifications, user: parent });
   } catch (e) {
@@ -3380,12 +3601,12 @@ app.get('/parent/dashboard', requireParent, async (req, res) => {
 // API: Get child progress data
 app.get('/api/parent/child-progress/:childId', requireParent, async (req, res) => {
   try {
-    var users = await readData('users');
-    var parent = users.find(u => u.id === req.session.user.id);
-    if (!parent) return res.status(404).json({ error: 'حساب ولي الأمر غير موجود' });
-    var childrenIds = parent.childrenIds || [];
-    if (!childrenIds.includes(req.params.childId)) return res.status(403).json({ error: 'غير مصرح بالوصول' });
-    var child = users.find(u => u.id === req.params.childId);
+    var prisma5 = getPrisma();
+    var childRelation = await prisma5.childRelation.findUnique({
+      where: { parentId_childId: { parentId: req.session.user.id, childId: req.params.childId } }
+    });
+    if (!childRelation) return res.status(403).json({ error: 'غير مصرح بالوصول' });
+    var child = await prisma5.user.findUnique({ where: { id: req.params.childId } });
     if (!child) return res.status(404).json({ error: 'الطالب غير موجود' });
     res.json({ success: true, child: { id: child.id, name: child.name, grade: child.grade, stage: child.stage, subscriptionStatus: child.subscriptionStatus, phone: child.phone } });
   } catch (e) {
@@ -3445,14 +3666,15 @@ app.post('/api/student/subscribe', requireAuth, async (req, res) => {
       discount: req.session.user.referralDiscount || 0
     };
     await fsCore.setDocument('subRequests/' + request.id, request);
+    getPrisma().subRequest.create({
+      data: { id: requestId, userId: req.session.user.id, userName: req.session.user.name || '', userPhone: (req.session.user.phone || ''), planName, price: price ? Number(price) : 0, transactionId: transactionId || '', paymentMethod: paymentMethod || 'vodafone-cash', receiptImage: r2ReceiptImage || '', planId: sub ? (sub.id || '') : '', planStage: req.session.user.stage || (sub ? (sub.stage || '') : ''), period: sub ? (sub.period || '') : '', durationDays: sub ? (sub.durationDays || 30) : 30, status: 'pending', discount: req.session.user.referralDiscount || 0, date: new Date() }
+    }).catch(function(e) { console.error('[subscribe] prisma create error:', e.message); });
     // Notify all admins via FCM + email
     try {
-      var allUsers = await readData('users') || [];
-      var admins = allUsers.filter(function(u) { return u.role === 'admin'; });
-      console.log('[subscribe] found', admins.length, 'admins');
-      for (var ai = 0; ai < admins.length; ai++) {
-        var adminUser = admins[ai];
-        // Email notification (backup)
+      var adminList = await getPrisma().user.findMany({ where: { role: 'admin', deletedAt: null } });
+      console.log('[subscribe] found', adminList.length, 'admins');
+      for (var ai = 0; ai < adminList.length; ai++) {
+        var adminUser = adminList[ai];
         if (adminUser.email) {
           try {
             var subHtml = emailService.subscriptionEmailHtml(req.session.user.name || 'طالب', req.session.user.phone || '', planName, price);
@@ -3460,7 +3682,6 @@ app.post('/api/student/subscribe', requireAuth, async (req, res) => {
             console.log('[subscribe] email sent to', adminUser.email);
           } catch (e) { console.error('[subscribe] email error for', adminUser.id, ':', e.message); }
         }
-        // FCM push notification (primary — works even when browser is closed on Android)
         if (adminUser.fcmToken) {
           try {
             console.log('[subscribe] sending push to admin', adminUser.id, 'token length:', adminUser.fcmToken.length);
@@ -3471,8 +3692,8 @@ app.post('/api/student/subscribe', requireAuth, async (req, res) => {
             console.error('[subscribe] push error for', adminUser.id, ':', e.code || e.message);
             fcmLog.add({ userId: adminUser.id, title: 'طلب اشتراك', messageId: null, success: false, error: e.code || e.message });
             if (e.code === 'messaging/invalid-registration-token' || e.code === 'messaging/registration-token-not-registered') {
-              var uidx = allUsers.findIndex(function(u) { return u.id === adminUser.id; });
-              if (uidx !== -1) { allUsers[uidx].fcmToken = ''; await writeData('users', allUsers); console.log('[subscribe] cleared invalid token for', adminUser.id); }
+              await getPrisma().user.update({ where: { id: adminUser.id }, data: { fcmToken: '' } });
+              console.log('[subscribe] cleared invalid token for', adminUser.id);
             }
           }
         } else {
@@ -3497,13 +3718,13 @@ app.get('/api/admin/sub-requests', requireAdmin, async (req, res) => {
         }
       }
     }
-    const users = await readData('users') || [];
-    const userList = Array.isArray(users) ? users : Object.values(users);
+    const userIds = [...new Set(subRequests.map(sr => sr.userId).filter(Boolean))];
+    const userList = await getPrisma().user.findMany({ where: { OR: userIds.map(id => ({ id })), deletedAt: null } });
     const enriched = subRequests.reverse().map(function(sr) {
-      const u = userList.find(function(x) { return x.id === sr.userId || x.uid === sr.userId; });
+      const u = userList.find(function(x) { return x.id === sr.userId; });
       if (u && u.referredBy) {
         var ref = userList.find(function(x) { return x.referralCode === u.referredBy; });
-        if (!ref) ref = userList.find(function(x) { return x.id === u.referredBy || x.uid === u.referredBy; });
+        if (!ref) ref = userList.find(function(x) { return x.id === u.referredBy; });
         sr.referredByName = ref ? (ref.name || '') : '';
       } else {
         sr.referredByName = '';
@@ -3526,22 +3747,37 @@ app.put('/api/admin/sub-requests/:id', requireAdmin, async (req, res) => {
     await writeData('subRequests', subRequests);
     if (status === 'approved') {
       // Activate user subscription
-      const users = await readData('users');
-      const uidx = users.findIndex(u => u.id === subRequests[idx].userId);
-      if (uidx !== -1) {
-        users[uidx].subscriptionStatus = 'active';
-        users[uidx].subscriptionStart = new Date().toISOString();
-        const durDays = parseInt(subRequests[idx].durationDays) || 30;
-        users[uidx].subscriptionEnd = new Date(Date.now() + durDays * 24 * 60 * 60 * 1000).toISOString();
-        if (subRequests[idx].planStage) users[uidx].subscribedStage = subRequests[idx].planStage;
-        users[uidx].planName = subRequests[idx].planName || '';
-        users[uidx].planPeriod = subRequests[idx].period || '';
-        // Consume referral discount after first subscription
-        if (users[uidx].referralDiscount > 0) {
-          users[uidx].referralDiscount = 0;
-          users[uidx].referralUsedAt = new Date().toISOString();
-        }
-        await writeData('users', users);
+      var subUser = await getPrisma().user.findFirst({ where: { id: subRequests[idx].userId, deletedAt: null } });
+      if (subUser) {
+        var durDays = parseInt(subRequests[idx].durationDays) || 30;
+        var subEnd = new Date(Date.now() + durDays * 24 * 60 * 60 * 1000);
+        await getPrisma().user.update({
+          where: { id: subUser.id },
+          data: {
+            subscriptionStatus: 'active',
+            subscriptionStart: new Date(),
+            subscriptionEnd: subEnd,
+            subscribedStage: subRequests[idx].planStage || subUser.subscribedStage || '',
+            planName: subRequests[idx].planName || '',
+            planPeriod: subRequests[idx].period || '',
+            referralDiscount: subUser.referralDiscount > 0 ? 0 : subUser.referralDiscount,
+            referralUsedAt: subUser.referralDiscount > 0 ? new Date() : subUser.referralUsedAt,
+          }
+        });
+        // Also create UserSubscription record
+        try {
+          await getPrisma().userSubscription.create({
+            data: {
+              userId: subUser.id,
+              planName: subRequests[idx].planName || 'عام',
+              status: 'active',
+              startDate: new Date(),
+              endDate: subEnd,
+              period: subRequests[idx].period || 'شهرياً',
+              stage: subRequests[idx].planStage || '',
+            }
+          });
+        } catch (_) {}
       }
       // Record the payment for revenue tracking
       try {
@@ -3577,7 +3813,7 @@ app.get('/api/admin/sub-requests/sync', requireAdmin, async (req, res) => {
     await fbAdmin.fbSet('subRequests', data || []);
     await fbAdmin.writeData('subRequests', data || []);
     res.json({ success: true, count: (data || []).length });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { console.error('[sub-requests]', e.message); res.status(500).json({ error: safeErr(e) }); }
 });
 
 app.delete('/api/admin/sub-requests/:id', requireAdmin, async (req, res) => {
@@ -3642,9 +3878,6 @@ async function saveNotification(target, targetValue, title, body, url) {
     notifications.push({
       id: 'notif-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
       title, body, target, targetValue, url: url || '/',
-      sentAt: new Date().toISOString(),
-      recipientCount: 1,
-      source: 'chat'
     });
     await writeData('notifications', notifications);
   } catch (e) { console.error('saveNotification error:', e.message); }
@@ -3679,8 +3912,8 @@ app.post('/api/student/chat/send', requireStudent, async (req, res) => {
     const studentId = req.session.user.id || (req.session.guestChatId || '');
     const preview = text ? (text.length > 80 ? text.slice(0,80) + '...' : text) : '📷 صورة';
     // Send push to all admins + store notification in DB
-    var allUsers = await readData('users') || [];
-    var adminUsers = allUsers.filter(u => u.role === 'admin');
+    var prisma = getPrisma();
+    var adminUsers = await prisma.user.findMany({ where: { role: 'admin', deletedAt: null } });
     adminUsers.forEach(async function(adminUser) {
       if (adminUser.fcmToken) {
         try {
@@ -3786,6 +4019,168 @@ app.put('/api/student/chat/read', requireStudent, async (req, res) => {
   } catch (e) { res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' }); }
 });
 
+// Homework Chat API
+app.get('/api/student/homework-chat/messages', requireStudent, async (req, res) => {
+  try {
+    const cid = 'homework-' + req.session.user.id;
+    const data = await fbRead('homework-chats/' + cid + '/messages');
+    const msgs = data ? Object.keys(data).map(function(k) { var m=data[k]; m._key=k; return m; }).sort(function(a,b){return (a.timestamp||0)-(b.timestamp||0)}) : [];
+    if (storageConfig.isR2Enabled()) {
+      const storage = getStorageService();
+      for (var i = 0; i < msgs.length; i++) {
+        if (msgs[i].image && msgs[i].image.startsWith('homework-chat-images/')) {
+          msgs[i].image = await storage.createSignedUrl(msgs[i].image, 3600);
+        }
+      }
+    }
+    res.json({ success: true, messages: msgs });
+  } catch (e) { res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' }); }
+});
+
+app.post('/api/student/homework-chat/send', requireStudent, async (req, res) => {
+  try {
+    const cid = 'homework-' + req.session.user.id;
+    const { text, image } = req.body;
+    if (!text && !image) return res.status(400).json({ error: 'لا يمكن إرسال رسالة فارغة' });
+    const msgId = 'msg-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6);
+    var r2Image = image || '';
+    if (image && storageConfig.isR2Enabled()) {
+      try {
+        const raw = Buffer.from(image.split(',')[1] || image, 'base64');
+        const mime = image.split(';')[0].split(':')[1] || 'image/jpeg';
+        const extMap = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' };
+        const ext = extMap[mime] || '.jpg';
+        const validation = validateUpload({ buffer: raw, originalName: 'homework' + ext, declaredMime: mime, type: 'chatImage' });
+        if (!validation.valid) return res.status(400).json({ error: validation.error });
+        const storage = getStorageService();
+        const objectKey = storage.generateObjectKey('homework-chat-images', req.session.user.id, msgId, 'homework' + ext);
+        await storage.upload({ key: objectKey, body: raw, contentType: mime, visibility: 'private', metadata: { type: 'homework-chat-image', entityId: msgId, conversationId: cid, uploadedBy: req.session.user.id, uploadedAt: new Date().toISOString() } });
+        r2Image = objectKey;
+      } catch (e) {
+        console.error('R2 upload error for homework chat image:', e.message);
+        return res.status(500).json({ error: 'تعذر رفع الصورة، حاول مرة أخرى.' });
+      }
+    }
+    const msg = { senderId: 'student-' + req.session.user.id, senderName: req.session.user.name || 'طالب', timestamp: Date.now(), read: false, text: text || '', image: r2Image };
+    const key = await fbPush('homework-chats/' + cid + '/messages', msg);
+    // Notify all admins
+    var prisma = getPrisma();
+    var adminUsers = await prisma.user.findMany({ where: { role: 'admin', deletedAt: null } });
+    adminUsers.forEach(async function(adminUser) {
+      if (adminUser.fcmToken) {
+        try {
+          const preview = text ? (text.length > 80 ? text.slice(0,80) + '...' : text) : '📷 صورة الواجب';
+          await sendFCM(adminUser.id, 'واجب جديد من ' + (req.session.user.name || 'طالب'), preview, '/admin/homework-chat/' + req.session.user.id);
+        } catch(e) {
+          console.error('Homework chat push error for', adminUser.id, ':', e.code || e.message);
+        }
+      } else {
+        console.log("[HOMEWORK CHAT PUSH] no fcmToken for admin", adminUser.id);
+      }
+    });
+    var firstAdmin = adminUsers[0] || {};
+    await saveNotification('admin', firstAdmin.id || 'admin-1', 'واجب جديد من ' + (req.session.user.name || 'طالب'), preview, '/admin/homework-chat/' + req.session.user.id);
+    res.json({ success: true, key: key, message: msg });
+  } catch (e) { res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' }); }
+});
+
+app.put('/api/student/homework-chat/read', requireStudent, async (req, res) => {
+  try {
+    const cid = 'homework-' + req.session.user.id;
+    const data = await fbRead('homework-chats/' + cid + '/messages');
+    if (!data) return res.json({ success: true });
+    Object.keys(data).forEach(function(k) { if (data[k].senderId === 'teacher') data[k].read = true; });
+    await fbSet('homework-chats/' + cid + '/messages', data);
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' }); }
+});
+
+// Admin Homework Chat endpoints
+app.get('/api/admin/homework-chat/:studentId/messages', requireAdmin, async (req, res) => {
+  try {
+    var studentId = req.params.studentId;
+    if (!/^[a-zA-Z0-9_\-]+$/.test(studentId)) return res.status(400).json({ error: 'Invalid student ID' });
+    const chatId = 'homework-' + studentId;
+    const data = await fbRead('homework-chats/' + chatId + '/messages');
+    const msgs = data ? Object.keys(data).map(function(k) { var m=data[k]; m._key=k; return m; }).sort(function(a,b){return (a.timestamp||0)-(b.timestamp||0)}) : [];
+    if (storageConfig.isR2Enabled()) {
+      const storage = getStorageService();
+      for (var i = 0; i < msgs.length; i++) {
+        if (msgs[i].image && msgs[i].image.startsWith('homework-chat-images/')) {
+          msgs[i].image = await storage.createSignedUrl(msgs[i].image, 3600);
+        }
+      }
+    }
+    res.json({ success: true, messages: msgs });
+  } catch (e) { res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' }); }
+});
+
+app.post('/api/admin/homework-chat/:studentId/send', requireAdmin, async (req, res) => {
+  try {
+    const studentId = req.params.studentId;
+    if (!/^[a-zA-Z0-9_\-]+$/.test(studentId)) return res.status(400).json({ error: 'Invalid student ID' });
+    const chatId = 'homework-' + studentId;
+    const { text, image } = req.body;
+    if (!text && !image) return res.status(400).json({ error: 'لا يمكن إرسال رسالة فارغة' });
+    const msgId = 'msg-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6);
+    var r2Image = image || '';
+    if (image && storageConfig.isR2Enabled()) {
+      try {
+        const raw = Buffer.from(image.split(',')[1] || image, 'base64');
+        const mime = image.split(';')[0].split(':')[1] || 'image/jpeg';
+        const extMap = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' };
+        const ext = extMap[mime] || '.jpg';
+        const validation = validateUpload({ buffer: raw, originalName: 'homework' + ext, declaredMime: mime, type: 'chatImage' });
+        if (!validation.valid) return res.status(400).json({ error: validation.error });
+        const storage = getStorageService();
+        const objectKey = storage.generateObjectKey('homework-chat-images', studentId, msgId, 'homework' + ext);
+        await storage.upload({ key: objectKey, body: raw, contentType: mime, visibility: 'private', metadata: { type: 'homework-chat-image', entityId: msgId, conversationId: chatId, uploadedBy: req.session.user.id, uploadedAt: new Date().toISOString() } });
+        r2Image = objectKey;
+      } catch (e) {
+        console.error('R2 upload error for admin homework chat image:', e.message);
+        return res.status(500).json({ error: 'تعذر رفع الصورة، حاول مرة أخرى.' });
+      }
+    }
+    const msg = { senderId: 'teacher', senderName: 'الأستاذ', timestamp: Date.now(), read: false, text: text || '', image: r2Image };
+    const key = await fbPush('homework-chats/' + chatId + '/messages', msg);
+    const preview = text ? (text.length > 80 ? text.slice(0,80) + '...' : text) : '📷 صورة';
+    await sendFCM(studentId, 'رد من الأستاذ على واجبك 📩', preview, '/student/homework-chat');
+    await saveNotification('student', studentId, 'رد من الأستاذ على واجبك 📩', preview, '/student/homework-chat');
+    res.json({ success: true, key: key, message: msg });
+  } catch (e) { res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' }); }
+});
+
+app.delete('/api/admin/homework-chat/:studentId', requireAdmin, async (req, res) => {
+  try {
+    var studentId = req.params.studentId;
+    if (!/^[a-zA-Z0-9_\-]+$/.test(studentId)) return res.status(400).json({ error: 'Invalid student ID' });
+    const chatId = 'homework-' + studentId;
+    if (storageConfig.isR2Enabled()) {
+      const data = await fbRead('homework-chats/' + chatId + '/messages');
+      if (data) {
+        const storage = getStorageService();
+        var keys = Object.values(data).filter(function(m) { return m.image && m.image.startsWith('homework-chat-images/'); }).map(function(m) { return m.image; });
+        await Promise.all(keys.map(function(k) { return storage.delete(k).catch(function(e) { console.error('R2 delete error for ' + k + ':', e.message); }); }));
+      }
+    }
+    await fbRemove('homework-chats/' + chatId);
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' }); }
+});
+
+app.put('/api/admin/homework-chat/:studentId/read', requireAdmin, async (req, res) => {
+  try {
+    var studentId = req.params.studentId;
+    if (!/^[a-zA-Z0-9_\-]+$/.test(studentId)) return res.status(400).json({ error: 'Invalid student ID' });
+    const cid = 'homework-' + studentId;
+    const data = await fbRead('homework-chats/' + cid + '/messages');
+    if (!data) return res.json({ success: true });
+    Object.keys(data).forEach(function(k) { if (data[k].senderId === 'student-' + studentId) data[k].read = true; });
+    await fbSet('homework-chats/' + cid + '/messages', data);
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' }); }
+});
+
 app.put('/api/admin/chat/:studentId/read', requireAdmin, async (req, res) => {
   try {
     var studentId = req.params.studentId;
@@ -3805,30 +4200,13 @@ app.post('/api/student/progress', requireAuth, async (req, res) => {
   try {
     const { courseId, lessonId, completed, percentage, position } = req.body;
     const uid = req.session.user.uid || req.session.user.id;
-    const users = await readData('users') || [];
-    if (typeof users !== 'object' || !Array.isArray(users)) console.error('readData users type:', typeof users, Array.isArray(users), users && typeof users === 'object' && Object.keys(users).slice(0,5));
-    const idx = users.findIndex(u => u.uid === uid || u.id === uid);
-    if (idx === -1) return res.status(404).json({ error: 'المستخدم غير موجود' });
-
-    const p = users[idx];
-    if (!p.progress) p.progress = {};
-    if (!p.progress[courseId]) p.progress[courseId] = { completedLessons: [], percentage: 0, positions: {} };
-
-    const cp = p.progress[courseId];
-
-    if (completed && !cp.completedLessons.includes(lessonId)) {
-      cp.completedLessons.push(lessonId);
-    }
-
-    if (percentage !== undefined) cp.percentage = percentage;
-
-    if (position !== undefined) {
-      if (!cp.positions) cp.positions = {};
-      cp.positions[lessonId] = Math.max(0, Math.floor(Number(position) || 0));
-    }
-
-    await updateData('users/' + (users[idx] && (users[idx].id || users[idx].uid) || idx) + '/progress/' + courseId, cp);
-    req.session.user = sessionUser(users[idx]);
+    const prisma = getPrisma();
+    await prisma.lessonProgress.upsert({
+      where: { id: lpId },
+      create: { id: lpId, studentId: uid, lessonId, completed: !!completed, watchTime: percentage || 0, lastAccess: new Date() },
+      update: { completed: completed ? true : undefined, watchTime: percentage !== undefined ? percentage : undefined, lastAccess: new Date() },
+    });
+    const cp = { completedLessons: completed ? [lessonId] : [], percentage: percentage || 0, positions: position ? { [lessonId]: Math.max(0, Math.floor(Number(position) || 0)) } : {} };
     res.json({ success: true, progress: cp });
   } catch (e) {
     console.error('progress save error:', e.message, e.stack);
@@ -3838,10 +4216,14 @@ app.post('/api/student/progress', requireAuth, async (req, res) => {
 
 app.get('/api/student/progress/:courseId', requireAuth, async (req, res) => {
   try {
-    const users = await readData('users', true);
-    const user = users.find(u => u.id === req.session.user.id);
-    if (!user) return res.status(404).json({ error: 'المستخدم غير موجود' });
-    const progress = (user.progress && user.progress[req.params.courseId]) || { completedLessons: [], percentage: 0 };
+    const prisma = getPrisma();
+    const lessons = await prisma.lessonProgress.findMany({
+      where: { studentId: req.session.user.id }
+    });
+    const completedLessons = lessons.filter(l => l.completed).map(l => l.lessonId);
+    const watchTimes = {};
+    lessons.forEach(l => { if (l.watchTime) watchTimes[l.lessonId] = l.watchTime; });
+    const progress = { completedLessons, percentage: 0, watchTime: watchTimes };
     res.json({ success: true, progress });
   } catch (e) {
     res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' });
@@ -3857,35 +4239,23 @@ app.post('/api/analytics/video/heartbeat', requireAuth, async (req, res) => {
     const uid = req.session.user.uid;
     if (!courseId || !lessonId) return res.status(400).json({ error: 'courseId and lessonId are required' });
     const result = await analytics.trackVideoHeartbeat(uid, courseId, lessonId, position || 0, duration || 1, watchedSeconds || 0, !!forceComplete);
-    // Keep student.progress in sync so the teacher view reflects real-time watch percentage
+    // Write progress to VideoProgress + LessonProgress tables
     try {
-      const users = await readData('users') || [];
-      const idx = users.findIndex(u => u.uid === uid || u.id === uid);
-      if (idx !== -1) {
-        const dur = Number(duration || 1) || 1;
-        const pct = Math.min(100, Math.round((Number(position || 0) / dur) * 100));
-        if (!users[idx].progress) users[idx].progress = {};
-        if (!users[idx].progress[courseId]) users[idx].progress[courseId] = { completedLessons: [], percentage: 0, watchTime: 0 };
-        users[idx].progress[courseId].percentage = pct;
-        if (!users[idx].progress[courseId].positions) users[idx].progress[courseId].positions = {};
-        users[idx].progress[courseId].positions[lessonId] = Math.max(0, Math.floor(Number(position) || 0));
-        users[idx].progress[courseId].watchTime = (users[idx].progress[courseId].watchTime || 0) + (Number(watchedSeconds || 0));
-        if (!users[idx].progress[courseId].lessons) users[idx].progress[courseId].lessons = {};
-        if (!users[idx].progress[courseId].lessons[lessonId]) users[idx].progress[courseId].lessons[lessonId] = { watchTime: 0 };
-        if (watchedSeconds > 0) {
-          users[idx].progress[courseId].lessons[lessonId].watchTime += Number(watchedSeconds);
-        }
-        if (forceComplete) {
-          const cl = users[idx].progress[courseId].completedLessons;
-          if (!cl.includes(lessonId)) cl.push(lessonId);
-        }
-        // Atomic per-user update — avoids race conditions from rewriting the entire users array
-        await updateData('users/' + (users[idx] && (users[idx].id || users[idx].uid) || idx) + '/progress/' + courseId, users[idx].progress[courseId]);
+      const prisma = getPrisma();
+      const lpId = uid + '_' + lessonId;
+      const pct = Math.min(100, Math.round((Number(position || 0) / (Number(duration || 1) || 1)) * 100));
+      await prisma.lessonProgress.upsert({
+        where: { id: lpId },
+        create: { id: lpId, studentId: uid, lessonId, watchTime: Number(watchedSeconds || 0), lastAccess: new Date() },
+        update: { watchTime: { increment: Number(watchedSeconds || 0) }, lastAccess: new Date() },
+      }).catch(() => {});
+      if (forceComplete) {
+        await prisma.lessonProgress.update({ where: { id: lpId }, data: { completed: true, completedAt: new Date() } }).catch(() => {});
       }
     } catch (pe) { console.error('heartbeat progress sync error:', pe.message); }
     res.json({ success: true, ...result });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -3908,7 +4278,7 @@ app.get('/api/analytics/video/status', requireAuth, async (req, res) => {
       totalSeconds: wh.totalSeconds || 0
     });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -3919,7 +4289,7 @@ app.post('/api/analytics/pdf/open', requireAuth, async (req, res) => {
     await analytics.trackPdfOpen(req.session.user.uid, courseId, lessonId, lessonTitle);
     res.json({ success: true });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -3934,7 +4304,7 @@ app.post('/api/analytics/quiz/submit', requireAuth, async (req, res) => {
       const courses = await readData('courses');
       const course = (courses || []).find(c => c.id === courseId);
       const lesson = course ? (course.lessons || []).find(l => l.id === quizId) : null;
-      lessonPassPct = (lesson && lesson.quiz && lesson.quiz.passPercentage) || 60;
+      lessonPassPct = (lesson && lesson.quiz && lesson.quiz.passPercentage) || (course && course.quiz && course.quiz.passPercentage) || 60;
     } catch(e) {}
     const nScore = Number(score) || 0;
     const nTotal = Number(total) || 1;
@@ -3944,43 +4314,34 @@ app.post('/api/analytics/quiz/submit', requireAuth, async (req, res) => {
     try {
       const prisma = getPrisma();
       const userId = req.session.user.id;
+      // Prevent re-taking if already passed
+      if (passed) {
+        const prevPass = await prisma.examAttempt.findFirst({
+          where: { userId, examId: quizId, status: 'passed' }
+        });
+        if (prevPass) return res.json({ success: true, passed: true, percentage: pct, required: lessonPassPct, score: nScore, total: nTotal, alreadyPassed: true });
+      }
       const attemptId = `${userId}_${quizId}_${Date.now()}`;
-      // Create exam attempt in normalized table
-      await prisma.examAttempt.upsert({
-        where: { id: attemptId },
-        create: {
+      await prisma.examAttempt.create({
+        data: {
           id: attemptId,
           userId,
-          quizId,
           courseId,
-          examName: quizTitle,
+          type: 'quiz',
+          examId: quizId,
+          status: passed ? 'passed' : 'failed',
           score: nScore,
           total: nTotal,
-          correct: Number(correct) || 0,
-          wrong: Number(wrong) || 0,
-          percentage: result.percentage,
-          passed,
           answers: Array.isArray(answers) ? answers : [],
-          completedAt: new Date(),
+          endTime: new Date(),
           createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-        update: {
-          score: nScore,
-          total: nTotal,
-          correct: Number(correct) || 0,
-          wrong: Number(wrong) || 0,
-          percentage: result.percentage,
-          passed,
-          answers: Array.isArray(answers) ? answers : [],
-          completedAt: new Date(),
           updatedAt: new Date(),
         },
       });
       if (passed) {
         // Mark lesson as completed in LessonProgress
         const existingLp = await prisma.lessonProgress.findFirst({
-          where: { studentId: userId, lessonId: quizId, deletedAt: null },
+          where: { studentId: userId, lessonId: quizId },
         });
         if (!existingLp) {
           await prisma.lessonProgress.create({
@@ -3988,19 +4349,16 @@ app.post('/api/analytics/quiz/submit', requireAuth, async (req, res) => {
               id: `${userId}_${quizId}`,
               studentId: userId,
               lessonId: quizId,
-              courseId,
               completed: true,
               completedAt: new Date(),
               watchTime: 0,
               lastAccess: new Date(),
-              createdAt: new Date(),
-              updatedAt: new Date(),
             },
           });
         } else if (!existingLp.completed) {
           await prisma.lessonProgress.update({
             where: { id: existingLp.id },
-            data: { completed: true, completedAt: new Date(), updatedAt: new Date() },
+            data: { completed: true, completedAt: new Date() },
           });
         }
         if (!req.session.quizDoneLessons) req.session.quizDoneLessons = [];
@@ -4008,13 +4366,13 @@ app.post('/api/analytics/quiz/submit', requireAuth, async (req, res) => {
           req.session.quizDoneLessons.push(quizId);
         }
       }
-      // Refresh session user from legacy adapter (preserves backward-compatible fields)
-      const fresh = await buildLegacyUser(userId);
+      // Refresh session user from Prisma
+      const fresh = await getPrisma().user.findUnique({ where: { id: userId } });
       if (fresh) req.session.user = sessionUser(fresh);
     } catch (pe) { console.error('quiz submit save error:', pe.message); }
     res.json({ success: true, passed: passed, percentage: pct, required: lessonPassPct, score: nScore, total: nTotal });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -4024,7 +4382,7 @@ app.get('/api/analytics/student', requireAuth, async (req, res) => {
     const data = await analytics.getStudentDashboardData(req.session.user.uid);
     res.json({ success: true, ...data });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -4034,7 +4392,7 @@ app.post('/api/analytics/migrate', requireAdmin, async (req, res) => {
     const result = await analytics.migrateAll();
     res.json({ success: true, ...result });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -4044,7 +4402,7 @@ app.get('/api/admin/analytics/v2/overview', requireAdmin, async (req, res) => {
     const data = await analytics.getAdminAnalytics();
     res.json({ success: true, ...data });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -4054,7 +4412,7 @@ app.post('/api/admin/analytics/v2/delete-all', requireAdmin, async (req, res) =>
     const result = await analytics.deleteAllAnalytics();
     res.json({ success: true, ...result });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -4064,7 +4422,7 @@ app.post('/api/admin/analytics/v2/backup', requireAdmin, async (req, res) => {
     const result = await analytics.backupAnalytics();
     res.json({ success: true, ...result });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -4074,7 +4432,7 @@ app.post('/api/admin/analytics/v2/cleanup-orphans', requireAdmin, async (req, re
     const result = await analytics.cleanupOrphanAnalytics();
     res.json({ success: true, ...result });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -4084,7 +4442,7 @@ app.get('/api/admin/analytics/v2/student/:studentId', requireAdmin, async (req, 
     const data = await analytics.getAdminStudentDetail(req.params.studentId);
     res.json({ success: true, ...data });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -4094,19 +4452,13 @@ app.post('/api/admin/analytics/reset-all', requireAdmin, async (req, res) => {
     const { fbRemove } = require('./prisma-bridge');
     // 1. Delete old studentAnalytics store in RTDB
     try { await fbRemove('studentAnalytics'); } catch (e) {}
-    // 2. Clear progress and examResults for all students
-    const users = await readData('users');
-    (users || []).forEach(u => {
-      if (u.role === 'student' || u.progress) {
-        u.progress = {};
-        u.examResults = [];
-        u.positions = {};
-      }
-    });
-    await writeData('users', users);
+    // 2. Clear all LessonProgress and soft-delete ExamAttempt records
+    const prisma = getPrisma();
+    await prisma.lessonProgress.deleteMany({});
+    await prisma.examAttempt.updateMany({ data: { deletedAt: new Date() } });
     res.json({ success: true, message: 'تم حذف جميع التحليلات بنجاح' });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -4123,226 +4475,145 @@ function parseDuration(dur) {
 // GET /api/admin/analytics/overview — Teacher dashboard overview stats
 app.get('/api/admin/analytics/overview', requireAdmin, async (req, res) => {
   try {
-    var users = await readData('users');
+    var prisma = getPrisma();
     var courses = await readData('courses');
-    var now = Date.now();
+    var now = new Date();
     var day = 86400000;
-    var students = users.filter(function(u) { return u.role === 'student'; });
-    var totalStudents = students.length;
-    var activeToday = students.filter(function(u) { return u.lastLogin && (now - new Date(u.lastLogin).getTime() < day); }).length;
-    var activeThisWeek = students.filter(function(u) { return u.lastLogin && (now - new Date(u.lastLogin).getTime() < 7 * day); }).length;
-    var activeThisMonth = students.filter(function(u) { return u.lastLogin && (now - new Date(u.lastLogin).getTime() < 30 * day); }).length;
-    var activeSubs = students.filter(function(u) { return u.subscriptionStatus === 'active'; }).length;
-    var expiredSubs = students.filter(function(u) { return u.subscriptionStatus === 'expired' || (u.subscriptionEnd && new Date(u.subscriptionEnd).getTime() < now); }).length;
 
-    // Calculate average completion
-    var totalCompletion = 0, completionCount = 0;
-    students.forEach(function(s) {
-      if (s.progress) {
-        Object.keys(s.progress).forEach(function(cid) {
-          totalCompletion += (s.progress[cid].percentage || 0);
-          completionCount++;
-        });
-      }
-    });
-    var avgCompletion = completionCount > 0 ? Math.round(totalCompletion / completionCount) : 0;
-
-    // Calculate average quiz score
-    var totalScore = 0, scoreCount = 0;
-    students.forEach(function(s) {
-      if (s.examResults && s.examResults.length) {
-        s.examResults.forEach(function(r) {
-          totalScore += (r.score || 0);
-          scoreCount++;
-        });
-      }
-    });
-    var avgQuizScore = scoreCount > 0 ? Math.round(totalScore / scoreCount) : 0;
+    var [totalStudents, activeToday, activeThisWeek, activeThisMonth,
+          activeSubs, expiredSubs, examStats] = await Promise.all([
+      prisma.user.count({ where: { role: 'student', deletedAt: null } }),
+      prisma.user.count({ where: { role: 'student', deletedAt: null, lastLogin: { gte: new Date(now.getTime() - day) } } }),
+      prisma.user.count({ where: { role: 'student', deletedAt: null, lastLogin: { gte: new Date(now.getTime() - 7 * day) } } }),
+      prisma.user.count({ where: { role: 'student', deletedAt: null, lastLogin: { gte: new Date(now.getTime() - 30 * day) } } }),
+      prisma.user.count({ where: { role: 'student', deletedAt: null, subscriptionStatus: 'active' } }),
+      prisma.user.count({ where: { role: 'student', deletedAt: null, OR: [{ subscriptionStatus: 'expired' }, { subscriptionEnd: { lt: now } }] } }),
+      prisma.examAttempt.aggregate({ _avg: { score: true }, _count: true, where: { deletedAt: null } })
+    ]);
+    var avgQuizScore = Math.round(Number(examStats._avg.score) || 0);
 
     res.json({
-      totalStudents: totalStudents,
-      activeToday: activeToday,
-      activeThisWeek: activeThisWeek,
-      activeThisMonth: activeThisMonth,
-      activeSubscriptions: activeSubs,
-      expiredSubscriptions: expiredSubs,
-      averageCompletion: avgCompletion,
+      totalStudents, activeToday, activeThisWeek, activeThisMonth,
+      activeSubscriptions: activeSubs, expiredSubscriptions: expiredSubs,
+      averageCompletion: 0,
       averageQuizScore: avgQuizScore,
       totalCourses: courses.length
     });
   } catch(e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
-// GET /api/admin/analytics/students?sort=most|least&limit=10
+// GET /api/admin/analytics/students?sort=most|least&limit=10&page=1&pageSize=20
 app.get('/api/admin/analytics/students', requireAdmin, async (req, res) => {
   try {
-    var users = await readData('users');
+    var prisma = getPrisma();
     var courses = await readData('courses');
     var sort = req.query.sort || 'most';
-    var limit = parseInt(req.query.limit) || 10;
-    var students = users.filter(function(u) { return u.role === 'student'; });
+    var page = Math.max(1, parseInt(req.query.page) || 1);
+    var pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize) || parseInt(req.query.limit) || 20));
+    var skip = (page - 1) * pageSize;
 
-    // Build a map of courseId -> total lesson count
     var lessonCountMap = {};
     courses.forEach(function(c) {
       if (c.lessons) lessonCountMap[c.id] = c.lessons.length;
+    });
+
+    var totalStudents = await prisma.user.count({ where: { role: 'student', deletedAt: null } });
+
+    var students = await prisma.user.findMany({
+      where: { role: 'student', deletedAt: null },
+      include: { lessonProgress: true, examAttempts: { where: { deletedAt: null } } },
+      orderBy: sort === 'least' ? { lastLogin: { sort: 'asc', nulls: 'last' } } : { lastLogin: { sort: 'desc', nulls: 'last' } },
+      take: pageSize,
+      skip: skip
     });
 
     var now = Date.now();
     var day = 86400000;
 
     var scored = students.map(function(s) {
-      var completedCount = 0;
-      var totalLessons = 0;
-      var totalWatchMinutes = 0;
-      if (s.progress) {
-        Object.keys(s.progress).forEach(function(cid) {
-          var p = s.progress[cid];
-          if (!p) return;
-          if (p.completedLessons) {
-            completedCount += p.completedLessons.length;
-          }
-          if (lessonCountMap[cid]) totalLessons += lessonCountMap[cid];
-          // Estimate watch time from completed lessons' durations
-          if (p.completedLessons && courses) {
-            var course = courses.find(function(c) { return c.id === cid; });
-            if (course && course.lessons) {
-              p.completedLessons.forEach(function(lid) {
-                var lesson = course.lessons.find(function(l) { return l.id === lid; });
-                if (lesson) totalWatchMinutes += parseDuration(lesson.duration);
-              });
-            }
-          }
-        });
-      }
-
-      // Quiz score
+      var completedCount = s.lessonProgress.filter(function(lp) { return lp.completed; }).length;
+      var totalWatchMinutes = Math.round(s.lessonProgress.reduce(function(sum, lp) { return sum + (lp.watchTime || 0); }, 0) / 60);
+      var totalLessons = Object.values(lessonCountMap).reduce(function(a, b) { return a + b; }, 0);
       var avgQuiz = 0;
-      if (s.examResults && s.examResults.length) {
-        var sum = 0;
-        s.examResults.forEach(function(r) { sum += (r.score || 0); });
-        avgQuiz = Math.round(sum / s.examResults.length);
+      if (s.examAttempts && s.examAttempts.length) {
+        var sum = s.examAttempts.reduce(function(t, e) { return t + Number(e.score || 0); }, 0);
+        avgQuiz = Math.round(sum / s.examAttempts.length);
       }
-
-      // Completion percentage
       var completionPct = totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0;
-
-      // Activity Score: 40% completion + 30% lessons ratio + 20% quiz + 10% login recency
       var lessonRatio = totalLessons > 0 ? (completedCount / totalLessons) * 100 : 0;
       var loginRecency = 0;
       if (s.lastLogin) {
-        var daysSinceLogin = (now - new Date(s.lastLogin).getTime()) / day;
-        loginRecency = Math.max(0, 100 - daysSinceLogin * 3.33); // 0-30 days maps to 100-0
+        var daysSinceLogin = (now - s.lastLogin.getTime()) / day;
+        loginRecency = Math.max(0, 100 - daysSinceLogin * 3.33);
       }
-      var activityScore = Math.round(
-        (completionPct * 0.4) + (lessonRatio * 0.3) + (avgQuiz * 0.2) + (loginRecency * 0.1)
-      );
-
+      var activityScore = Math.round((completionPct * 0.4) + (lessonRatio * 0.3) + (avgQuiz * 0.2) + (loginRecency * 0.1));
       return {
-        id: s.id,
-        name: s.name || '',
-        grade: s.grade || '',
-        stage: s.stage || '',
-        governorate: s.governorate || '',
-        subscriptionStatus: s.subscriptionStatus || '',
-        completedLessons: completedCount,
-        totalLessons: totalLessons,
-        completionPct: completionPct,
-        totalWatchMinutes: Math.round(totalWatchMinutes),
-        avgQuizScore: avgQuiz,
-        activityScore: activityScore,
-        lastLogin: s.lastLogin || '',
-        createdAt: s.createdAt || ''
+        id: s.id, name: s.name || '', grade: s.grade || '', stage: s.stage || '',
+        governorate: s.governorate || '', subscriptionStatus: s.subscriptionStatus || '',
+        completedLessons: completedCount, totalLessons: totalLessons,
+        completionPct: completionPct, totalWatchMinutes: totalWatchMinutes,
+        avgQuizScore: avgQuiz, activityScore: activityScore,
+        lastLogin: s.lastLogin || '', createdAt: s.createdAt || ''
       };
     });
 
-    if (sort === 'least') {
-      scored.sort(function(a, b) { return a.activityScore - b.activityScore; });
-    } else {
-      scored.sort(function(a, b) { return b.activityScore - a.activityScore; });
-    }
-
-    res.json(scored.slice(0, limit));
+    scored.sort(function(a, b) { return sort === 'least' ? a.activityScore - b.activityScore : b.activityScore - a.activityScore; });
+    res.json({ students: scored, total: totalStudents, page: page, pageSize: pageSize });
   } catch(e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
 // GET /api/admin/analytics/lessons — Lesson analytics
 app.get('/api/admin/analytics/lessons', requireAdmin, async (req, res) => {
   try {
-    var users = await readData('users');
+    var prisma = getPrisma();
     var courses = await readData('courses');
-    var students = users.filter(function(u) { return u.role === 'student'; });
+    var allProgress = await prisma.lessonProgress.findMany({ where: { completed: true } });
     var result = [];
 
     courses.forEach(function(c) {
       if (!c.lessons || !c.lessons.length) return;
       c.lessons.forEach(function(l) {
-        var completedCount = 0;
-        var watchMinutes = 0;
-        var studentCount = 0;
-        students.forEach(function(s) {
-          if (s.progress && s.progress[c.id] && s.progress[c.id].completedLessons) {
-            if (s.progress[c.id].completedLessons.includes(l.id)) {
-              completedCount++;
-              watchMinutes += parseDuration(l.duration);
-            }
-          }
-          // Count students who have this course in their progress
-          if (s.progress && s.progress[c.id]) studentCount++;
-        });
+        var courseProgress = allProgress.filter(function(lp) { return lp.courseId === c.id; });
+        var lessonCompletions = courseProgress.filter(function(lp) { return lp.lessonId === l.id; });
+        var studentCount = new Set(courseProgress.map(function(lp) { return lp.studentId; })).size;
         result.push({
-          courseId: c.id,
-          courseTitle: c.title,
-          lessonId: l.id,
-          lessonTitle: l.title,
-          duration: l.duration,
-          totalStudents: studentCount,
-          completedCount: completedCount,
-          completionRate: studentCount > 0 ? Math.round((completedCount / studentCount) * 100) : 0
+          courseId: c.id, courseTitle: c.title, lessonId: l.id, lessonTitle: l.title,
+          duration: l.duration, totalStudents: studentCount,
+          completedCount: lessonCompletions.length,
+          completionRate: studentCount > 0 ? Math.round((lessonCompletions.length / studentCount) * 100) : 0
         });
       });
     });
 
     res.json(result);
   } catch(e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
 // GET /api/admin/analytics/quizzes — Quiz analytics
 app.get('/api/admin/analytics/quizzes', requireAdmin, async (req, res) => {
   try {
-    var users = await readData('users');
+    var prisma = getPrisma();
     var courses = await readData('courses');
-    var students = users.filter(function(u) { return u.role === 'student'; });
     var result = [];
 
+    var quizAttempts = await prisma.examAttempt.findMany({ where: { deletedAt: null, type: 'quiz' } });
     courses.forEach(function(c) {
       if (!c.quiz || !c.quiz.questions || !c.quiz.questions.length) return;
-      var scores = [];
-      students.forEach(function(s) {
-        if (s.examResults && s.examResults.length) {
-          s.examResults.forEach(function(r) {
-            if (r.examName && r.examName.indexOf(c.quiz.title) !== -1) {
-              scores.push(r.score || 0);
-            }
-          });
-        }
-      });
+      var scores = quizAttempts.filter(function(a) { return a.courseId === c.id; }).map(function(a) { return Number(a.score || 0); });
+      var titleMatch = quizAttempts.filter(function(a) { return a.examId === c.quiz.title; }).map(function(a) { return Number(a.score || 0); });
+      scores = scores.concat(titleMatch);
       if (scores.length) {
         var sum = scores.reduce(function(a, b) { return a + b; }, 0);
-        var maxScore = c.quiz.questions.length * 10; // Each question worth 10
         var passCount = scores.filter(function(s) { return s >= 50; }).length;
         result.push({
-          courseId: c.id,
-          courseTitle: c.title,
-          quizTitle: c.quiz.title,
-          totalQuestions: c.quiz.questions.length,
-          attempts: scores.length,
+          courseId: c.id, courseTitle: c.title, quizTitle: c.quiz.title,
+          totalQuestions: c.quiz.questions.length, attempts: scores.length,
           averageScore: Math.round(sum / scores.length),
           highestScore: Math.max.apply(null, scores),
           lowestScore: Math.min.apply(null, scores),
@@ -4353,185 +4624,126 @@ app.get('/api/admin/analytics/quizzes', requireAdmin, async (req, res) => {
 
     res.json(result);
   } catch(e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
 // GET /api/admin/analytics/student/:studentId — Full student progress (teacher view)
 app.get('/api/admin/analytics/student/:studentId', requireAdmin, async (req, res) => {
   try {
-    var users = await readData('users');
+    var prisma = getPrisma();
     var courses = await readData('courses');
-    var student = users.find(function(u) { return u.id === req.params.studentId && u.role === 'student'; });
-    if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
+    var student = await prisma.user.findUnique({
+      where: { id: req.params.studentId }, include: { lessonProgress: true, examAttempts: { where: { deletedAt: null } } }
+    });
+    if (!student || student.role !== 'student') return res.status(404).json({ error: 'الطالب غير موجود' });
 
     var now = Date.now();
     var day = 86400000;
     var totalCompleted = 0;
     var totalLessons = 0;
-    var totalWatchMinutes = 0;
+    var totalWatchSeconds = 0;
     var courseProgress = [];
 
     courses.forEach(function(c) {
       if (!c.lessons) return;
-      var prog = student.progress && student.progress[c.id];
-      var completed = prog && prog.completedLessons ? prog.completedLessons : [];
-      var pct = prog ? (prog.percentage || 0) : 0;
+      var courseLP = student.lessonProgress.filter(function(lp) { return lp.courseId === c.id; });
+      var completed = courseLP.filter(function(lp) { return lp.completed; }).map(function(lp) { return lp.lessonId; });
       totalLessons += c.lessons.length;
       totalCompleted += completed.length;
-
-      var lessons = c.lessons.map(function(l) {
-        var isCompleted = completed.includes(l.id);
-        if (isCompleted) totalWatchMinutes += parseDuration(l.duration);
-        return {
-          id: l.id,
-          title: l.title,
-          completed: isCompleted,
-          duration: l.duration
-        };
-      });
+      courseLP.forEach(function(lp) { totalWatchSeconds += (lp.watchTime || 0); });
 
       courseProgress.push({
-        courseId: c.id,
-        courseTitle: c.title,
-        percentage: pct,
-        completedCount: completed.length,
-        totalCount: c.lessons.length,
-        lessons: lessons
+        courseId: c.id, courseTitle: c.title,
+        percentage: totalLessons > 0 ? Math.round((totalCompleted / totalLessons) * 100) : 0,
+        completedCount: completed.length, totalCount: c.lessons.length,
+        lessons: c.lessons.map(function(l) { return { id: l.id, title: l.title, completed: completed.includes(l.id), duration: l.duration }; })
       });
     });
 
-    // Quiz results
-    var quizResults = student.examResults || [];
-
-    // Recent activity (from examResults + progress)
-    var recentActivity = [];
-    if (student.progress) {
-      Object.keys(student.progress).forEach(function(cid) {
-        var prog = student.progress[cid];
-        if (prog.completedLessons) {
-          prog.completedLessons.forEach(function(lid) {
-            recentActivity.push({
-              type: 'completed_lesson',
-              courseId: cid,
-              lessonId: lid,
-              date: prog.updatedAt || ''
-            });
-          });
-        }
-      });
-    }
-    quizResults.forEach(function(r) {
-      recentActivity.push({
-        type: 'finished_quiz',
-        quizName: r.examName || '',
-        score: r.score || 0,
-        date: r.date || ''
-      });
+    var quizResults = student.examAttempts.map(function(e) { return { examName: e.examId || e.type, score: Number(e.score || 0), date: e.endTime || e.createdAt }; });
+    var recentActivity = quizResults.map(function(r) { return { type: 'finished_quiz', quizName: r.examName, score: r.score, date: r.date }; });
+    student.lessonProgress.filter(function(lp) { return lp.completed; }).forEach(function(lp) {
+      recentActivity.push({ type: 'completed_lesson', courseId: lp.courseId, lessonId: lp.lessonId, date: lp.completedAt || lp.lastAccess });
     });
     recentActivity.sort(function(a, b) { return new Date(b.date || 0) - new Date(a.date || 0); });
     recentActivity = recentActivity.slice(0, 50);
 
-    // Activity Score
     var avgQuiz = 0;
     if (quizResults.length) {
-      var sum = 0;
-      quizResults.forEach(function(r) { sum += (r.score || 0); });
+      var sum = quizResults.reduce(function(t, r) { return t + r.score; }, 0);
       avgQuiz = Math.round(sum / quizResults.length);
     }
     var completionPct = totalLessons > 0 ? Math.round((totalCompleted / totalLessons) * 100) : 0;
-    var loginRecency = student.lastLogin ? Math.max(0, 100 - ((now - new Date(student.lastLogin).getTime()) / day) * 3.33) : 0;
-    var activityScore = Math.round(
-      (completionPct * 0.4) + (completionPct * 0.3) + (avgQuiz * 0.2) + (loginRecency * 0.1)
-    );
+    var loginRecency = student.lastLogin ? Math.max(0, 100 - ((now - student.lastLogin.getTime()) / day) * 3.33) : 0;
+    var activityScore = Math.round((completionPct * 0.4) + (completionPct * 0.3) + (avgQuiz * 0.2) + (loginRecency * 0.1));
 
     res.json({
       student: {
-        id: student.id,
-        name: student.name,
-        email: student.email,
-        phone: student.phone,
-        grade: student.grade,
-        stage: student.stage,
-        governorate: student.governorate,
+        id: student.id, name: student.name, email: student.email, phone: student.phone,
+        grade: student.grade, stage: student.stage, governorate: student.governorate,
         subscriptionStatus: student.subscriptionStatus,
-        subscriptionStart: student.subscriptionStart,
-        subscriptionEnd: student.subscriptionEnd,
-        createdAt: student.createdAt,
-        lastLogin: student.lastLogin
+        subscriptionStart: student.subscriptionStart, subscriptionEnd: student.subscriptionEnd,
+        createdAt: student.createdAt, lastLogin: student.lastLogin
       },
       progress: {
-        completedLessons: totalCompleted,
-        remainingLessons: totalLessons - totalCompleted,
-        totalLessons: totalLessons,
-        completionPct: completionPct,
-        totalWatchMinutes: Math.round(totalWatchMinutes),
-        avgQuizScore: avgQuiz,
-        activityScore: activityScore,
-        completedQuizzes: quizResults.length
+        completedLessons: totalCompleted, remainingLessons: totalLessons - totalCompleted, totalLessons: totalLessons,
+        completionPct: completionPct, totalWatchMinutes: Math.round(totalWatchSeconds / 60),
+        avgQuizScore: avgQuiz, activityScore: activityScore, completedQuizzes: quizResults.length
       },
-      courseProgress: courseProgress,
-      quizResults: quizResults,
-      recentActivity: recentActivity
+      courseProgress: courseProgress, quizResults: quizResults, recentActivity: recentActivity
     });
   } catch(e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
 // GET /api/student/my-progress — Student's own progress
 app.get('/api/student/my-progress', requireAuth, async (req, res) => {
   try {
-    var users = await readData('users');
+    var prisma = getPrisma();
     var courses = await readData('courses');
-    var student = users.find(function(u) { return u.id === req.session.user.id; });
+    var student = await prisma.user.findUnique({
+      where: { id: req.session.user.id }, include: { lessonProgress: true, examAttempts: { where: { deletedAt: null } } }
+    });
     if (!student) return res.status(404).json({ error: 'المستخدم غير موجود' });
 
     var now = Date.now();
     var day = 86400000;
     var totalCompleted = 0;
     var totalLessons = 0;
-    var totalWatchMinutes = 0;
+    var totalWatchSeconds = 0;
     var courseProgress = [];
 
     courses.forEach(function(c) {
       if (!c.lessons) return;
-      var prog = student.progress && student.progress[c.id];
-      var completed = prog && prog.completedLessons ? prog.completedLessons : [];
+      var courseLP = student.lessonProgress.filter(function(lp) { return lp.courseId === c.id; });
+      var completed = courseLP.filter(function(lp) { return lp.completed; }).map(function(lp) { return lp.lessonId; });
       totalLessons += c.lessons.length;
       totalCompleted += completed.length;
-
-      completed.forEach(function(lid) {
-        var lesson = c.lessons.find(function(l) { return l.id === lid; });
-        if (lesson) totalWatchMinutes += parseDuration(lesson.duration);
-      });
+      courseLP.forEach(function(lp) { totalWatchSeconds += (lp.watchTime || 0); });
 
       courseProgress.push({
-        courseId: c.id,
-        courseTitle: c.title,
-        percentage: prog ? (prog.percentage || 0) : 0,
-        completedCount: completed.length,
-        totalCount: c.lessons.length
+        courseId: c.id, courseTitle: c.title,
+        percentage: totalLessons > 0 ? Math.round((totalCompleted / totalLessons) * 100) : 0,
+        completedCount: completed.length, totalCount: c.lessons.length
       });
     });
 
-    var quizResults = student.examResults || [];
+    var quizResults = student.examAttempts.map(function(e) { return { examName: e.examId || e.type, score: Number(e.score || 0), date: e.endTime || e.createdAt }; });
     var avgQuiz = 0;
     if (quizResults.length) {
-      var sum = 0;
-      quizResults.forEach(function(r) { sum += (r.score || 0); });
+      var sum = quizResults.reduce(function(t, r) { return t + r.score; }, 0);
       avgQuiz = Math.round(sum / quizResults.length);
     }
-
+    var totalWatchMinutes = Math.round(totalWatchSeconds / 60);
     var completionPct = totalLessons > 0 ? Math.round((totalCompleted / totalLessons) * 100) : 0;
     var loginRecency = 100;
     if (student.lastLogin) {
-      var daysSince = (now - new Date(student.lastLogin).getTime()) / day;
+      var daysSince = (now - student.lastLogin.getTime()) / day;
       loginRecency = Math.max(0, 100 - daysSince * 3.33);
     }
-    var activityScore = Math.round(
-      (completionPct * 0.4) + (completionPct * 0.3) + (avgQuiz * 0.2) + (loginRecency * 0.1)
-    );
+    var activityScore = Math.round((completionPct * 0.4) + (completionPct * 0.3) + (avgQuiz * 0.2) + (loginRecency * 0.1));
 
     // Achievements
     var achievements = [];
@@ -4549,10 +4761,8 @@ app.get('/api/student/my-progress', requireAuth, async (req, res) => {
     // Streak (rough calculation based on lastLogin)
     var streakDays = 0;
     if (student.lastLogin) {
-      var daysSince = Math.round((now - new Date(student.lastLogin).getTime()) / day);
+      var daysSince = Math.round((now - student.lastLogin.getTime()) / day);
       streakDays = daysSince <= 1 ? 1 : 0;
-      // Simplified: if logged in today or yesterday, streak is at least 1
-      // For a real streak, we'd need login history
     }
 
     // Recent activity
@@ -4612,7 +4822,7 @@ app.get('/api/student/my-progress', requireAuth, async (req, res) => {
       recentActivity: recentActivity
     });
   } catch(e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -4638,9 +4848,9 @@ app.get('/admin/student-progress', requireAdmin, async (req, res) => {
 
 app.get('/admin', requireAdmin, async (req, res) => {
   try {
-    const users = (await readData('users')) || [];
+    var prisma = getPrisma();
     const courses = (await readData('courses')) || [];
-    const students = users.filter(u => u.role === 'student');
+    const students = await prisma.user.findMany({ where: { role: 'student', deletedAt: null }, select: { id: true, name: true, role: true, stage: true, grade: true, subscriptionStatus: true, lastLogin: true, createdAt: true, avatar: true, email: true, phone: true } });
     const announcements = (await readData('announcements')) || [];
     const subscriptions = (await readData('subscriptions')) || [];
     const reviews = (await readData('reviews')) || [];
@@ -4656,8 +4866,8 @@ app.get('/admin', requireAdmin, async (req, res) => {
 
 app.get('/admin/students', requireAdmin, async (req, res) => {
   try {
-    const users = await readData('users') || [];
-    const students = users.filter(u => u.role === 'student');
+    var prisma = getPrisma();
+    const students = await prisma.user.findMany({ where: { role: 'student', deletedAt: null } });
     if (storageConfig.isR2Enabled()) {
       var storage = getStorageService();
       for (var si = 0; si < students.length; si++) {
@@ -4783,7 +4993,7 @@ app.post('/api/admin/theme', requireDevAccess, async (req, res) => {
     await getThemeCss(true);
     res.json({ success: true, theme: theme });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -4829,7 +5039,7 @@ app.post('/api/admin/upload-font', requireDevAccess, fontUpload.single('fontFile
     await getThemeCss(true);
     res.json({ success: true, fontName: displayName, fileName: req.file.originalname });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -4845,7 +5055,7 @@ app.post('/api/admin/remove-font', requireDevAccess, async (req, res) => {
     await getThemeCss(true);
     res.json({ success: true });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -4914,7 +5124,7 @@ app.post('/admin/zoom-app/reset', requireAdmin, async (req, res) => {
     await zoom.saveCredentials(cid, csec, ruri, cid, csec);
     res.redirect('/admin/zoom-app?saved=1');
   } catch (e) {
-    res.status(500).send('فشل إعادة التعيين: ' + e.message);
+    res.status(500).send(safeErr(e, 'فشل إعادة التعيين'));
   }
 });
 
@@ -4950,7 +5160,7 @@ app.post('/admin/zoom-app', requireAdmin, async (req, res) => {
     res.redirect('/admin/zoom-app?saved=1');
   } catch (e) {
     console.error('Zoom app save error:', e.message);
-    res.status(500).send('فشل الحفظ: ' + e.message);
+    res.status(500).send(safeErr(e, 'فشل الحفظ'));
   }
 });
 
@@ -5033,6 +5243,44 @@ app.get('/admin/chat', requireAdmin, (req, res) => {
   res.render('admin/chat-list', { title: 'تواصل مع الطلاب - الإدارة' });
 });
 
+app.get('/admin/homework-submissions', requireAdmin, async (req, res) => {
+  try {
+    const chats = await fbRead('homework-chats') || {};
+    const users = await readData('users') || [];
+    const userMap = {};
+    users.forEach(u => { userMap[u.id] = u; });
+
+    const submissions = Object.entries(chats).map(([studentId, chat]) => {
+      const messages = (chat.messages || []).filter(m => m.sender === studentId);
+      const student = userMap[studentId] || { name: 'غير معروف', email: '', stage: '', grade: '' };
+      const lastMsg = messages[messages.length - 1];
+      return {
+        studentId,
+        studentName: student.name,
+        studentEmail: student.email,
+        studentStage: student.stage,
+        studentGrade: student.grade,
+        messageCount: messages.length,
+        lastMessage: lastMsg ? (lastMsg.text || (lastMsg.image ? '📷 صورة' : '📎 ملف')) : 'لا توجد رسائل',
+        lastTime: lastMsg ? lastMsg.timestamp : null
+      };
+    }).filter(s => s.messageCount > 0).sort((a, b) => (b.lastTime || 0) - (a.lastTime || 0));
+
+    res.render('admin/homework-submissions', { submissions, title: 'واجبات الطلاب - الإدارة' });
+  } catch (e) {
+    console.error('[homework-submissions] error:', e);
+    res.render('admin/homework-submissions', { submissions: [], title: 'واجبات الطلاب - الإدارة' });
+  }
+});
+
+app.get('/admin/homework-chat/:studentId', requireAdmin, async (req, res) => {
+  const studentId = req.params.studentId;
+  const chatId = 'homework-' + studentId;
+  var prisma = getPrisma();
+  const student = await prisma.user.findFirst({ where: { OR: [{ id: studentId }, { uid: studentId }], deletedAt: null }, select: { name: true } });
+  res.render('admin/homework-chat', { chatId, studentName: student ? student.name : '', title: 'محادثة الواجب - الإدارة' });
+});
+
 app.get('/admin/sub-requests', requireAdmin, async (req, res) => {
   res.render('admin/sub-requests', { title: 'طلبات الاشتراك - الإدارة' });
 });
@@ -5040,8 +5288,8 @@ app.get('/admin/sub-requests', requireAdmin, async (req, res) => {
 app.get('/admin/chat/:studentId', requireAdmin, async (req, res) => {
   const chatId = 'student-' + req.params.studentId;
   const studentId = req.params.studentId;
-  const users = await readData('users') || [];
-  const student = users.find(function(u) { return u.id === studentId || u.uid === studentId; });
+  var prisma = getPrisma();
+  const student = await prisma.user.findFirst({ where: { OR: [{ id: studentId }, { uid: studentId }], deletedAt: null }, select: { name: true } });
   res.render('admin/chat', { chatId, studentName: student ? student.name : '', title: 'محادثة طالب - الإدارة' });
 });
 
@@ -5051,7 +5299,8 @@ app.get('/api/admin/chats', requireAdmin, async (req, res) => {
   try {
     const allChats = await fbRead('chats');
     if (!allChats || typeof allChats !== 'object') return res.json({ success: true, chats: [] });
-    const allUsers = await readData('users') || [];
+    var prisma = getPrisma();
+    const allUsers = await prisma.user.findMany({ where: { deletedAt: null }, select: { id: true, uid: true, name: true } });
     const chats = [];
     Object.keys(allChats).forEach(function(chatId) {
       const chat = allChats[chatId];
@@ -5130,13 +5379,20 @@ app.put('/api/admin/courses/:id', requireAdmin, async (req, res) => {
 
 app.delete('/api/admin/courses/:id', requireAdmin, async (req, res) => {
   try {
-    const courses = await readData('courses');
-    const idx = courses.findIndex(c => c.id === req.params.id);
-    if (idx === -1) return res.status(404).json({ error: 'المادة غير موجودة' });
-    courses.splice(idx, 1);
-    await writeData('courses', courses);
+    const prisma = getPrisma();
+    await prisma.course.update({
+      where: { id: req.params.id },
+      data: { deletedAt: new Date() }
+    });
+    // also soft-delete all lessons under this course
+    await prisma.lesson.updateMany({
+      where: { courseId: req.params.id, deletedAt: null },
+      data: { deletedAt: new Date() }
+    });
+    cacheInvalidate('courses');
     res.json({ success: true });
   } catch (e) {
+    console.error('[delete course]', e.message);
     res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' });
   }
 });
@@ -5199,7 +5455,7 @@ app.post('/api/admin/courses/:id/lessons', requireAdmin, async (req, res) => {
     const courses = await readData('courses');
     const course = courses.find(c => c.id === req.params.id);
     if (!course) return res.status(404).json({ error: 'المادة غير موجودة' });
-    const { title, description, videos, pdfFiles, duration, order, isFree, guestVisible, sectionId, quiz } = req.body;
+    const { title, description, videos, pdfFiles, duration, order, isFree, guestVisible, published, sectionId, quiz } = req.body;
     const newLesson = {
       id: Date.now().toString(),
       title: title || 'محاضرة جديدة',
@@ -5210,6 +5466,7 @@ app.post('/api/admin/courses/:id/lessons', requireAdmin, async (req, res) => {
       order: order !== undefined ? order : 0,
       isFree: isFree || false,
       guestVisible: guestVisible || false,
+      published: published !== undefined ? published : true,
       sectionId: sectionId || '',
       quiz: quiz || null
     };
@@ -5234,7 +5491,7 @@ app.put('/api/admin/courses/:id/lessons/:lessonId', requireAdmin, async (req, re
     if (!course) return res.status(404).json({ error: 'المادة غير موجودة' });
     const lesson = (course.lessons||[]).find(l => l.id === req.params.lessonId);
     if (!lesson) return res.status(404).json({ error: 'المحاضرة غير موجودة' });
-    const { title, description, videos, pdfFiles, duration, order, isFree, guestVisible, sectionId, quiz } = req.body;
+    const { title, description, videos, pdfFiles, duration, order, isFree, guestVisible, published, sectionId, quiz } = req.body;
     if (title !== undefined) lesson.title = title;
     if (description !== undefined) lesson.description = description;
     if (videos !== undefined) lesson.videos = videos;
@@ -5243,6 +5500,7 @@ app.put('/api/admin/courses/:id/lessons/:lessonId', requireAdmin, async (req, re
     if (order !== undefined) lesson.order = order;
     if (isFree !== undefined) lesson.isFree = isFree;
     if (guestVisible !== undefined) lesson.guestVisible = guestVisible;
+    if (published !== undefined) lesson.published = published;
     if (quiz !== undefined) lesson.quiz = quiz;
     if (sectionId !== undefined) {
       (course.sections || []).forEach(s => { if (s.lessons) s.lessons = s.lessons.filter(id => id !== lesson.id); });
@@ -5366,7 +5624,7 @@ app.put('/api/admin/notes/:id', requireAdmin, async (req, res) => {
     const notes = await readData('notes');
     const idx = notes.findIndex(n => n.id === req.params.id);
     if (idx === -1) return res.status(404).json({ error: 'المذكرة غير موجودة' });
-    const noteAllowed = ['title', 'description', 'filePath', 'stage', 'grade', 'type', 'icon', 'active', 'order'];
+    const noteAllowed = ['title', 'description', 'filePath', 'stage', 'grade', 'type'];
     for (const field of noteAllowed) {
       if (req.body[field] !== undefined) notes[idx][field] = req.body[field];
     }
@@ -5394,6 +5652,42 @@ app.delete('/api/admin/notes/:id', requireAdmin, async (req, res) => {
   }
 });
 
+/* ===================== ADMIN: Comprehensive Exam ===================== */
+app.get('/api/admin/comprehensive-exam', requireAdmin, async (req, res) => {
+  try {
+    const exam = await readData('comprehensiveExam');
+    res.json({ success: true, exam: exam || null });
+  } catch (e) {
+    res.status(500).json({ error: 'تعذر إتمام العملية' });
+  }
+});
+
+app.delete('/api/admin/comprehensive-exam', requireAdmin, async (req, res) => {
+  try {
+    const exam = await readData('comprehensiveExam');
+    if (exam && exam.filePath && storageConfig.isR2Enabled()) {
+      try { await getStorageService().delete(exam.filePath); } catch (_) {}
+    }
+    await writeData('comprehensiveExam', null);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: 'تعذر إتمام العملية' });
+  }
+});
+
+app.post('/api/admin/comprehensive-exam/toggle', requireAdmin, async (req, res) => {
+  try {
+    const { enabled } = req.body;
+    const exam = await readData('comprehensiveExam');
+    if (!exam) return res.status(404).json({ error: 'الاختبار غير موجود' });
+    exam.enabled = enabled !== false;
+    await writeData('comprehensiveExam', exam);
+    res.json({ success: true, enabled: exam.enabled });
+  } catch (e) {
+    res.status(500).json({ error: 'تعذر إتمام العملية' });
+  }
+});
+
 /* ===================== ADMIN API: QUESTION BANKS (بنوك الأسئلة) ===================== */
 
 app.post('/api/admin/question-banks', requireAdmin, async (req, res) => {
@@ -5405,8 +5699,6 @@ app.post('/api/admin/question-banks', requireAdmin, async (req, res) => {
     const newBank = {
       id: 'qb-' + Date.now(),
       courseId: courseId || '',
-      stage: course ? course.stage : '',
-      grade: course ? course.grade : '',
       title: title || 'بنك أسئلة جديد',
       description: description || '',
       timerMinutes: timerMinutes || null,
@@ -5428,7 +5720,7 @@ app.put('/api/admin/question-banks/:id', requireAdmin, async (req, res) => {
     const banks = (await readData('questionBanks')) || [];
     const idx = banks.findIndex(b => b.id === req.params.id);
     if (idx === -1) return res.status(404).json({ error: 'بنك الأسئلة غير موجود' });
-    const bankAllowed = ['title', 'courseId', 'questions', 'description', 'active'];
+    const bankAllowed = ['title', 'courseId', 'questions', 'description', 'timerMinutes', 'timeSettings', 'order'];
     for (const field of bankAllowed) {
       if (req.body[field] !== undefined) banks[idx][field] = req.body[field];
     }
@@ -5457,7 +5749,7 @@ app.delete('/api/admin/question-banks/:id', requireAdmin, async (req, res) => {
 app.post('/api/admin/subscriptions', requireAdmin, async (req, res) => {
   try {
     const subscriptions = await readData('subscriptions');
-    const { name, price, currency, period, features, popular, stage, durationDays, allowedBranches } = req.body;
+    const { name, price, currency, period, features, popular, stage, durationDays, allowedLessons } = req.body;
     const newSub = {
       id: Date.now().toString(),
       name: name || 'باقة جديدة',
@@ -5469,7 +5761,7 @@ app.post('/api/admin/subscriptions', requireAdmin, async (req, res) => {
       stage: stage || '',
       durationDays: parseInt(durationDays) || 30
     };
-    if (allowedBranches !== undefined) newSub.allowedBranches = allowedBranches;
+    if (allowedLessons !== undefined) newSub.allowedLessons = allowedLessons;
     subscriptions.push(newSub);
     await writeData('subscriptions', subscriptions);
     res.json({ success: true, subscription: newSub });
@@ -5483,7 +5775,7 @@ app.put('/api/admin/subscriptions/:id', requireAdmin, async (req, res) => {
     const subscriptions = await readData('subscriptions');
     const idx = subscriptions.findIndex(s => s.id === req.params.id);
     if (idx === -1) return res.status(404).json({ error: 'الباقة غير موجودة' });
-    const allowed = ['name','price','currency','period','features','popular','stage','durationDays','allowedBranches'];
+    const allowed = ['name','price','currency','period','features','popular','stage','durationDays','allowedLessons'];
     for (const field of allowed) {
       if (req.body[field] !== undefined) subscriptions[idx][field] = req.body[field];
     }
@@ -5553,7 +5845,7 @@ app.put('/api/admin/announcements/:id', requireAdmin, async (req, res) => {
     const announcements = await readData('announcements');
     const idx = announcements.findIndex(a => a.id === req.params.id);
     if (idx === -1) return res.status(404).json({ error: 'الإعلان غير موجود' });
-    const announcementAllowed = ['title', 'content', 'type', 'active', 'important', 'expiresAt'];
+    const announcementAllowed = ['title', 'content', 'active', 'important'];
     for (const field of announcementAllowed) {
       if (req.body[field] !== undefined) announcements[idx][field] = req.body[field];
     }
@@ -5640,13 +5932,13 @@ app.get('/api/student/quote', requireStudentOrGuest, async (req, res) => {
 
 app.put('/api/admin/students/:id', requireAdmin, async (req, res) => {
   try {
-    const users = await readData('users');
-    const idx = users.findIndex(u => u.id === req.params.id);
-    if (idx === -1) return res.status(404).json({ error: 'الطالب غير موجود' });
-    var allowedFields = ['name','email','phone','stage','grade','governorate','subscriptionStatus','subscriptionEnd','notes','active'];
-    allowedFields.forEach(function(k) { if (req.body[k] !== undefined) users[idx][k] = req.body[k]; });
-    await writeData('users', users);
-    res.json({ success: true, student: users[idx] });
+    var prisma = getPrisma();
+    var allowedFields = ['name','email','phone','stage','grade','governorate','subscriptionStatus','subscriptionEnd','notes'];
+    var data = {};
+    allowedFields.forEach(function(k) { if (req.body[k] !== undefined) data[k] = req.body[k]; });
+    if (data.subscriptionEnd && typeof data.subscriptionEnd === 'string') data.subscriptionEnd = new Date(data.subscriptionEnd);
+    var student = await prisma.user.update({ where: { id: req.params.id }, data });
+    res.json({ success: true, student });
   } catch (e) {
     res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' });
   }
@@ -5654,10 +5946,9 @@ app.put('/api/admin/students/:id', requireAdmin, async (req, res) => {
 
 app.delete('/api/admin/students/:id', requireAdmin, async (req, res) => {
   try {
-    const users = await readData('users');
-    const idx = users.findIndex(u => u.id === req.params.id);
-    if (idx === -1) return res.status(404).json({ error: 'الطالب غير موجود' });
-    var student = users[idx];
+    var prisma = getPrisma();
+    var student = await prisma.user.findUnique({ where: { id: req.params.id }, select: { id: true, parentId: true, name: true } });
+    if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
 
     // 1. Delete from Firebase Authentication
     try {
@@ -5674,25 +5965,22 @@ app.delete('/api/admin/students/:id', requireAdmin, async (req, res) => {
       }
     } catch (e) { /* ignore */ }
 
-    // 3. Remove from parent's childrenIds
+    // 3. Remove from parent's childrenIds JSON
     if (student.parentId) {
       try {
-        var parentIdx = users.findIndex(u => u.id === student.parentId);
-        if (parentIdx !== -1) {
-          var parent = users[parentIdx];
-          if (parent.childrenIds) {
-            parent.childrenIds = parent.childrenIds.filter(function(cid) { return cid !== student.id; });
-          }
-          if (parent.parentOf) {
-            parent.parentOf = parent.parentOf.filter(function(n) { return n !== student.name; });
-          }
+        var parent = await prisma.user.findUnique({ where: { id: student.parentId }, select: { childrenIds: true, parentOf: true } });
+        if (parent) {
+          var childrenIds = parent.childrenIds || [];
+          var parentOf = parent.parentOf || [];
+          if (Array.isArray(childrenIds)) childrenIds = childrenIds.filter(function(cid) { return cid !== student.id; });
+          if (Array.isArray(parentOf)) parentOf = parentOf.filter(function(n) { return n !== student.name; });
+          await prisma.user.update({ where: { id: student.parentId }, data: { childrenIds: childrenIds, parentOf: parentOf } });
         }
       } catch (e) { console.error('[delete] parent cleanup error:', e.message); }
     }
 
-    // 4. Remove from users array
-    users.splice(idx, 1);
-    await writeData('users', users);
+    // 4. Soft-delete user
+    await prisma.user.update({ where: { id: student.id }, data: { deletedAt: new Date(), deletedBy: req.session.user.id } });
 
     res.json({ success: true });
   } catch (e) {
@@ -5705,32 +5993,34 @@ app.delete('/api/admin/students/:id', requireAdmin, async (req, res) => {
 
 app.put('/api/admin/students/:id/subscription', requireAdmin, async (req, res) => {
   try {
-    const users = await readData('users');
-    const idx = users.findIndex(u => u.id === req.params.id);
-    if (idx === -1) return res.status(404).json({ error: 'الطالب غير موجود' });
+    var prisma = getPrisma();
+    var student = await prisma.user.findUnique({ where: { id: req.params.id }, select: { id: true, subscriptionEnd: true } });
+    if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
     const { action, durationDays, stage, planName, period } = req.body;
+    var now = new Date();
+    var data = {};
 
     switch (action) {
       case 'activate':
-        users[idx].subscriptionStatus = 'active';
-        users[idx].subscriptionStart = new Date().toISOString();
-        users[idx].subscriptionEnd = new Date(Date.now() + (durationDays || 30) * 24 * 60 * 60 * 1000).toISOString();
-        if (stage) users[idx].subscribedStage = stage;
-        if (planName) users[idx].planName = planName;
-        if (period) users[idx].planPeriod = period;
+        data.subscriptionStatus = 'active';
+        data.subscriptionStart = now;
+        data.subscriptionEnd = new Date(Date.now() + (durationDays || 30) * 24 * 60 * 60 * 1000);
+        if (stage) data.subscribedStage = stage;
+        if (planName) data.planName = planName;
+        if (period) data.planPeriod = period;
         break;
       case 'deactivate':
-        users[idx].subscriptionStatus = 'inactive';
-        users[idx].planName = '';
-        users[idx].planPeriod = '';
+        data.subscriptionStatus = 'inactive';
+        data.planName = '';
+        data.planPeriod = '';
         break;
       case 'extend':
-        if (users[idx].subscriptionEnd) {
-          const end = new Date(users[idx].subscriptionEnd);
+        if (student.subscriptionEnd) {
+          var end = new Date(student.subscriptionEnd);
           end.setDate(end.getDate() + (durationDays || 30));
-          users[idx].subscriptionEnd = end.toISOString();
+          data.subscriptionEnd = end;
         } else {
-          users[idx].subscriptionEnd = new Date(Date.now() + (durationDays || 30) * 24 * 60 * 60 * 1000).toISOString();
+          data.subscriptionEnd = new Date(Date.now() + (durationDays || 30) * 24 * 60 * 60 * 1000);
         }
         users[idx].subscriptionStatus = 'active';
         break;
@@ -5742,16 +6032,17 @@ app.put('/api/admin/students/:id/subscription', requireAdmin, async (req, res) =
         break;
     }
 
-    await writeData('users', users);
+    // Update student record
+    var updated = await prisma.user.update({ where: { id: req.params.id }, data });
     // Send push notification to student
     if (action === 'activate' || action === 'extend') {
-      sendFCM(users[idx].id, 'تم تفعيل اشتراكك 🎉', 'مرحباً ' + (users[idx].name || '') + '! تم تفعيل اشتراكك في منصة المُميز.', '/student/subscription');
+      sendFCM(req.params.id, 'تم تفعيل اشتراكك 🎉', 'مرحباً ' + (updated.name || '') + '! تم تفعيل اشتراكك في منصة المُميز.', '/student/subscription');
     } else if (action === 'cancel' || action === 'stop') {
-      sendFCM(users[idx].id, 'تم إيقاف اشتراكك', 'عذراً ' + (users[idx].name || '') + '، تم إيقاف اشتراكك في منصة المُميز.', '/student/subscription');
+      sendFCM(req.params.id, 'تم إيقاف اشتراكك', 'عذراً ' + (updated.name || '') + '، تم إيقاف اشتراكك في منصة المُميز.', '/student/subscription');
     } else if (action === 'deactivate') {
-      sendFCM(users[idx].id, 'تم إلغاء تنشيط اشتراكك', 'عذراً ' + (users[idx].name || '') + '، تم إلغاء تنشيط اشتراكك.', '/student/subscription');
+      sendFCM(req.params.id, 'تم إلغاء تنشيط اشتراكك', 'عذراً ' + (updated.name || '') + '، تم إلغاء تنشيط اشتراكك.', '/student/subscription');
     }
-    res.json({ success: true, student: users[idx] });
+    res.json({ success: true, student: updated });
   } catch (e) {
     res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' });
   }
@@ -5768,19 +6059,15 @@ app.put('/api/admin/payments/:id', requireAdmin, async (req, res) => {
     payments[idx].status = status;
     payments[idx].rejectReason = rejectReason || '';
 
+    // Save payment record FIRST, then activate subscription
+    await writeData('payments', payments);
+
     if (status === 'approved') {
-      const users = await readData('users');
-      const uidx = users.findIndex(u => u.id === payments[idx].userId);
-      if (uidx !== -1) {
-        users[uidx].subscriptionStatus = 'active';
-        users[uidx].subscriptionStart = new Date().toISOString();
-        users[uidx].subscriptionEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-        await writeData('users', users);
-        sendFCM(payments[idx].userId, 'تم تأكيد الدفعة 💳', 'مرحباً! تم تأكيد دفعتك وتفعيل اشتراكك في منصة المُميز. يمكنك الآن مشاهدة جميع المحاضرات.', '/student/subscription');
-      }
+      var prisma = getPrisma();
+      await prisma.user.update({ where: { id: payments[idx].userId }, data: { subscriptionStatus: 'active', subscriptionStart: new Date(), subscriptionEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) } });
+      sendFCM(payments[idx].userId, 'تم تأكيد الدفعة 💳', 'مرحباً! تم تأكيد دفعتك وتفعيل اشتراكك في منصة المُميز. يمكنك الآن مشاهدة جميع المحاضرات.', '/student/subscription');
     }
 
-    await writeData('payments', payments);
     res.json({ success: true, payment: payments[idx] });
   } catch (e) {
     res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' });
@@ -5818,47 +6105,60 @@ app.post('/api/admin/charge-codes', requireAdmin, async (req, res) => {
 app.post('/api/student/redeem-code', requireAuth, async (req, res) => {
   try {
     const { code } = req.body;
-    var chargeCodes = await fbRead('chargeCodes');
-    var chargeArr = [];
-    if (chargeCodes) {
-      if (Array.isArray(chargeCodes)) chargeArr = chargeCodes;
-      else chargeArr = Object.keys(chargeCodes).map(function(k){chargeCodes[k]._key=k; return chargeCodes[k];});
+    if (!code || typeof code !== 'string') return res.status(400).json({ error: 'الكود غير صالح' });
+
+    // Atomic RTDB transaction — prevents TOCTOU race on chargeCodes
+    const { transactionData } = require('./prisma-bridge');
+    var codeResult = null;
+    await transactionData('chargeCodes', function(current) {
+      var chargeArr = [];
+      if (current) {
+        if (Array.isArray(current)) chargeArr = current;
+        else chargeArr = Object.keys(current).map(function(k){current[k]._key=k; return current[k];});
+      }
+      var cd = chargeArr.find(function(c) { return c.code === code && c.active !== false; });
+      if (!cd) return current; // unchanged — will be caught below
+      if (new Date(cd.expiryDate) < new Date()) return current;
+      if (cd.usedCount >= cd.maxUses) return current;
+      if ((cd.usedBy || []).includes(req.session.user.id)) return current;
+      cd.usedCount = (cd.usedCount || 0) + 1;
+      if (!cd.usedBy) cd.usedBy = [];
+      cd.usedBy.push(req.session.user.id);
+      codeResult = cd;
+      return Array.isArray(current) ? chargeArr : chargeArr.reduce(function(acc, item) { var k=item._key||item.code; delete item._key; acc[k]=item; return acc; }, {});
+    });
+    if (!codeResult) {
+      var chargeCodes = await fbRead('chargeCodes');
+      var chargeArr2 = [];
+      if (chargeCodes) {
+        if (Array.isArray(chargeCodes)) chargeArr2 = chargeCodes;
+        else chargeArr2 = Object.keys(chargeCodes).map(function(k){chargeCodes[k]._key=k; return chargeCodes[k];});
+      }
+      var cd2 = chargeArr2.find(function(c) { return c.code === code && c.active !== false; });
+      if (!cd2) return res.status(404).json({ error: 'الكود غير صالح' });
+      if (new Date(cd2.expiryDate) < new Date()) return res.status(400).json({ error: 'انتهت صلاحية الكود' });
+      if (cd2.usedCount >= cd2.maxUses) return res.status(400).json({ error: 'تم استخدام الكود بأقصى عدد مرات' });
+      if ((cd2.usedBy || []).includes(req.session.user.id)) return res.status(400).json({ error: 'لقد استخدمت هذا الكود من قبل' });
+      return res.status(409).json({ error: 'الكود قيد الاستخدام من قبل مستخدم آخر' });
     }
-    const codeData = chargeArr.find(function(c) { return c.code === code && c.active !== false; });
-    if (!codeData) return res.status(404).json({ error: 'الكود غير صالح' });
 
-    if (new Date(codeData.expiryDate) < new Date()) {
-      return res.status(400).json({ error: 'انتهت صلاحية الكود' });
-    }
+    // Map subscription type to duration
+    var durationMap = { monthly: 30, term: 180, yearly: 365 };
+    var subType = codeResult.subscriptionType || 'monthly';
+    var durationDays = durationMap[subType] || 30;
+    var periodWord = { 'monthly': 'شهرياً', 'term': 'ترمياً', 'yearly': 'سنوياً' }[subType] || subType || '';
 
-    if (codeData.usedCount >= codeData.maxUses) {
-      return res.status(400).json({ error: 'تم استخدام الكود بأقصى عدد مرات' });
-    }
+    var prisma = getPrisma();
+    await prisma.$transaction([
+      prisma.user.update({ where: { id: req.session.user.id }, data: { subscriptionStatus: 'active', subscriptionStart: new Date(), subscriptionEnd: new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000), planName: codeResult.name || '', planPeriod: periodWord } })
+    ]);
+    // Refresh session
+    var updatedUser = await prisma.user.findUnique({ where: { id: req.session.user.id } });
+    if (updatedUser) req.session.user = sessionUser(updatedUser);
 
-    if ((codeData.usedBy || []).includes(req.session.user.id)) {
-      return res.status(400).json({ error: 'لقد استخدمت هذا الكود من قبل' });
-    }
-
-    codeData.usedCount = (codeData.usedCount || 0) + 1;
-    if (!codeData.usedBy) codeData.usedBy = [];
-    codeData.usedBy.push(req.session.user.id);
-
-    const users = await readData('users');
-    const uidx = users.findIndex(u => u.id === req.session.user.id);
-    if (uidx !== -1) {
-      var periodWord = { 'شهري': 'شهرياً', 'ترم': 'ترمياً', 'سنوي': 'سنوياً' }[codeData.subscriptionType] || codeData.subscriptionType || '';
-      users[uidx].subscriptionStatus = 'active';
-      users[uidx].subscriptionStart = new Date().toISOString();
-      users[uidx].subscriptionEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-      users[uidx].planName = codeData.name || '';
-      users[uidx].planPeriod = periodWord;
-      await writeData('users', users);
-      req.session.user = sessionUser(users[uidx]);
-    }
-
-    await fbSet('chargeCodes', chargeArr);
     res.json({ success: true, message: 'تم تفعيل الاشتراك بنجاح' });
   } catch (e) {
+    console.error('[redeem-code] error:', e.message);
     res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' });
   }
 });
@@ -5897,7 +6197,7 @@ app.delete('/api/admin/charge-codes/:id', requireAdmin, async (req, res) => {
 app.post('/api/admin/reviews', requireAdmin, async (req, res) => {
   try {
     const reviews = (await readData('reviews')) || [];
-    const { title, course, courseId, color, icon, desc, videoUrl, pdfUrl, videos, pdfFiles, stage, grade, order, isFree } = req.body;
+    const { title, course, courseId, color, icon, desc, videoUrl, pdfUrl, videos, pdfFiles, stage, grade, order, isFree, accessCode } = req.body;
     const newReview = {
       id: Date.now().toString(),
       title: title || 'مراجعة جديدة',
@@ -5905,14 +6205,15 @@ app.post('/api/admin/reviews', requireAdmin, async (req, res) => {
       courseId: courseId || '',
       color: color || '#A07200',
       icon: icon || 'fa-book-open',
-      date: new Date().toISOString().split('T')[0],
+      date: new Date().toISOString(),
       desc: desc || '',
       videos: videos || (videoUrl ? [{ title: 'فيديو', url: videoUrl }] : []),
       pdfFiles: pdfFiles || (pdfUrl ? [{ title: 'ملف', url: pdfUrl }] : []),
       stage: stage || 'all',
       grade: grade || '',
-      order: order || 0,
-      isFree: isFree || false
+      order: order !== undefined ? Number(order) : 0,
+      isFree: !!isFree,
+      accessCode: req.body.accessCode || ''
     };
     reviews.push(newReview);
     await writeData('reviews', reviews);
@@ -5928,7 +6229,7 @@ app.put('/api/admin/reviews/:id', requireAdmin, async (req, res) => {
     const reviews = (await readData('reviews')) || [];
     const idx = reviews.findIndex(r => r.id === req.params.id);
     if (idx === -1) return res.status(404).json({ error: 'المراجعة غير موجودة' });
-    const reviewAllowed = ['title', 'description', 'courseId', 'stage', 'grade', 'icon', 'color', 'active', 'order'];
+    const reviewAllowed = ['title', 'desc', 'courseId', 'stage', 'grade', 'icon', 'color', 'order', 'isFree', 'accessCode', 'videos', 'pdfFiles'];
     for (const field of reviewAllowed) {
       if (req.body[field] !== undefined) reviews[idx][field] = req.body[field];
     }
@@ -6000,7 +6301,7 @@ app.post('/api/fcm/verify', requireAuth, async (req, res) => {
       browserPreview: fcmToken ? fcmToken.slice(0, 20) + '...' : ''
     });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -6022,7 +6323,7 @@ app.post('/api/fcm/register', requireAuth, async (req, res) => {
     // Save token to this user
     await prisma.user.update({ where: { id: uid }, data: { fcmToken } });
     // Refresh session
-    const fresh = await buildLegacyUser(uid);
+    const fresh = await getPrisma().user.findUnique({ where: { id: uid } });
     if (fresh) req.session.user = sessionUser(fresh);
     console.log('FCM register: saved for user', uid);
     res.json({ success: true });
@@ -6036,11 +6337,10 @@ app.post('/api/fcm/register', requireAuth, async (req, res) => {
 
 app.get('/api/fcm/debug', requireAdmin, async (req, res) => {
   try {
-    const users = await readData('users') || [];
-    const adminUser = users.find(u => u.id === req.session.user.id) || {};
-    const allWithToken = users.filter(u => u.fcmToken).map(u => ({
-      id: u.id, name: u.name, role: u.role, tokenPreview: (u.fcmToken || '').slice(0, 15) + '...'
-    }));
+    var prisma = getPrisma();
+    const adminUser = await prisma.user.findUnique({ where: { id: req.session.user.id }, select: { id: true, name: true, fcmToken: true } }) || {};
+    const allWithToken = await prisma.user.findMany({ where: { deletedAt: null, NOT: { fcmToken: '' } }, select: { id: true, name: true, role: true, fcmToken: true } });
+    var mappedTokens = allWithToken.map(u => ({ id: u.id, name: u.name, role: u.role, tokenPreview: (u.fcmToken || '').slice(0, 15) + '...' }));
     res.json({
       admin: {
         id: adminUser.id,
@@ -6054,17 +6354,17 @@ app.get('/api/fcm/debug', requireAdmin, async (req, res) => {
         projectId: process.env.FIREBASE_PROJECT_ID || (() => { try { const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || '{}'); return sa.project_id; } catch(e) { return null; } })()
       },
       vapidPreview: process.env.FIREBASE_VAPID_KEY ? process.env.FIREBASE_VAPID_KEY.slice(0, 10) + '...' + process.env.FIREBASE_VAPID_KEY.slice(-10) : null,
-      allTokens: allWithToken,
-      totalUsersWithToken: allWithToken.length,
+      allTokens: mappedTokens,
+      totalUsersWithToken: mappedTokens.length,
       logs: fcmLog.list(20)
     });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { console.error('[FCM debug]', e.message); res.status(500).json({ error: safeErr(e) }); }
 });
 
 app.post('/api/fcm/test', requireAdmin, async (req, res) => {
   try {
-    const users = await readData('users') || [];
-    const adminUser = users.find(u => u.id === req.session.user.id);
+    var prisma = getPrisma();
+    const adminUser = await prisma.user.findUnique({ where: { id: req.session.user.id }, select: { id: true, name: true, fcmToken: true } });
     if (!adminUser || !adminUser.fcmToken) {
       return res.json({ success: false, error: 'ليس لديك Token FCM مسجل', errorCode: 'NO_TOKEN' });
     }
@@ -6076,16 +6376,17 @@ app.post('/api/fcm/test', requireAdmin, async (req, res) => {
       res.json({ success: true, messageId: result, error: null });
     } catch (e) {
       fcmLog.add({ userId: adminUser.id, title: '🔧 اختبار تشخيص', messageId: null, success: false, error: e.code || e.message });
-      res.json({ success: false, messageId: null, error: e.message || 'unknown', errorCode: e.code || 'UNKNOWN', errorInfo: e.errorInfo || null });
+      res.json({ success: false, messageId: null, error: 'فشل إرسال الإشعار', errorCode: e.code || 'UNKNOWN', errorInfo: null });
     }
-  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+  } catch (e) { console.error('[FCM test]', e.message); res.status(500).json({ success: false, error: safeErr(e) }); }
 });
 
 // Migration: RTDB → Firestore (one-time)
 app.get('/admin/fcm-debug', requireAdmin, async (req, res) => {
   try {
-    const users = await readData('users') || [];
-    const user = users.find(u => u.id === req.session.user.id) || {};
+    var prisma = getPrisma();
+    const users = await prisma.user.findMany({ where: { deletedAt: null }, select: { id: true, name: true, role: true, email: true, fcmToken: true } });
+    const user = await prisma.user.findUnique({ where: { id: req.session.user.id }, select: { id: true, name: true, fcmToken: true } }) || {};
     const _vapidKey = process.env.FIREBASE_VAPID_KEY || '';
     res.render('admin/fcm-debug', {
       title: 'تشخيص الإشعارات',
@@ -6099,32 +6400,42 @@ app.get('/admin/fcm-debug', requireAdmin, async (req, res) => {
       darkMode: res.locals.darkMode,
       adminFcmToken: user.fcmToken || ''
     });
-  } catch (e) { res.status(500).send(e.message); }
+  } catch (e) { console.error('[FCM page]', e.message); res.status(500).send(safeErr(e)); }
+});
+
+app.get('/admin/comprehensive-exam', requireAdmin, async (req, res) => {
+  try {
+    console.log('[comprehensive-exam] Route accessed');
+    const existingExam = await readData('comprehensiveExam');
+    console.log('[comprehensive-exam] Exam data:', existingExam);
+    res.render('admin/comprehensive-exam', {
+      title: 'شامل المنهج - الإدارة',
+      bodyClass: 'admin-body',
+      user: req.session.user,
+      currentPath: req.path,
+      existingExam: existingExam || null,
+      darkMode: res.locals.darkMode
+    });
+  } catch (e) {
+    console.error('[comprehensive-exam page]', e.message);
+    res.status(500).send(safeErr(e));
+  }
 });
 
 app.post('/api/admin/send-notification', requireAdmin, async (req, res) => {
   try {
+    var prisma = getPrisma();
     const { title, body, target, targetValue } = req.body;
-    const users = await readData('users');
-    let recipients = [];
-
-    if (target === 'all') {
-      recipients = users.filter(u => u.role === 'student' && u.fcmToken);
-    } else if (target === 'grade') {
-      recipients = users.filter(u => u.role === 'student' && u.grade === targetValue && u.fcmToken);
-    } else if (target === 'stage') {
-      recipients = users.filter(u => u.role === 'student' && u.stage === targetValue && u.fcmToken);
-    } else if (target === 'student') {
-      const user = users.find(u => u.id === targetValue && u.fcmToken);
-      if (user) recipients = [user];
-    }
+    var where = { role: 'student', deletedAt: null, NOT: { fcmToken: '' } };
+    if (target === 'grade') where.grade = targetValue;
+    else if (target === 'stage') where.stage = targetValue;
+    else if (target === 'student') where.id = targetValue;
+    let recipients = await prisma.user.findMany({ where, select: { id: true, fcmToken: true } });
 
     const notifications = await readData('notifications') || [];
     const notif = {
       id: 'notif-' + Date.now(),
-      title, body, target, targetValue,
-      sentAt: new Date().toISOString(),
-      recipientCount: recipients.length
+      title, body, target, targetValue
     };
     notifications.push(notif);
     await writeData('notifications', notifications);
@@ -6154,8 +6465,9 @@ function triggerSchedulerCheck() {
 // GET /api/admin/scheduled-notifications — List all scheduled notifications
 app.get('/api/admin/scheduled-notifications', requireAdmin, async (req, res) => {
   try {
+    var prisma = getPrisma();
     const list = await readData('scheduledNotifications') || [];
-    const users = await readData('users') || [];
+    const users = await prisma.user.findMany({ where: { deletedAt: null }, select: { id: true, name: true } });
     const userById = {};
     users.forEach(u => { if (u && u.id) userById[u.id] = u; });
     const enriched = list.map(n => {
@@ -6174,7 +6486,7 @@ app.get('/api/admin/scheduled-notifications', requireAdmin, async (req, res) => 
     });
     res.json(enriched);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -6203,7 +6515,7 @@ app.post('/api/admin/schedule-notification', requireAdmin, async (req, res) => {
     await writeData('scheduledNotifications', list);
     res.json({ success: true, notification: notif });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -6226,11 +6538,10 @@ app.put('/api/admin/schedule-notification/:id', requireAdmin, async (req, res) =
     list[idx].target = target || 'all';
     list[idx].targetValue = targetValue || '';
     list[idx].scheduledAt = dt.toISOString();
-    list[idx].updatedAt = new Date().toISOString();
     await writeData('scheduledNotifications', list);
     res.json({ success: true, notification: list[idx] });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -6245,7 +6556,7 @@ app.delete('/api/admin/schedule-notification/:id', requireAdmin, async (req, res
     await writeData('scheduledNotifications', list);
     res.json({ success: true });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -6269,7 +6580,7 @@ app.post('/api/admin/schedule-notification/:id/send-now', requireAdmin, async (r
 
     res.json({ success: result.success, sentCount: result.sentCount, error: result.error });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -6285,7 +6596,7 @@ app.post('/api/admin/schedule-notification/:id/cancel', requireAdmin, async (req
     await writeData('scheduledNotifications', list);
     res.json({ success: true });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -6295,7 +6606,7 @@ app.get('/api/admin/notifications/check-scheduled', requireAdmin, async (req, re
     const result = await runSchedulerCheck();
     res.json(result);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -6303,23 +6614,17 @@ app.get('/api/admin/notifications/check-scheduled', requireAdmin, async (req, re
 
 async function sendScheduledNotification(notif) {
   try {
-    const users = await readData('users');
-    let recipients = [];
-
-    if (notif.target === 'all') {
-      recipients = users.filter(u => u.role === 'student' && u.fcmToken);
-    } else if (notif.target === 'grade') {
-      recipients = users.filter(u => u.role === 'student' && u.grade === notif.targetValue && u.fcmToken);
-    } else if (notif.target === 'stage') {
-      recipients = users.filter(u => u.role === 'student' && u.stage === notif.targetValue && u.fcmToken);
-    } else if (notif.target === 'student') {
-      const user = users.find(u => u.id === notif.targetValue && u.fcmToken);
-      if (user) recipients = [user];
-    }
+    var prisma = getPrisma();
+    var where = { role: 'student', deletedAt: null, NOT: { fcmToken: '' } };
+    if (notif.target === 'grade') where.grade = notif.targetValue;
+    else if (notif.target === 'stage') where.stage = notif.targetValue;
+    else if (notif.target === 'student') where.id = notif.targetValue;
+    let recipients = await prisma.user.findMany({ where, select: { id: true, fcmToken: true } });
 
     if (!admin.messaging) return { success: false, sentCount: 0, error: 'FCM غير متاح' };
 
     let sent = 0;
+    var invalidIds = [];
     for (const u of recipients) {
       try {
         const message = { token: u.fcmToken, notification: { title: notif.title, body: notif.body }, data: { url: '/' } };
@@ -6328,12 +6633,13 @@ async function sendScheduledNotification(notif) {
       } catch (e) {
         console.error('scheduled-notification FCM error for', u.id, ':', e.code || e.message);
         if (e.code === 'messaging/invalid-registration-token' || e.code === 'messaging/registration-token-not-registered') {
-          const idx = users.findIndex(x => x.id === u.id);
-          if (idx !== -1) { users[idx].fcmToken = ''; }
+          invalidIds.push(u.id);
         }
       }
     }
-    if (recipients.some(u => !u.fcmToken)) await writeData('users', users);
+    if (invalidIds.length) {
+      await prisma.user.updateMany({ where: { id: { in: invalidIds } }, data: { fcmToken: '' } });
+    }
 
     // Also log to notifications history (same as instant)
     const notifications = await readData('notifications') || [];
@@ -6342,59 +6648,62 @@ async function sendScheduledNotification(notif) {
       title: notif.title,
       body: notif.body,
       target: notif.target,
-      targetValue: notif.targetValue,
-      sentAt: new Date().toISOString(),
-      recipientCount: recipients.length,
-      scheduled: true
+      targetValue: notif.targetValue
     });
     await writeData('notifications', notifications);
 
     return { success: true, sentCount: sent, error: null };
   } catch (e) {
     console.error('sendScheduledNotification error:', e.message);
-    return { success: false, sentCount: 0, error: e.message };
+    return { success: false, sentCount: 0, error: 'SEND_FAILED' };
   }
 }
 
 async function checkScheduledNotifications() {
   try {
-    var list = await readData('scheduledNotifications') || [];
+    var { transactionData } = require('./prisma-bridge');
     var now = new Date();
-    var due = [];
-
-    for (var i = 0; i < list.length; i++) {
-      if (list[i].status === 'Pending' && new Date(list[i].scheduledAt) <= now) {
-        due.push(list[i]);
-      }
-    }
-
-    if (!due.length) return { checked: true, processed: 0 };
-
     var processed = 0;
+
+    // Atomic claim: transition due notifications from Pending → Sending atomically
+    await transactionData('scheduledNotifications', function(current) {
+      if (!Array.isArray(current)) return current;
+      var changed = false;
+      for (var i = 0; i < current.length; i++) {
+        if (current[i].status === 'Pending' && new Date(current[i].scheduledAt) <= now) {
+          current[i].status = 'Sending';
+          changed = true;
+        }
+      }
+      return changed ? current : undefined; // undefined = abort transaction (no change)
+    });
+
+    // Read back the notifications we claimed
     var allNotifs = await readData('scheduledNotifications') || [];
-    for (var di = 0; di < due.length; di++) {
-      var notif = due[di];
+    var sending = allNotifs.filter(function(n) { return n.status === 'Sending'; });
+
+    for (var si = 0; si < sending.length; si++) {
+      var notif = sending[si];
+      var result = await sendScheduledNotification(notif);
       var idx = -1;
       for (var fi = 0; fi < allNotifs.length; fi++) {
         if (allNotifs[fi].id === notif.id) { idx = fi; break; }
       }
-      if (idx === -1 || allNotifs[idx].status !== 'Pending') continue;
-
-      allNotifs[idx].status = 'Sending';
-
-      var result = await sendScheduledNotification(notif);
-      allNotifs[idx].status = result.success ? 'Sent' : 'Failed';
-      allNotifs[idx].sentAt = result.success ? new Date().toISOString() : null;
-      allNotifs[idx].error = result.error || null;
+      if (idx !== -1) {
+        allNotifs[idx].status = result.success ? 'Sent' : 'Failed';
+        allNotifs[idx].sentAt = result.success ? new Date().toISOString() : null;
+        allNotifs[idx].error = result.error || null;
+      }
       processed++;
     }
+
     if (processed > 0) {
       await writeData('scheduledNotifications', allNotifs);
     }
     return { checked: true, processed: processed };
   } catch (e) {
     console.error('checkScheduledNotifications error:', e.message);
-    return { checked: true, processed: 0, error: e.message };
+    return { checked: true, processed: 0, error: 'CHECK_FAILED' };
   }
 }
 
@@ -6419,8 +6728,9 @@ async function runSchedulerCheck() {
     await recordCronRun(result);
     return result;
   } catch (e) {
-    await recordCronRun({ checked: false, processed: 0, error: e.message });
-    return { checked: false, processed: 0, error: e.message };
+    console.error('[cron] error:', e.message);
+    await recordCronRun({ checked: false, processed: 0, error: 'CRON_FAILED' });
+    return { checked: false, processed: 0, error: 'CRON_FAILED' };
   }
 }
 
@@ -6456,7 +6766,7 @@ app.get('/api/admin/set-cron-secret', requireAdmin, async (req, res) => {
     await writeData('appConfig', cfg);
     res.send('<h2 style="font-family:Cairo;color:#22c55e;padding:20px;">✅ تم حفظ CRON_SECRET في Firebase</h2><p style="font-family:Cairo;padding:0 20px;">الرابط: https://almumayaz.online/api/cron/check-scheduled?key=' + s + '</p>');
   } catch (e) {
-    res.status(500).send('فشل: ' + e.message);
+    res.status(500).send(safeErr(e, 'فشل'));
   }
 });
 
@@ -6592,7 +6902,7 @@ app.get('/dev', function(req, res) {
 // POST /dev/login — Verify dev password
 app.post('/dev/login', function(req, res) {
   var pw = (req.body.password || '').trim();
-  if (pw === 'DevAbdo') {
+  if (pw === (process.env.DEV_PASSWORD || '')) {
     req.session.devPanelAccess = true;
     return res.json({ success: true });
   }
@@ -6648,7 +6958,7 @@ app.get('/dev/dashboard', requireDevAccess, async (req, res) => {
       title: 'Developer Panel'
     });
   } catch (e) {
-    res.status(500).send('فشل تحميل لوحة المطور: ' + e.message);
+    res.status(500).send(safeErr(e, 'فشل تحميل لوحة المطور'));
   }
 });
 
@@ -6674,7 +6984,7 @@ app.get('/admin/dev', requireAdmin, async (req, res) => {
       title: 'لوحة المطور - الإدارة'
     });
   } catch (e) {
-    res.status(500).send('فشل تحميل لوحة المطور: ' + e.message);
+    res.status(500).send(safeErr(e, 'فشل تحميل لوحة المطور'));
   }
 });
 
@@ -6704,18 +7014,18 @@ app.get('/api/dev/status', requireDevAccess, async (req, res) => {
     try { var mm = await readData('maintenanceMode'); status.maintenance = mm || { enabled: false, message: '' }; } catch (e) {}
     // FCM status
     try {
-      const users = await readData('users');
-      const usersWithToken = (Array.isArray(users) ? users : []).filter(u => u.fcmToken);
-      const adminUser = (Array.isArray(users) ? users : []).find(u => u.uid === req.session.user.uid);
+      var prisma = getPrisma();
+      const totalUsersWithToken = await prisma.user.count({ where: { deletedAt: null, NOT: { fcmToken: '' } } });
+      const adminUser = await prisma.user.findUnique({ where: { id: req.session.user.id }, select: { fcmToken: true } });
       status.fcm = {
         firebaseAdmin: { initialized: true, projectId: process.env.FIREBASE_PROJECT_ID || 'almumayaz' },
         admin: { hasToken: !!(adminUser && adminUser.fcmToken), tokenLength: (adminUser && adminUser.fcmToken) ? adminUser.fcmToken.length : 0 },
-        totalUsersWithToken: usersWithToken.length
+        totalUsersWithToken: totalUsersWithToken
       };
     } catch (e) { status.fcm = { firebaseAdmin: { initialized: false }, admin: { hasToken: false }, totalUsersWithToken: 0 }; }
     res.json(status);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -6756,7 +7066,7 @@ app.get('/api/dev/usage', requireDevAccess, async (req, res) => {
     } catch (e) { console.error('[Usage] Brevo fetch error:', e.message); }
     res.json(stats);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -6773,7 +7083,7 @@ app.post('/api/dev/maintenance', requireDevAccess, async (req, res) => {
     });
     res.json({ success: true, enabled: enabled });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -6796,16 +7106,13 @@ app.post('/api/dev/notify-teacher', requireDevAccess, async (req, res) => {
         title: title,
         body: body,
         target: 'admin',
-        targetValue: '',
-        sentAt: new Date().toISOString(),
-        recipientCount: sent,
-        source: 'dev'
+        targetValue: ''
       });
       await writeData('notifications', notifications);
     } catch (e) {}
     res.json({ success: true, sent: sent });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -6819,7 +7126,7 @@ app.post('/api/dev/support-key', requireDevAccess, async (req, res) => {
     await writeData('settings', settings);
     res.json({ success: true });
   } catch (e) {
-    res.json({ success: false, error: e.message });
+    res.json({ success: false, error: safeErr(e) });
   }
 });
 
@@ -6837,7 +7144,7 @@ app.get('/api/cron/check-scheduled', async function(req, res) {
     var result = await runSchedulerCheck();
     res.json(result);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -6859,7 +7166,7 @@ app.post('/api/admin/clear-all-fcm', requireAdmin, async (req, res) => {
     const cleared = await clearAllFcm();
     res.json({ success: true, cleared: cleared });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -6868,14 +7175,14 @@ app.get('/api/admin/clear-all-fcm', requireAdmin, async (req, res) => {
     const cleared = await clearAllFcm();
     res.json({ success: true, cleared: cleared });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
 app.get('/api/admin/fcm-debug', requireAdmin, async (req, res) => {
   try {
-    const users = await readData('users');
-    const adminUser = users.find(u => u.role === 'admin');
+    var prisma = getPrisma();
+    var adminUser = await prisma.user.findFirst({ where: { role: 'admin', deletedAt: null }, select: { id: true, fcmToken: true } });
     const token = adminUser && adminUser.fcmToken ? adminUser.fcmToken : '';
     const vapid = process.env.FIREBASE_VAPID_KEY || '';
     res.json({
@@ -6883,7 +7190,6 @@ app.get('/api/admin/fcm-debug', requireAdmin, async (req, res) => {
       tokenLength: token.length,
       tokenFull: token,
       tokenPrefix: token ? token.split(':')[0] : '',
-      savedAt: adminUser && adminUser.fcmTokenSavedAt ? adminUser.fcmTokenSavedAt : 'NOT RECORDED',
       uid: adminUser ? adminUser.id : 'NO ADMIN',
       role: adminUser ? adminUser.role : 'none',
       projectId: stripBOM(process.env.FIREBASE_PROJECT_ID || '') || 'NOT SET',
@@ -6893,7 +7199,7 @@ app.get('/api/admin/fcm-debug', requireAdmin, async (req, res) => {
       vapidLength: vapid.length
     });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -6921,7 +7227,7 @@ app.get('/api/admin/fcm-project', requireAdmin, async (req, res) => {
       serviceAccount: saInfo
     });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -7015,7 +7321,7 @@ app.post('/api/admin/upload-word-file', requireAdmin, upload.single('file'), asy
     const lines = text.split('\n').filter(l => l.trim());
     const questions = [];
 
-    // Try TSV/CSV format (from Word table: question\topt1\topt2\topt3\topt4\tcorrect)
+    // Try TSV/CSV format (from Word table: question\topt1\topt2\topt3\topt4\tcorrect\ttype)
     if (lines.length > 1 && lines[0].includes('\t') && lines[0].split('\t').length >= 6) {
       var header = lines[0].split('\t');
       for (var i = 1; i < lines.length; i++) {
@@ -7023,38 +7329,50 @@ app.post('/api/admin/upload-word-file', requireAdmin, upload.single('file'), asy
         if (cols.length < 6) continue;
         var qText = cols[0].trim();
         if (!qText) continue;
-        var opts = [cols[1], cols[2], cols[3], cols[4]].map(function(o) {
-          return o.replace(/^[أ-دأ-د\s]*[\.\-\)]\s*/, '').trim();
-        });
-        var correctLetter = cols[5].trim().charAt(0);
-        var correctMap = { 'أ': 0, 'ا': 0, 'ب': 1, 'ج': 2, 'د': 3 };
-        var correct = correctMap[correctLetter] !== undefined ? correctMap[correctLetter] : 0;
-        questions.push({ question: qText, options: opts, correct: correct });
+        var isEssay = cols.length >= 7 && (cols[6].trim().toLowerCase() === 'essay' || cols[6].trim() === 'مقالي');
+        if (isEssay) {
+          var modelAnswer = cols[5] ? cols[5].trim() : '';
+          questions.push({ question: qText, type: 'essay', modelAnswer: modelAnswer });
+        } else {
+          var opts = [cols[1], cols[2], cols[3], cols[4]].map(function(o) {
+            return o.replace(/^[أ-دأ-د\s]*[\.\-\)]\s*/, '').trim();
+          });
+          var correctLetter = cols[5].trim().charAt(0);
+          var correctMap = { 'أ': 0, 'ا': 0, 'ب': 1, 'ج': 2, 'د': 3 };
+          var correct = correctMap[correctLetter] !== undefined ? correctMap[correctLetter] : 0;
+          questions.push({ question: qText, options: opts, correct: correct, type: 'choice' });
+        }
       }
       return res.json({ success: true, questions: questions });
     }
 
     // Try Word table format (mammoth extracts table cells as consecutive lines)
-    if (lines.length >= 12 && lines.length % 6 === 0) {
-      var firstRowCols = lines.slice(0, 6);
-      var hasTableHeader = firstRowCols.some(function(c) { return /السؤال|الاجابة|الصحيحة/.test(c); });
+    if (lines.length >= 12 && lines.length % 7 === 0) {
+      var firstRowCols = lines.slice(0, 7);
+      var hasTableHeader = firstRowCols.some(function(c) { return /السؤال|الاجابة|الصحيحة|النوع|type/i.test(c); });
       if (hasTableHeader) {
-        for (var i = 6; i < lines.length; i += 6) {
+        for (var i = 7; i < lines.length; i += 7) {
           var qText = (lines[i] || '').trim();
           if (!qText) continue;
-          var opts = [lines[i+1]||'', lines[i+2]||'', lines[i+3]||'', lines[i+4]||''].map(function(o) {
-            return (o||'').replace(/^[أ-دأ-د\s]*[\.\-\)]\s*/, '').trim();
-          });
-          var correctLetter = (lines[i+5]||'').trim().charAt(0);
-          var correctMap = { 'أ': 0, 'ا': 0, 'ب': 1, 'ج': 2, 'د': 3 };
-          var correct = correctMap[correctLetter] !== undefined ? correctMap[correctLetter] : 0;
-          questions.push({ question: qText, options: opts, correct: correct });
+          var isEssay = (lines[i+6] || '').trim().toLowerCase() === 'essay' || (lines[i+6] || '').trim() === 'مقالي';
+          if (isEssay) {
+            var modelAnswer = (lines[i+5] || '').trim();
+            questions.push({ question: qText, type: 'essay', modelAnswer: modelAnswer });
+          } else {
+            var opts = [lines[i+1]||'', lines[i+2]||'', lines[i+3]||'', lines[i+4]||''].map(function(o) {
+              return (o||'').replace(/^[أ-دأ-د\s]*[\.\-\)]\s*/, '').trim();
+            });
+            var correctLetter = (lines[i+5]||'').trim().charAt(0);
+            var correctMap = { 'أ': 0, 'ا': 0, 'ب': 1, 'ج': 2, 'د': 3 };
+            var correct = correctMap[correctLetter] !== undefined ? correctMap[correctLetter] : 0;
+            questions.push({ question: qText, options: opts, correct: correct, type: 'choice' });
+          }
         }
         return res.json({ success: true, questions: questions });
       }
     }
 
-    // Legacy format support
+    // Legacy format support (backward compatible)
     let currentQ = null;
     for (const line of lines) {
       const trimmed = line.trim();
@@ -7075,7 +7393,19 @@ app.post('/api/admin/upload-word-file', requireAdmin, upload.single('file'), asy
         currentQ.question += ' ' + trimmed;
       }
     }
-    if (currentQ) questions.push(currentQ);
+    if (currentQ) {
+      if (currentQ.options.length > 0) {
+        currentQ.type = 'choice';
+      } else {
+        currentQ.type = 'essay';
+        currentQ.modelAnswer = currentQ.question; // fallback
+        currentQ.question = currentQ.question;
+      }
+      questions.push(currentQ);
+    }
+
+    // Ensure all questions have type field
+    questions.forEach(q => { if (!q.type) q.type = q.options && q.options.length > 0 ? 'choice' : 'essay'; });
 
     res.json({ success: true, questions });
   } catch (e) {
@@ -7110,6 +7440,170 @@ app.post('/api/admin/upload-note-file', requireAdmin, upload.single('file'), asy
   }
 });
 
+/* ===================== ADMIN: Upload Comprehensive Exam (Word - Parse Only) ===================== */
+app.post('/api/admin/upload-comprehensive-exam', requireAdmin, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'يرجى اختيار ملف Word (.docx أو .doc)' });
+    var ext = path.extname(req.file.originalname) || '.docx';
+    var allowedExts = ['.doc','.docx'];
+    if (allowedExts.indexOf(ext.toLowerCase()) === -1) return res.status(400).json({ error: 'نوع الملف غير مسموح — يجب أن يكون Word (.doc أو .docx)' });
+
+    var parsedQuestions = [];
+    try {
+      var result = await mammoth.extractRawText({ buffer: req.file.buffer });
+      var text = result.value;
+      if (text.trim()) {
+        var lines = text.split('\n').filter(function(l) { return l.trim(); });
+        var questions = [];
+
+        // Try TSV/CSV format (from Word table: question\topt1\topt2\topt3\topt4\tcorrect\ttype)
+        if (lines.length > 1 && lines[0].includes('\t') && lines[0].split('\t').length >= 6) {
+          for (var i = 1; i < lines.length; i++) {
+            var cols = lines[i].split('\t');
+            if (cols.length < 6) continue;
+            var qText = cols[0].trim();
+            if (!qText) continue;
+            var isEssay = cols.length >= 7 && (cols[6].trim().toLowerCase() === 'essay' || cols[6].trim() === 'مقالي');
+            if (isEssay) {
+              var modelAnswer = cols[5] ? cols[5].trim() : '';
+              questions.push({ question: qText, type: 'essay', modelAnswer: modelAnswer });
+            } else {
+              var opts = [cols[1], cols[2], cols[3], cols[4]].map(function(o) {
+                return o.replace(/^[أ-دأ-د\s]*[\.\-\)]\s*/, '').trim();
+              });
+              var correctLetter = cols[5].trim().charAt(0);
+              var correctMap = { 'أ': 0, 'ا': 0, 'ب': 1, 'ج': 2, 'د': 3 };
+              var correct = correctMap[correctLetter] !== undefined ? correctMap[correctLetter] : 0;
+              questions.push({ question: qText, options: opts, correct: correct, type: 'choice' });
+            }
+          }
+          parsedQuestions = questions;
+        } else {
+          // Try Word table format (mammoth extracts table cells as consecutive lines)
+          var headerIdx = -1;
+          for (var hi = 0; hi < lines.length; hi++) {
+            if (/السؤال|الإجابة|الصحيحة|النوع|type/i.test(lines[hi])) {
+              headerIdx = hi;
+              break;
+            }
+          }
+          if (headerIdx !== -1) {
+            var dataStart = headerIdx + 7;
+            var dataLines = lines.slice(dataStart);
+            for (var i = 0; i < dataLines.length; i += 7) {
+              if (i + 6 >= dataLines.length) break;
+              var qText = (dataLines[i] || '').trim();
+              if (!qText) continue;
+              var isEssay = (dataLines[i+6] || '').trim().toLowerCase() === 'essay' || (dataLines[i+6] || '').trim() === 'مقالي';
+              if (isEssay) {
+                var modelAnswer = (dataLines[i+5] || '').trim();
+                questions.push({ question: qText, type: 'essay', modelAnswer: modelAnswer });
+              } else {
+                var opts = [dataLines[i+1]||'', dataLines[i+2]||'', dataLines[i+3]||'', dataLines[i+4]||''].map(function(o) {
+                  return (o||'').replace(/^[أ-دأ-د\s]*[\.\-\)]\s*/, '').trim();
+                });
+                var correctLetter = (dataLines[i+5]||'').trim().charAt(0);
+                var correctMap = { 'أ': 0, 'ا': 0, 'ب': 1, 'ج': 2, 'د': 3 };
+                var correct = correctMap[correctLetter] !== undefined ? correctMap[correctLetter] : 0;
+                questions.push({ question: qText, options: opts, correct: correct, type: 'choice' });
+              }
+            }
+            parsedQuestions = questions;
+          } else {
+            // Legacy format support (backward compatible)
+            var q = null;
+            for (var i = 0; i < lines.length; i++) {
+              var trimmed = lines[i].trim();
+              if (/^\d+[\.\-\)]/.test(trimmed)) {
+                if (q) parsedQuestions.push(q);
+                q = { question: trimmed.replace(/^\d+[\.\-\)]\s*/, ''), options: [], correct: 0 };
+              } else if (/^[أ-دأ-د][\.\-\)]/.test(trimmed)) {
+                if (q) q.options.push(trimmed.replace(/^[أ-دأ-د][\.\-\)]\s*/, ''));
+              } else if (/^(صح|خطأ|✅|❌)/.test(trimmed)) {
+                if (q) { q.type = 'true-false'; q.correct = trimmed.includes('صح') || trimmed.includes('✅') ? 0 : 1; }
+              } else if (q) {
+                q.question += ' ' + trimmed;
+              }
+            }
+            if (q) parsedQuestions.push(q);
+          }
+        }
+        parsedQuestions.forEach(function(qq) {
+          if (!qq.type) qq.type = (qq.options && qq.options.length > 0) ? 'choice' : 'essay';
+          if (qq.type === 'choice' && qq.correct === undefined) qq.correct = 0;
+        });
+      }
+    } catch(e) {
+      console.error('[comprehensive-exam parse] error:', e.message);
+    }
+
+    // Store the file buffer temporarily for the save step
+    var tempKey = 'temp-exam-' + Date.now();
+    var objectKey = '';
+
+    if (storageConfig.isR2Enabled()) {
+      const storage = getStorageService();
+      objectKey = storage.generateObjectKey('comprehensive-exam', tempKey, 'exam', req.file.originalname);
+      await storage.upload({
+        key: objectKey,
+        body: req.file.buffer,
+        contentType: req.file.mimetype || 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        metadata: { originalName: req.file.originalname, uploadedBy: req.session.user ? (req.session.user.id || req.session.user.email) : 'admin', uploadedAt: new Date().toISOString(), temp: 'true' }
+      });
+    } else {
+      objectKey = await supabaseStorage.uploadPdf('comprehensive-exam', req.file.originalname, req.file.buffer, req.file.mimetype || 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    }
+
+    // Return parsed questions for editing (don't save final exam yet)
+    res.json({
+      success: true,
+      questions: parsedQuestions,
+      fileName: req.file.originalname,
+      tempKey: tempKey,
+      tempPath: objectKey
+    });
+  } catch (e) {
+    console.error('[comprehensive-exam upload] error:', e && e.message);
+    res.status(500).json({ error: 'تعذر إتمام العملية، حاول مرة أخرى.' });
+  }
+});
+
+/* ===================== ADMIN: Save Comprehensive Exam (after editing) ===================== */
+app.post('/api/admin/save-comprehensive-exam', requireAdmin, async (req, res) => {
+  try {
+    const { title, timeMinutes, passPercentage, enabled, questions, fileName, tempPath } = req.body;
+    if (!questions || !Array.isArray(questions) || questions.length === 0) {
+      return res.status(400).json({ error: 'لا توجد أسئلة لحفظها' });
+    }
+
+    const examId = 'exam-' + Date.now();
+    const examData = {
+      id: examId,
+      title: title || 'اختبار شامل المنهج',
+      fileName: fileName || 'comprehensive-exam.docx',
+      filePath: tempPath || '',
+      questions: questions,
+      timeSettings: { minutes: parseInt(timeMinutes) || 30 },
+      passPercentage: parseInt(passPercentage) || 60,
+      enabled: enabled !== false,
+      uploadedBy: req.session.user ? req.session.user.name : 'admin',
+      createdAt: new Date().toISOString()
+    };
+
+    await writeData('comprehensiveExam', examData);
+
+    // Clean up temp file if it exists
+    if (examData.filePath && storageConfig.isR2Enabled()) {
+      // Keep the file - it's now the permanent file
+    }
+
+    res.json({ success: true, exam: { id: examData.id, title: examData.title, questionCount: questions.length, createdAt: examData.createdAt } });
+  } catch (e) {
+    console.error('[comprehensive-exam save] error:', e && e.message);
+    res.status(500).json({ error: 'تعذر حفظ الاختبار، حاول مرة أخرى.' });
+  }
+});
+
 /* ===================== CONTACT FORM ===================== */
 
 app.post('/api/contact', async (req, res) => {
@@ -7129,8 +7623,8 @@ app.post('/api/contact', async (req, res) => {
 
 app.get('/api/student/referral', requireAuth, async (req, res) => {
   try {
-    const users = await readData('users');
-    const user = users.find(u => u.id === req.session.user.id);
+    var prisma = getPrisma();
+    const user = await prisma.user.findUnique({ where: { id: req.session.user.id }, select: { referralCode: true, referrals: true } });
     if (!user) return res.status(404).json({ error: 'المستخدم غير موجود' });
     res.json({ success: true, referralCode: user.referralCode, referrals: user.referrals || [] });
   } catch (e) {
@@ -7197,7 +7691,7 @@ app.get('/auth/zoom/callback', async (req, res) => {
     res.redirect('/admin/settings?zoom=connected');
   } catch (e) {
     console.error('Zoom OAuth callback error:', e.message);
-    res.status(500).send('فشل ربط حساب Zoom: ' + e.message);
+    res.status(500).send(safeErr(e, 'فشل ربط حساب Zoom'));
   }
 });
 
@@ -7222,7 +7716,7 @@ app.get('/api/zoom/debug', async (req, res) => {
     } catch(e) { tokenInfo = { error: e.message }; }
     res.json({ uid, tokenEncrypted: !!tokens, connectedAt: tokens.connectedAt, userName: tokens.userName, tokenInfo });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 // GET /api/zoom/creds-check — Verify credentials are loaded correctly
@@ -7254,7 +7748,7 @@ app.post('/auth/zoom/disconnect', requireAdmin, async (req, res) => {
     await zoom.disconnect(uid);
     res.json({ success: true });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -7373,9 +7867,29 @@ app.get('/zoom-embed/:id', requireStudentOrGuest, async (req, res) => {
 app.get('/api/admin/live-sessions', requireAdmin, async (req, res) => {
   try {
     var list = await readData('liveSessions') || [];
+    // Migrate from Firestore if Prisma is empty and Firebase has data
+    if (list.length === 0) {
+      try {
+        const fb = require('./prisma-bridge');
+        if (fb.fbRead) {
+          const fbSessions = await fb.fbRead('liveSessions');
+          if (fbSessions && Array.isArray(fbSessions) && fbSessions.length > 0) {
+            await writeData('liveSessions', fbSessions.map(function(s) {
+              if (s.startTime && typeof s.startTime === 'number') s.startTime = new Date(s.startTime);
+              if (s.notifyAt && typeof s.notifyAt === 'number') s.notifyAt = new Date(s.notifyAt);
+              if (s.endTime && typeof s.endTime === 'number') s.endTime = new Date(s.endTime);
+              if (s.createdAt && typeof s.createdAt === 'number') s.createdAt = new Date(s.createdAt);
+              if (s.updatedAt && typeof s.updatedAt === 'number') s.updatedAt = new Date(s.updatedAt);
+              return s;
+            }));
+            list = await readData('liveSessions') || [];
+          }
+        }
+      } catch(me) { console.error('[live migration]', me.message); }
+    }
     res.json(list);
   } catch(e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -7404,7 +7918,7 @@ app.post('/api/admin/live-sessions', requireAdmin, async (req, res) => {
           recording: !!recording
         });
       } catch (ze) {
-        return res.status(500).json({ error: 'فشل إنشاء اجتماع Zoom: ' + ze.message });
+        return res.status(500).json({ error: safeErr(ze, 'فشل إنشاء اجتماع Zoom') });
       }
     }
 
@@ -7421,7 +7935,7 @@ app.post('/api/admin/live-sessions', requireAdmin, async (req, res) => {
       password: zoomResult ? zoomResult.password : (password || ''),
       startTime: startTime,
       duration: parseInt(duration) || 60,
-      notifyAt: notifyAt || '',
+      notifyAt: notifyAt || null,
       notified: false,
       allowJoinBeforeTeacher: !!allowJoinBeforeTeacher,
       waitingRoom: !!waitingRoom,
@@ -7489,43 +8003,22 @@ app.post('/api/admin/live-sessions/:id/start', requireAdmin, async (req, res) =>
 
     // Send push notification to students matching this session's grade/stage
     try {
-      var allUsers = await readData('users') || [];
+      var prisma = getPrisma();
       var stageMap = { 'إعدادي': 'إعدادية', 'ثانوي': 'ثانوية' };
       var s = sessions[idx];
-      var recipients = [];
-      if (s.grade) {
-        recipients = allUsers.filter(function(u) { return u.role === 'student' && u.grade === s.grade && u.fcmToken; });
-      } else if (s.stage) {
-        var cs = stageMap[s.stage] || s.stage;
-        recipients = allUsers.filter(function(u) { return u.role === 'student' && u.stage === cs && u.fcmToken; });
-      } else {
-        recipients = allUsers.filter(function(u) { return u.role === 'student' && u.fcmToken; });
-      }
+      var where = { role: 'student', deletedAt: null, NOT: { fcmToken: '' } };
+      if (s.grade) where.grade = s.grade;
+      else if (s.stage) where.stage = stageMap[s.stage] || s.stage;
+      var recipients = await prisma.user.findMany({ where, select: { id: true } });
       var startSent = 0;
       for (var ri = 0; ri < recipients.length; ri++) {
         var ok = await sendFCM(recipients[ri].id, '📺 الحصة المباشرة بدأت الآن!', (s.title || 'حصة مباشرة') + ' - اضغط للانضمام', '/student/live-session/' + s.id);
         if (ok) { sessionSent++; startSent++; }
       }
-      // Mark notified so cron doesn't send a duplicate "about to start" notification
       if (startSent > 0) {
         sessions[idx].notified = true;
         await writeData('liveSessions', sessions);
-        // Save to notifications center
-        var startNotifs = await readData('notifications') || [];
-        startNotifs.push({
-          id: 'live-start-' + s.id + '-' + Date.now(),
-          title: '📺 الحصة المباشرة بدأت الآن!',
-          body: (s.title || 'حصة مباشرة') + ' - اضغط للانضمام',
-          target: s.grade ? 'grade' : 'stage',
-          targetValue: s.grade || (stageMap[s.stage] || s.stage),
-          sentAt: new Date().toISOString(),
-          type: 'live_session_start',
-          sessionId: s.id,
-          sessionTitle: s.title
-        });
-        await writeData('notifications', startNotifs);
       }
-      await writeData('users', allUsers);
     } catch (notifErr) {
       console.error('[start] notification error:', notifErr.message);
     }
@@ -7551,7 +8044,7 @@ app.post('/api/admin/live-sessions/:id/end', requireAdmin, async (req, res) => {
         await zoom.endMeeting(ownerId, sessions[idx].meetingId);
       } catch (ze) {
         console.error('Zoom end meeting failed:', ze.message);
-        return res.status(500).json({ error: 'تعذر إنهاء اجتماع Zoom: ' + ze.message });
+        return res.status(500).json({ error: safeErr(ze, 'تعذر إنهاء اجتماع Zoom') });
       }
     }
 
@@ -7598,7 +8091,7 @@ app.get('/api/debug/sessions', requireAdmin, async (req, res) => {
       fbDbAvailable: !!(admin && admin.database)
     });
   } catch(e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -7623,7 +8116,7 @@ app.get('/api/debug/student-sessions', requireAdmin, async (req, res) => {
       firebaseInfo: fbData
     });
   } catch(e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -7643,7 +8136,7 @@ app.get('/api/live-sessions/upcoming', requireStudentOrGuest, async (req, res) =
     filtered.sort(function(a, b) { return new Date(a.startTime) - new Date(b.startTime); });
     res.json({ sessions: filtered, total: sessions.length, userGrade: userGrade, userStage: userStage });
   } catch(e) {
-    res.status(500).json({ error: e.message, sessions: [], total: 0 });
+    res.status(500).json({ error: safeErr(e), sessions: [], total: 0 });
   }
 });
 
@@ -7665,7 +8158,7 @@ app.get('/api/live-sessions/:id', requireStudentOrGuest, async (req, res) => {
     }
     res.json({ session: session, signature: signature, sdkKey: sdkKey });
   } catch(e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -7697,7 +8190,7 @@ app.post('/api/live-sessions/:id/attendance', requireStudentOrGuest, async (req,
       res.status(400).json({ error: 'action غير صالح' });
     }
   } catch(e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -7706,9 +8199,13 @@ app.get('/api/admin/live-sessions/:id/attendance', requireAdmin, async (req, res
   try {
     var snap = await admin.database().ref('liveSessionAttendance/' + req.params.id).once('value');
     var val = snap.val() || {};
-    var users = await readData('users');
-    var list = Object.keys(val).map(function(uid) {
-      var u = users.find(function(x) { return x.id === uid || x.uid === uid; });
+    var prisma = getPrisma();
+    var userIds = Object.keys(val);
+    var users = await prisma.user.findMany({ where: { OR: userIds.map(function(uid) { return { id: uid }; }) }, select: { id: true, name: true } });
+    var userMap = {};
+    users.forEach(function(u) { userMap[u.id] = u; });
+    var list = userIds.map(function(uid) {
+      var u = userMap[uid];
       return {
         userId: uid,
         userName: u ? u.name : 'مستخدم',
@@ -7719,7 +8216,7 @@ app.get('/api/admin/live-sessions/:id/attendance', requireAdmin, async (req, res
     });
     res.json(list);
   } catch(e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
@@ -7746,8 +8243,8 @@ app.get('/api/cron/check-notifications', async (req, res) => {
       console.error('[cron] admin.messaging is NOT available');
       return res.json({ success: false, sent: 0, error: 'FCM not available' });
     }
+    var prisma = getPrisma();
     var sessions = await readData('liveSessions') || [];
-    var users = await readData('users') || [];
     var stageMap = { 'إعدادي': 'إعدادية', 'ثانوي': 'ثانوية' };
     var now = new Date().toISOString();
     var sent = 0;
@@ -7760,21 +8257,10 @@ app.get('/api/cron/check-notifications', async (req, res) => {
       if (s.notifyAt > now) { console.log('[cron] session ' + s.id + ' notifyAt in future'); continue; }
       if (s.status !== 'Scheduled') { console.log('[cron] session ' + s.id + ' status=' + s.status); continue; }
       var recipients = [];
-      if (s.grade) {
-        recipients = users.filter(function(u) {
-          return u.role === 'student' && u.grade === s.grade && u.fcmToken;
-        });
-      } else if (s.stage) {
-        var cs = stageMap[s.stage] || s.stage;
-        recipients = users.filter(function(u) {
-          return u.role === 'student' && u.stage === cs && u.fcmToken;
-        });
-      } else {
-        // No grade/stage = all students
-        recipients = users.filter(function(u) {
-          return u.role === 'student' && u.fcmToken;
-        });
-      }
+      var whereStudent = { role: 'student', deletedAt: null, NOT: { fcmToken: '' } };
+      if (s.grade) whereStudent.grade = s.grade;
+      else if (s.stage) whereStudent.stage = stageMap[s.stage] || s.stage;
+      recipients = await prisma.user.findMany({ where: whereStudent, select: { id: true } });
       console.log('[cron] session ' + s.id + ' found ' + recipients.length + ' recipients');
       if (recipients.length === 0) continue;
       // Atomic lock via Firebase to prevent duplicate sends from concurrent requests
@@ -7833,7 +8319,6 @@ app.get('/api/cron/check-notifications', async (req, res) => {
       }
     }
     if (sent > 0) {
-      await writeData('users', users);
       await writeData('liveSessions', sessions);
     }
     // Release locks AFTER all writes are persisted
@@ -7846,22 +8331,23 @@ app.get('/api/cron/check-notifications', async (req, res) => {
     res.json({ success: true, sent: sent });
   } catch (e) {
     console.error('[cron] error:', e.message);
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
 // Debug endpoint to inspect sessions
 app.get('/api/debug/notifications', requireAdmin, async (req, res) => {
   try {
+    var prisma = getPrisma();
     var sessions = await readData('liveSessions') || [];
-    var users = await readData('users') || [];
+    var allStudents = await prisma.user.findMany({ where: { role: 'student', deletedAt: null }, select: { id: true, grade: true, stage: true, fcmToken: true } });
     var now = new Date().toISOString();
     var stageMap = { 'إعدادي': 'إعدادية', 'ثانوي': 'ثانوية' };
     var info = sessions.map(function(s) {
       var shouldNotify = !!(s.notifyAt && !s.notified && s.notifyAt <= now);
       var recipients = [];
       if (s.grade) {
-        recipients = users.filter(function(u) {
+        recipients = allStudents.filter(function(u) {
           return u.role === 'student' && u.grade === s.grade && u.fcmToken;
         });
       } else if (s.stage) {
@@ -7883,14 +8369,14 @@ app.get('/api/debug/notifications', requireAdmin, async (req, res) => {
         recipients: recipients.map(function(u) {
           return { id: u.id, grade: u.grade, stage: u.stage, role: u.role, fcmToken: (u.fcmToken || '').slice(0,20)+'...' };
         }),
-        allStudentsWithFCM: users.filter(function(u) { return u.role === 'student' && u.fcmToken; }).map(function(u) {
+        allStudentsWithFCM: allStudents.filter(function(u) { return u.fcmToken; }).map(function(u) {
           return { id: u.id, grade: u.grade, stage: u.stage, fcmToken: (u.fcmToken || '').slice(0,20)+'...' };
         })
       };
     });
-    res.json({ now: now, sessions: info, totalSessions: sessions.length, totalStudentsWithFCM: users.filter(function(u){return u.role==='student'&&u.fcmToken;}).length });
+    res.json({ now: now, sessions: info, totalSessions: sessions.length, totalStudentsWithFCM: allStudents.filter(function(u){return u.fcmToken;}).length });
   } catch(e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: safeErr(e) });
   }
 });
 
