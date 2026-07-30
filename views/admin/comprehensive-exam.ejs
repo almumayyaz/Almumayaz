@@ -1,0 +1,327 @@
+<%- include('../partials/header', { title: title, bodyClass: 'admin-body' }) %>
+<%- include('../partials/admin-sidebar') %>
+<main class="admin-content">
+  <div class="page-header">
+    <div>
+      <h1><i class="fas fa-file-word" style="color:var(--accent);"></i> شامل المنهج</h1>
+      <p>رفع وإدارة اختبار شامل المنهج (منفصل عن اختبارات الفروع)</p>
+    </div>
+  </div>
+
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;box-shadow:var(--shadow);margin-bottom:20px;">
+    <% if (existingExam) { %>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+      <div>
+        <h3 style="margin:0 0 6px;font-size:16px;"><%= existingExam.title || 'اختبار شامل المنهج' %></h3>
+        <p style="color:var(--text-light);font-size:13px;margin:0;">
+          <i class="fas fa-file-word"></i> <%= existingExam.fileName || '' %>
+          | <i class="fas fa-question"></i> <%= (existingExam.questions || []).length %> سؤال
+          <% if (existingExam.createdAt) { %>
+          | <i class="fas fa-calendar"></i> <%= new Date(existingExam.createdAt).toLocaleDateString('ar-EG') %>
+          <% } %>
+          | <i class="fas fa-toggle-<%= existingExam.enabled !== false ? 'on' : 'off' %>"></i> <%= existingExam.enabled !== false ? 'مفعل' : 'معطل' %>
+        </p>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-sm" style="background:var(--accent);color:#fff;" onclick="editExam()">
+          <i class="fas fa-edit"></i> تعديل
+        </button>
+        <button class="btn btn-sm" style="background:#ef4444;color:#fff;" onclick="deleteExam()">
+          <i class="fas fa-trash"></i> حذف
+        </button>
+      </div>
+    </div>
+    <% } else { %>
+    <div style="text-align:center;padding:30px;color:var(--text-light);">
+      <i class="fas fa-file-word" style="font-size:48px;opacity:0.3;margin-bottom:12px;"></i>
+      <p style="margin:0;font-size:15px;">لا يوجد اختبار شامل مرفوع حالياً</p>
+    </div>
+    <% } %>
+  </div>
+
+  <!-- Upload Section -->
+  <div id="uploadSection" style="<%= existingExam ? 'display:none;' : '' %>background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;box-shadow:var(--shadow);">
+    <h3 style="margin:0 0 16px;font-size:16px;"><i class="fas fa-upload" style="color:var(--accent);"></i> رفع ملف Word واستخراج الأسئلة</h3>
+    <div style="display:grid;gap:16px;">
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:8px;font-weight:600;">ملف Word (يحتوي على الأسئلة)</label>
+        <input type="file" id="examFile" accept=".doc,.docx" style="padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:13px;width:100%;">
+      </div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;">
+        <a href="/Word-question-template.docx" download class="btn btn-sm" style="background:var(--accent);color:#fff;">
+          <i class="fas fa-download"></i> تحميل نموذج الأسئلة
+        </a>
+        <button class="btn btn-sm" style="background:var(--success);color:#fff;" onclick="parseExam()" id="btnParseExam">
+          <i class="fas fa-magic"></i> استخراج الأسئلة
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Questions Editor Section (shown after parsing) -->
+  <div id="editorSection" style="display:none;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;box-shadow:var(--shadow);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h3 style="margin:0;font-size:16px;"><i class="fas fa-edit" style="color:var(--accent);"></i> تحرير الأسئلة</h3>
+      <span id="questionCount" style="font-size:13px;color:var(--text-light);"></span>
+    </div>
+
+    <div style="display:grid;gap:12px;margin-bottom:16px;">
+      <div class="form-group">
+        <label style="font-weight:600;">عنوان الاختبار</label>
+        <input type="text" id="examTitleEdit" placeholder="مثال: اختبار شامل المنهج - الترم الثاني" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:14px;">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="form-group">
+          <label style="font-weight:600;">مدة الاختبار (دقيقة)</label>
+          <input type="number" id="examTimeEdit" min="1" placeholder="30" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:14px;">
+        </div>
+        <div class="form-group">
+          <label style="font-weight:600;">نسبة النجاح المطلوبة (%)</label>
+          <input type="number" id="examPassPctEdit" min="1" max="100" placeholder="60" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:14px;">
+        </div>
+      </div>
+<div style="display:flex;align-items:center;gap:8px;">
+          <input type="checkbox" id="examEnabledEdit" checked style="width:18px;height:18px;" onchange="toggleExamEnabled()">
+          <label style="font-weight:600;">تفعيل الاختبار للطلاب</label>
+        </div>
+    </div>
+
+    <div id="questionsList" style="max-height:500px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;">
+      <!-- Questions will be populated here -->
+    </div>
+
+    <div style="display:flex;gap:12px;margin-top:20px;">
+      <button class="btn btn-sm" style="background:var(--success);color:#fff;" onclick="saveExam()">
+        <i class="fas fa-save"></i> حفظ ونشر الاختبار
+      </button>
+      <button class="btn btn-sm" style="background:var(--accent);color:#fff;" onclick="addQuestion()">
+        <i class="fas fa-plus"></i> إضافة سؤال
+      </button>
+      <button class="btn btn-sm" style="background:var(--card);border:1px solid var(--border);" onclick="cancelEdit()">
+        <i class="fas fa-times"></i> إلغاء
+      </button>
+    </div>
+  </div>
+</main>
+
+<script>
+var parsedData = null;
+var currentQuestions = [];
+
+<% if (existingExam) { %>
+  document.getElementById('examTitleEdit').value = '<%= existingExam.title || '' %>';
+  document.getElementById('examTimeEdit').value = '<%= existingExam.timeSettings && existingExam.timeSettings.minutes ? existingExam.timeSettings.minutes : '' %>';
+  document.getElementById('examPassPctEdit').value = '<%= existingExam.passPercentage || 60 %>';
+  document.getElementById('examEnabledEdit').checked = <%= existingExam.enabled !== false %>;
+  currentQuestions = <%- JSON.stringify(existingExam.questions || []) %>;
+  showQuestionsEditor();
+<% } %>
+
+function parseExam() {
+  var fileInput = document.getElementById('examFile');
+  if (!fileInput.files || !fileInput.files[0]) { alert('يرجى اختيار ملف Word'); return; }
+  var btn = document.getElementById('btnParseExam');
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الاستخراج...';
+  var fd = new FormData();
+  fd.append('file', fileInput.files[0]);
+  fetch('/api/admin/upload-comprehensive-exam', { method: 'POST', body: fd })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      btn.disabled = false; btn.innerHTML = '<i class="fas fa-magic"></i> استخراج الأسئلة';
+      if (d.success) {
+        parsedData = d;
+        currentQuestions = d.questions || [];
+        document.getElementById('examTitleEdit').value = d.title || '';
+        showQuestionsEditor();
+        updateQuestionCount();
+      } else {
+        alert(d.error || 'فشل الاستخراج');
+      }
+    }).catch(function(){
+      btn.disabled = false; btn.innerHTML = '<i class="fas fa-magic"></i> استخراج الأسئلة';
+      alert('خطأ في الاتصال');
+    });
+}
+
+function showQuestionsEditor() {
+  document.getElementById('uploadSection').style.display = 'none';
+  document.getElementById('editorSection').style.display = 'block';
+  renderQuestions();
+}
+
+function renderQuestions() {
+  var container = document.getElementById('questionsList');
+  if (!container) return;
+  var html = '';
+  currentQuestions.forEach(function(q, i) {
+    html += renderQuestion(i, q);
+  });
+  container.innerHTML = html;
+}
+
+function renderQuestion(idx, q) {
+  var html = '<div class="question-item" style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px;background:var(--bg);">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">';
+  html += '<div style="display:flex;align-items:center;gap:8px;">';
+  html += '<span style="font-weight:700;color:var(--accent);">' + (idx + 1) + '</span>';
+  html += '<select onchange="changeQuestionType(' + idx + ', this.value)" style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--card);font-size:13px;">';
+  html += '<option value="choice" ' + (q.type !== 'essay' ? 'selected' : '') + '>اختيار من متعدد</option>';
+  html += '<option value="essay" ' + (q.type === 'essay' ? 'selected' : '') + '>سؤال مقالي</option>';
+  html += '</select>';
+  html += '</div>';
+  html += '<button class="btn btn-xs" style="background:#ef4444;color:#fff;" onclick="removeQuestion(' + idx + ')"><i class="fas fa-trash"></i></button>';
+  html += '</div>';
+  html += '<textarea onchange="updateQuestion(' + idx + ', \'question\', this.value)" placeholder="نص السؤال" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;resize:vertical;margin-bottom:8px;" rows="2">' + escHtml(q.question || '') + '</textarea>';
+  if (q.type === 'essay') {
+    html += '<textarea onchange="updateQuestion(' + idx + ', \'modelAnswer\', this.value)" placeholder="الإجابة النموذجية (اختياري)" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;resize:vertical;" rows="2">' + escHtml(q.modelAnswer || '') + '</textarea>';
+  } else {
+    var opts = q.options || ['', '', '', ''];
+    for (var oi = 0; oi < 4; oi++) {
+      html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">';
+      html += '<span style="width:20px;text-align:center;font-weight:700;">' + String.fromCharCode(65 + oi) + '</span>';
+      html += '<input type="text" onchange="updateQuestionOption(' + idx + ', ' + oi + ', this.value)" value="' + escHtml(opts[oi] || '') + '" placeholder="الخيار ' + String.fromCharCode(65 + oi) + '" style="flex:1;padding:6px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;">';
+      html += '<input type="radio" name="correct_' + idx + '" value="' + oi + '" ' + (q.correct === oi ? 'checked' : '') + ' onchange="setCorrect(' + idx + ', ' + oi + ')">';
+      html += '</div>';
+    }
+  }
+  html += '</div>';
+  return html;
+}
+
+function changeQuestionType(idx, type) {
+  if (type === 'essay') {
+    currentQuestions[idx].type = 'essay';
+    currentQuestions[idx].options = undefined;
+  } else {
+    currentQuestions[idx].type = 'choice';
+    if (!currentQuestions[idx].options) currentQuestions[idx].options = ['', '', '', ''];
+  }
+  renderQuestions();
+}
+
+function updateQuestion(idx, field, value) {
+  currentQuestions[idx][field] = value;
+}
+
+function updateQuestionOption(idx, oi, value) {
+  if (!currentQuestions[idx].options) currentQuestions[idx].options = ['', '', '', ''];
+  currentQuestions[idx].options[oi] = value;
+}
+
+function setCorrect(idx, oi) {
+  currentQuestions[idx].correct = oi;
+}
+
+function removeQuestion(idx) {
+  currentQuestions.splice(idx, 1);
+  renderQuestions();
+  updateQuestionCount();
+}
+
+function addQuestion() {
+  currentQuestions.push({ question: '', type: 'choice', options: ['', '', '', ''], correct: 0 });
+  renderQuestions();
+  updateQuestionCount();
+}
+
+function updateQuestionCount() {
+  document.getElementById('questionCount').textContent = currentQuestions.length + ' سؤال';
+}
+
+function cancelEdit() {
+  if (confirm('هل تريد إلغاء التعديلات؟ سيتم فقدان التغييرات غير المحفوظة.')) {
+    location.reload();
+  }
+}
+
+function saveExam() {
+  var title = document.getElementById('examTitleEdit').value.trim() || 'اختبار شامل المنهج';
+  var timeMinutes = parseInt(document.getElementById('examTimeEdit').value) || 30;
+  var passPct = parseInt(document.getElementById('examPassPctEdit').value) || 60;
+  var enabled = document.getElementById('examEnabledEdit').checked;
+  var fileName = (parsedData && parsedData.fileName) || (<%- JSON.stringify(existingExam ? existingExam.fileName : '') %>);
+
+  // Validate questions
+  for (var i = 0; i < currentQuestions.length; i++) {
+    var q = currentQuestions[i];
+    if (!q.question || !q.question.trim()) {
+      alert('يرجى إكمال نص السؤال رقم ' + (i + 1));
+      return;
+    }
+    if (q.type !== 'essay' && (!q.options || q.options.length < 2 || q.options.some(function(o) { return !o || !o.trim(); }))) {
+      alert('يرجى إكمال جميع الخيارات للسؤال رقم ' + (i + 1));
+      return;
+    }
+  }
+
+  if (currentQuestions.length === 0) {
+    alert('يرجى إضافة أسئلة قبل الحفظ');
+    return;
+  }
+
+  fetch('/api/admin/save-comprehensive-exam', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      title: title,
+      timeMinutes: timeMinutes,
+      passPercentage: passPct,
+      enabled: enabled,
+      questions: currentQuestions,
+      fileName: fileName
+    })
+  }).then(function(r){ return r.json(); })
+    .then(function(d){
+      if (d.success) {
+        alert('تم حفظ الاختبار بنجاح (' + d.exam.questionCount + ' سؤال)');
+        location.reload();
+      } else {
+        alert(d.error || 'فشل الحفظ');
+      }
+    }).catch(function(){ alert('خطأ في الاتصال'); });
+}
+
+function editExam() {
+  document.getElementById('uploadSection').style.display = 'none';
+  document.getElementById('editorSection').style.display = 'block';
+  renderQuestions();
+  updateQuestionCount();
+}
+
+function deleteExam() {
+  if (!confirm('هل أنت متأكد من حذف الاختبار الشامل؟ لا يمكن التراجع.')) return;
+  fetch('/api/admin/comprehensive-exam', {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest'
+    }
+  })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (d.success) { alert('تم حذف الاختبار'); location.reload(); }
+      else { alert(d.error || 'فشل الحذف'); }
+    }).catch(function(){ alert('خطأ في الاتصال'); });
+}
+
+function toggleExamEnabled() {
+  var enabled = document.getElementById('examEnabledEdit').checked;
+  fetch('/api/admin/comprehensive-exam/toggle', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ enabled: enabled })
+  }).then(function(r){ return r.json(); })
+    .then(function(d){
+      if (!d.success) {
+        alert(d.error || 'فشل التحديث');
+        document.getElementById('examEnabledEdit').checked = !enabled;
+      }
+    }).catch(function(){ alert('خطأ في الاتصال'); });
+}
+
+function escHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+}
+</script>
+<%- include('../partials/footer') %>
