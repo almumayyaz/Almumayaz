@@ -106,6 +106,7 @@
 
 <script>
 function editExam() {
+  console.log('[editExam] Button clicked');
   document.getElementById('uploadSection').style.display = 'none';
   document.getElementById('editorSection').style.display = 'block';
   renderQuestions();
@@ -113,6 +114,7 @@ function editExam() {
 }
 
 function deleteExam() {
+  console.log('[deleteExam] Button clicked');
   if (!confirm('هل أنت متأكد من حذف الاختبار الشامل؟ لا يمكن التراجع.')) return;
   fetch('/api/admin/comprehensive-exam', {
     method: 'DELETE',
@@ -310,6 +312,7 @@ function saveExam() {
 }
 
 function editExam() {
+  console.log('[editExam] Button clicked');
   document.getElementById('uploadSection').style.display = 'none';
   document.getElementById('editorSection').style.display = 'block';
   renderQuestions();
@@ -317,6 +320,7 @@ function editExam() {
 }
 
 function deleteExam() {
+  console.log('[deleteExam] Button clicked');
   if (!confirm('هل أنت متأكد من حذف الاختبار الشامل؟ لا يمكن التراجع.')) return;
   fetch('/api/admin/comprehensive-exam', {
     method: 'DELETE',
