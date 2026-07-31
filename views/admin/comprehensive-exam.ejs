@@ -23,10 +23,10 @@
         </p>
       </div>
       <div style="display:flex;gap:8px;">
-        <button class="btn btn-sm" style="background:var(--accent);color:#fff;" onclick="editExam()">
+        <button id="editExamBtn" class="btn btn-sm" style="background:var(--accent);color:#fff;">
           <i class="fas fa-edit"></i> تعديل
         </button>
-        <button class="btn btn-sm" style="background:#ef4444;color:#fff;" onclick="deleteExam()">
+        <button id="deleteExamBtn" class="btn btn-sm" style="background:#ef4444;color:#fff;">
           <i class="fas fa-trash"></i> حذف
         </button>
       </div>
@@ -340,6 +340,19 @@ function toggleExamEnabled() {
         document.getElementById('examEnabledEdit').checked = !enabled;
       }
     }).catch(function(){ alert('خطأ في الاتصال'); });
+}
+
+// Add event listeners after DOM is fully loaded
+function setupEventListeners() {
+  document.getElementById('editExamBtn')?.addEventListener('click', editExam);
+  document.getElementById('deleteExamBtn')?.addEventListener('click', deleteExam);
+}
+
+// Run setup when DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', setupEventListeners);
+} else {
+  setupEventListeners();
 }
 
 function escHtml(str) {
