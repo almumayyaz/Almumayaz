@@ -136,7 +136,7 @@ var currentQuestions = [];
   document.getElementById('examTimeEdit').value = '<%= existingExam.timeSettings && existingExam.timeSettings.minutes ? existingExam.timeSettings.minutes : '' %>';
   document.getElementById('examPassPctEdit').value = '<%= existingExam.passPercentage || 60 %>';
   document.getElementById('examEnabledEdit').checked = <%= existingExam.enabled !== false %>;
-  currentQuestions = <%- JSON.stringify(existingExam.questions || []) %>;
+  currentQuestions = <%- existingExam && existingExam.questions ? JSON.stringify(existingExam.questions) : '[]' %>;
   showQuestionsEditor();
 <% } %>
 
@@ -357,7 +357,12 @@ if (document.readyState === 'loading') {
 
 function escHtml(str) {
   if (!str) return '';
-  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 </script>
 <%- include('../partials/footer') %>
