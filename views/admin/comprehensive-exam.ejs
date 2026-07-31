@@ -136,7 +136,12 @@ var currentQuestions = [];
   document.getElementById('examTimeEdit').value = '<%= existingExam.timeSettings && existingExam.timeSettings.minutes ? existingExam.timeSettings.minutes : '' %>';
   document.getElementById('examPassPctEdit').value = '<%= existingExam.passPercentage || 60 %>';
   document.getElementById('examEnabledEdit').checked = <%= existingExam.enabled !== false %>;
-  currentQuestions = <%- existingExam && existingExam.questions ? JSON.stringify(existingExam.questions) : '[]' %>;
+  try {
+    currentQuestions = <%- existingExam && existingExam.questions ? JSON.stringify(existingExam.questions || []) : '[]' %>;
+  } catch (e) {
+    console.error('Error parsing questions:', e);
+    currentQuestions = [];
+  }
   showQuestionsEditor();
 <% } %>
 
